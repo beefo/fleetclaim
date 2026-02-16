@@ -1,0 +1,16 @@
+{
+  "name": "FleetClaim",
+  "supportEmail": "support@fleetclaim.app",
+  "version": "1.0.0",
+  "items": [
+    {
+      "url": "index.html",
+      "path": "ActivityLink",
+      "menuName": {
+        "en": "Claim Reports"
+      },
+      "icon": "images/icon.svg"
+    }
+  ],
+  "isSigned": false
+}

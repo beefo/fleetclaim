@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FleetClaim</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <h1>🛡️ FleetClaim</h1>
+            <p class="subtitle">Incident Evidence Reports</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="reports">Reports</button>
+            <button class="tab" data-tab="requests">Pending Requests</button>
+        </div>
+        
+        <div id="reports-tab" class="tab-content active">
+            <div class="toolbar">
+                <input type="text" id="search" placeholder="Search incidents..." class="search-input">
+                <select id="severity-filter" class="filter-select">
+                    <option value="">All Severities</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+                <button id="refresh-btn" class="btn btn-secondary">↻ Refresh</button>
+            </div>
+            
+            <div id="reports-list" class="reports-list">
+                <div class="loading">Loading reports...</div>
+            </div>
+        </div>
+        
+        <div id="requests-tab" class="tab-content">
+            <div id="requests-list" class="reports-list">
+                <div class="loading">Loading requests...</div>
+            </div>
+        </div>
+        
+        <!-- Report Detail Modal -->
+        <div id="report-modal" class="modal hidden">
+            <div class="modal-content">
+                <button class="modal-close">&times;</button>
+                <div id="report-detail"></div>
+            </div>
+        </div>
+        
+        <!-- Request Report Modal -->
+        <div id="request-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Request Report</h2>
+                <p>Enter the Exception Event ID to generate a report:</p>
+                <input type="text" id="incident-id-input" placeholder="Exception Event ID" class="input-full">
+                <div class="modal-actions">
+                    <button id="cancel-request" class="btn btn-secondary">Cancel</button>
+                    <button id="submit-request" class="btn btn-primary">Request Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="fleetclaim.js"></script>
+</body>
+</html>

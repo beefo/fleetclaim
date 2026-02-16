@@ -1,0 +1,24 @@
+# GCP Project Configuration
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+
+# Docker Images (after building and pushing)
+worker_image = "gcr.io/your-gcp-project-id/fleetclaim-worker:latest"
+api_image    = "gcr.io/your-gcp-project-id/fleetclaim-api:latest"
+
+# Share Link Configuration
+share_link_base_url = "https://fleetclaim-api-xxxxx-uc.a.run.app"
+
+# Optional: Email Notifications (SendGrid)
+# sendgrid_api_key = "SG.xxxx"
+
+# Optional: Google Maps for PDF static maps
+# google_maps_api_key = "AIzaXXXX"
+
+# Worker Schedule (cron format)
+worker_schedule = "*/5 * * * *"  # Every 5 minutes
+worker_timeout  = 300            # 5 minutes
+
+# API Scaling
+api_min_instances = 0   # Scale to zero when idle
+api_max_instances = 10

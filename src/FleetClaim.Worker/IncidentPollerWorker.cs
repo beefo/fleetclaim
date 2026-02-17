@@ -20,9 +20,8 @@ public class IncidentPollerWorker : BackgroundService
     private readonly IAddInDataRepository _repository;
     private readonly IReportGenerator _reportGenerator;
     private readonly INotificationService _notificationService;
+    private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ILogger<IncidentPollerWorker> _logger;
-    
-    private readonly TimeSpan _pollInterval = TimeSpan.FromMinutes(2);
     
     // Track last poll version per database (in production, persist this)
     private readonly Dictionary<string, long> _feedVersions = new();
@@ -33,6 +32,7 @@ public class IncidentPollerWorker : BackgroundService
         IAddInDataRepository repository,
         IReportGenerator reportGenerator,
         INotificationService notificationService,
+        IHostApplicationLifetime hostLifetime,
         ILogger<IncidentPollerWorker> logger)
     {
         _credentialStore = credentialStore;
@@ -40,26 +40,27 @@ public class IncidentPollerWorker : BackgroundService
         _repository = repository;
         _reportGenerator = reportGenerator;
         _notificationService = notificationService;
+        _hostLifetime = hostLifetime;
         _logger = logger;
     }
     
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        _logger.LogInformation("FleetClaim Worker starting");
+        _logger.LogInformation("FleetClaim Worker starting (single-run mode for Cloud Run Jobs)");
         
-        while (!ct.IsCancellationRequested)
+        try
         {
-            try
-            {
-                await PollAllDatabasesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during poll cycle");
-            }
-            
-            await Task.Delay(_pollInterval, ct);
+            await PollAllDatabasesAsync(ct);
+            _logger.LogInformation("FleetClaim Worker completed successfully");
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during poll cycle");
+            throw; // Re-throw to fail the job
+        }
+        
+        // Signal host to stop after single run (Cloud Run Job pattern)
+        _hostLifetime.StopApplication();
     }
     
     private async Task PollAllDatabasesAsync(CancellationToken ct)

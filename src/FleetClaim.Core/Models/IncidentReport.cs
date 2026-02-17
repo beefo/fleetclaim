@@ -15,6 +15,12 @@ public class IncidentReport
     public EvidencePackage Evidence { get; set; } = new();
     public string? PdfBase64 { get; set; }
     public string? ShareUrl { get; set; }
+    
+    /// <summary>
+    /// True if this report was generated manually without a collision event trigger.
+    /// The report contains vehicle data for the time period but no specific incident.
+    /// </summary>
+    public bool IsBaselineReport { get; set; } = false;
 }
 
 public enum IncidentSeverity

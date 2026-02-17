@@ -150,8 +150,8 @@ public class IncidentPollerWorker : BackgroundService
         
         foreach (var request in requests)
         {
-            _logger.LogInformation("Processing request {RequestId} for device {DeviceId} ({FromDate} to {ToDate})",
-                request.Id, request.DeviceId, request.FromDate, request.ToDate);
+            _logger.LogInformation("Processing request {RequestId} for device {DeviceId} ({FromDate} to {ToDate}), ForceReport={ForceReport}",
+                request.Id, request.DeviceId, request.FromDate, request.ToDate, request.ForceReport);
             
             try
             {
@@ -175,7 +175,11 @@ public class IncidentPollerWorker : BackgroundService
                     .Where(e => e.Rule?.Name?.Contains("Collision", StringComparison.OrdinalIgnoreCase) == true)
                     .ToList() ?? [];
                 
-                if (collisionIncidents.Count == 0)
+                // Get config for notifications
+                var config = await _repository.GetConfigAsync(api, ct) ?? new CustomerConfig();
+                int reportsGenerated = 0;
+                
+                if (collisionIncidents.Count == 0 && !request.ForceReport)
                 {
                     _logger.LogInformation("No collision incidents found for device {DeviceId}", request.DeviceId);
                     await _repository.UpdateRequestStatusAsync(api, request.Id,
@@ -183,14 +187,34 @@ public class IncidentPollerWorker : BackgroundService
                     continue;
                 }
                 
+                if (collisionIncidents.Count == 0 && request.ForceReport)
+                {
+                    // Generate baseline report without incident
+                    _logger.LogInformation("No collision incidents found, but ForceReport=true - generating baseline report for device {DeviceId}", 
+                        request.DeviceId);
+                    
+                    try
+                    {
+                        var baselineReport = await GenerateBaselineReportAsync(api, request, api.Database ?? "unknown", ct);
+                        await _repository.SaveReportAsync(api, baselineReport, ct);
+                        reportsGenerated = 1;
+                        _logger.LogInformation("Generated baseline report {ReportId} for device {DeviceId}", 
+                            baselineReport.Id, request.DeviceId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to generate baseline report for device {DeviceId}", request.DeviceId);
+                    }
+                    
+                    await _repository.UpdateRequestStatusAsync(api, request.Id,
+                        ReportRequestStatus.Completed, incidentsFound: 0, reportsGenerated: reportsGenerated, ct: ct);
+                    continue;
+                }
+                
                 _logger.LogInformation("Found {Count} collision incidents for device {DeviceId}", 
                     collisionIncidents.Count, request.DeviceId);
                 
-                // Get config for notifications
-                var config = await _repository.GetConfigAsync(api, ct) ?? new CustomerConfig();
-                
                 // Generate reports for each incident
-                int reportsGenerated = 0;
                 foreach (var incident in collisionIncidents)
                 {
                     try
@@ -218,6 +242,89 @@ public class IncidentPollerWorker : BackgroundService
                     ReportRequestStatus.Failed, error: ex.Message, ct: ct);
             }
         }
+    }
+    
+    /// <summary>
+    /// Generates a baseline report for a device/time range without a specific collision incident.
+    /// Useful for documenting vehicle state at a point in time.
+    /// </summary>
+    private async Task<IncidentReport> GenerateBaselineReportAsync(
+        API api,
+        ReportRequest request,
+        string database,
+        CancellationToken ct)
+    {
+        // Get device info
+        var devices = await api.CallAsync<List<Device>>("Get", typeof(Device), new
+        {
+            search = new { id = request.DeviceId }
+        }, ct);
+        var device = devices?.FirstOrDefault();
+        
+        // Get GPS trail for the time range
+        var logRecords = await api.CallAsync<List<LogRecord>>("Get", typeof(LogRecord), new
+        {
+            search = new
+            {
+                deviceSearch = new { id = request.DeviceId },
+                fromDate = request.FromDate,
+                toDate = request.ToDate
+            }
+        }, ct);
+        
+        var gpsTrail = logRecords?
+            .OrderBy(r => r.DateTime)
+            .Select(r => new GpsPoint
+            {
+                Timestamp = r.DateTime ?? DateTime.UtcNow,
+                Latitude = r.Latitude ?? 0,
+                Longitude = r.Longitude ?? 0,
+                SpeedKmh = r.Speed
+            })
+            .ToList() ?? [];
+        
+        var maxSpeed = gpsTrail.Any() ? gpsTrail.Max(p => p.SpeedKmh ?? 0) : 0;
+        var midPoint = gpsTrail.Count > 0 ? gpsTrail[gpsTrail.Count / 2] : null;
+        
+        // Build the baseline report
+        var report = new IncidentReport
+        {
+            Id = $"rpt_{Guid.NewGuid():N}"[..16],
+            IncidentId = $"baseline_{request.Id}",
+            VehicleId = request.DeviceId,
+            VehicleName = device?.Name ?? request.DeviceName,
+            OccurredAt = request.FromDate,
+            GeneratedAt = DateTime.UtcNow,
+            Severity = IncidentSeverity.Low,  // Baseline reports are informational
+            IsBaselineReport = true,
+            Summary = $"Baseline report for {device?.Name ?? request.DeviceId} ({request.FromDate:g} to {request.ToDate:g}). " +
+                      $"No collision event detected. This report was manually requested for documentation purposes.",
+            Evidence = new EvidencePackage
+            {
+                GpsTrail = gpsTrail,
+                MaxSpeedKmh = maxSpeed,
+                SpeedAtEventKmh = midPoint?.SpeedKmh
+            }
+        };
+        
+        // Try to get weather for the location if we have GPS data
+        if (midPoint != null)
+        {
+            try
+            {
+                var weatherService = new OpenMeteoWeatherService();
+                var weather = await weatherService.GetWeatherAsync(
+                    midPoint.Latitude, midPoint.Longitude, request.FromDate, ct);
+                report.Evidence.WeatherCondition = weather.Condition;
+                report.Evidence.TemperatureCelsius = weather.TemperatureCelsius;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch weather for baseline report");
+            }
+        }
+        
+        return report;
     }
     
     private async Task GenerateAndSaveReportAsync(

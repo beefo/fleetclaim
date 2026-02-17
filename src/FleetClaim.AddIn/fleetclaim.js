@@ -177,21 +177,26 @@ function renderReports(reportsToRender) {
         return;
     }
     
-    listEl.innerHTML = reportsToRender.map(report => `
+    listEl.innerHTML = reportsToRender.map(report => {
+        const isBaseline = report.isBaselineReport || (report.incidentId && report.incidentId.startsWith('baseline_'));
+        return `
         <div class="report-card" data-id="${report.id}">
             <div class="report-info">
-                <div class="report-title">${escapeHtml(report.summary || 'Incident Report')}</div>
+                <div class="report-title">
+                    ${isBaseline ? '📋' : '⚠️'} ${escapeHtml(report.summary || 'Incident Report')}
+                </div>
                 <div class="report-meta">
                     <span>🚗 ${escapeHtml(report.vehicleName || report.vehicleId || 'Unknown')}</span>
                     <span>👤 ${escapeHtml(report.driverName || 'Unknown Driver')}</span>
                     <span>📅 ${formatDate(report.occurredAt)}</span>
+                    ${isBaseline ? '<span class="baseline-tag">Baseline</span>' : ''}
                 </div>
             </div>
             <span class="severity severity-${(report.severity || 'medium').toLowerCase()}">
                 ${report.severity || 'Medium'}
             </span>
         </div>
-    `).join('');
+    `}).join('');
     
     // Add click handlers
     listEl.querySelectorAll('.report-card').forEach(card => {
@@ -240,16 +245,26 @@ function showReportDetail(report) {
     const detailEl = document.getElementById('report-detail');
     const evidence = report.evidence || {};
     
+    const isBaseline = report.isBaselineReport || (report.incidentId && report.incidentId.startsWith('baseline_'));
+    
     detailEl.innerHTML = `
         <div class="report-detail-header">
             <h2>${escapeHtml(report.summary || 'Incident Report')}</h2>
             <span class="severity severity-${(report.severity || 'medium').toLowerCase()}">
                 ${report.severity || 'Medium'}
             </span>
+            ${isBaseline ? '<span class="baseline-badge">📋 Baseline Report</span>' : ''}
         </div>
         
+        ${isBaseline ? `
+        <div class="baseline-notice">
+            <strong>ℹ️ Baseline Report:</strong> This report was generated manually without a collision event trigger. 
+            It documents vehicle data for the requested time period for reference purposes.
+        </div>
+        ` : ''}
+        
         <div class="report-section">
-            <h3>Incident Details</h3>
+            <h3>${isBaseline ? 'Vehicle Details' : 'Incident Details'}</h3>
             <div class="evidence-grid">
                 <div class="evidence-item">
                     <label>Vehicle</label>
@@ -359,6 +374,7 @@ async function submitReportRequest() {
     const deviceId = document.getElementById('device-select').value;
     const fromDatetime = document.getElementById('from-datetime').value;
     const toDatetime = document.getElementById('to-datetime').value;
+    const forceReport = document.getElementById('force-report').checked;
     
     if (!deviceId) {
         alert('Please select a vehicle');
@@ -390,7 +406,8 @@ async function submitReportRequest() {
                 toDate: new Date(toDatetime).toISOString(),
                 requestedBy: userEmail,
                 requestedAt: new Date().toISOString(),
-                status: 'Pending'
+                status: 'Pending',
+                forceReport: forceReport  // Generate report even without collision event
             }
         };
         

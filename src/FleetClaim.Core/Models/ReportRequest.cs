@@ -37,6 +37,10 @@ public class ReportRequest
     [JsonPropertyName("errorMessage")]
     public string? ErrorMessage { get; set; }
     
+    // Force report generation even without collision event
+    [JsonPropertyName("forceReport")]
+    public bool ForceReport { get; set; } = false;
+    
     // Results
     [JsonPropertyName("incidentsFound")]
     public int? IncidentsFound { get; set; }

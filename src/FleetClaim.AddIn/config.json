@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "items": [
     {
-      "url": "index.html",
+      "page": "index.html",
+      "scripts": ["fleetclaim.js"],
+      "styles": ["styles.css"],
       "path": "ActivityLink",
       "menuName": {
         "en": "Claim Reports"

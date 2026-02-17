@@ -5,7 +5,8 @@
  * Does NOT process incidents - that's handled by the backend worker.
  */
 
-const ADDIN_ID = 'fleetClaim';
+// Add-In ID must be a GUID for MyGeotab AddInData
+const ADDIN_ID = '1de32f8e-8401-4df2-930e-8751f2d66ba7';
 
 // Geotab API instance (injected by MyGeotab)
 let api = null;
@@ -13,14 +14,51 @@ let state = null;
 let reports = [];
 let requests = [];
 
+// Ensure geotab object exists
+if (typeof geotab === 'undefined') {
+    window.geotab = { addin: {} };
+}
+if (!geotab.addin) {
+    geotab.addin = {};
+}
+
 // Initialize the Add-In
-geotab.addin.fleetClaim = function(geotabApi, pageState) {
+// The function name MUST match the Add-In name (lowercased, spaces removed)
+// For "FleetClaim" -> "fleetclaim"
+geotab.addin.fleetclaim = function(geotabApi, pageState) {
     api = geotabApi;
     state = pageState;
     
-    initializeUI();
+    console.log('FleetClaim Add-In initializing...');
+    
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeUI();
+            loadReports();
+            loadRequests();
+        });
+    } else {
+        initializeUI();
+        loadReports();
+        loadRequests();
+    }
+    
+    console.log('FleetClaim Add-In initialized');
+};
+
+// Focus handler - called when Add-In page becomes active
+geotab.addin.fleetclaim.focus = function(geotabApi, pageState) {
+    console.log('FleetClaim focused');
+    api = geotabApi;
+    state = pageState;
     loadReports();
     loadRequests();
+};
+
+// Blur handler - called when user navigates away
+geotab.addin.fleetclaim.blur = function() {
+    console.log('FleetClaim blurred');
 };
 
 function initializeUI() {
@@ -84,6 +122,7 @@ async function loadReports() {
         
         renderReports(reports);
     } catch (err) {
+        console.error('Error loading reports:', err);
         listEl.innerHTML = `<div class="empty-state"><h3>Error loading reports</h3><p>${err.message}</p></div>`;
     }
 }
@@ -116,6 +155,7 @@ async function loadRequests() {
         
         renderRequests(requests);
     } catch (err) {
+        console.error('Error loading requests:', err);
         listEl.innerHTML = `<div class="empty-state"><h3>Error loading requests</h3><p>${err.message}</p></div>`;
     }
 }
@@ -127,7 +167,7 @@ function renderReports(reportsToRender) {
         listEl.innerHTML = `
             <div class="empty-state">
                 <h3>No reports yet</h3>
-                <p>Reports will appear here when incidents are detected.</p>
+                <p>Reports will appear here when incidents are detected and processed by FleetClaim.</p>
             </div>`;
         return;
     }
@@ -343,6 +383,10 @@ function filterReports() {
 // Utilities
 function apiCall(method, params) {
     return new Promise((resolve, reject) => {
+        if (!api) {
+            reject(new Error('API not initialized'));
+            return;
+        }
         api.call(method, params, resolve, reject);
     });
 }

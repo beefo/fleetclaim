@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FleetClaim.Api", "src\Fleet
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FleetClaim.Tests", "src\FleetClaim.Tests\FleetClaim.Tests.csproj", "{D4E5F6A7-4567-89AB-CDEF-012345678901}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FleetClaim.Admin", "src\FleetClaim.Admin\FleetClaim.Admin.csproj", "{E5F6A7B8-5678-9ABC-DEF0-123456789012}"
+EndProject
 
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,5 +36,9 @@ Global
 		{D4E5F6A7-4567-89AB-CDEF-012345678901}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D4E5F6A7-4567-89AB-CDEF-012345678901}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D4E5F6A7-4567-89AB-CDEF-012345678901}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E5F6A7B8-5678-9ABC-DEF0-123456789012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E5F6A7B8-5678-9ABC-DEF0-123456789012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E5F6A7B8-5678-9ABC-DEF0-123456789012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E5F6A7B8-5678-9ABC-DEF0-123456789012}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

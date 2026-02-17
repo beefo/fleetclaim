@@ -66,6 +66,29 @@ steps:
       - 'push'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
 
+  # Build Admin image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
+      - '-f'
+      - 'src/FleetClaim.Admin/Dockerfile'
+      - '.'
+
+  # Push Admin image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
+
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
@@ -73,6 +96,8 @@ images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

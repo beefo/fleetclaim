@@ -168,13 +168,11 @@ public class AddInDataRepository : IAddInDataRepository
     
     private async Task UpdateExistingRecordAsync(API api, string geotabId, AddInDataWrapper wrapper, CancellationToken ct)
     {
-        var entity = new
-        {
-            id = geotabId,
-            addInId = AddInIdValue,
-            details = wrapper
-        };
+        // AddInData doesn't support Set properly - use Remove then Add pattern
+        // First remove the old record
+        await api.CallAsync<object>("Remove", typeof(AddInData), new { entity = new { id = geotabId } }, ct);
         
-        await api.CallAsync<object>("Set", typeof(AddInData), new { entity }, ct);
+        // Then add the updated record
+        await AddNewRecordAsync(api, wrapper, ct);
     }
 }

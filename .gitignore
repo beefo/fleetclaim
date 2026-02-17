@@ -36,3 +36,7 @@ logs/
 # Test results
 TestResults/
 coverage/
+
+# Node
+node_modules/
+package-lock.json

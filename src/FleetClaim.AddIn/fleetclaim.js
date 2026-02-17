@@ -219,8 +219,8 @@ function renderRequests(requestsToRender) {
             <div class="report-info">
                 <div class="report-title">🚗 ${escapeHtml(req.deviceName || req.deviceId || 'Unknown Vehicle')}</div>
                 <div class="report-meta">
-                    <span>📅 ${formatDateShort(req.fromDate)} - ${formatDateShort(req.toDate)}</span>
-                    <span>Requested: ${formatDate(req.requestedAt)}</span>
+                    <span>📅 ${formatDate(req.fromDate)} - ${formatDate(req.toDate)}</span>
+                    <span>By: ${escapeHtml(req.requestedBy || 'Unknown')}</span>
                     ${req.incidentsFound !== undefined ? `<span>Found: ${req.incidentsFound} incidents</span>` : ''}
                 </div>
             </div>
@@ -327,12 +327,18 @@ async function loadDevices() {
 function showRequestModal() {
     document.getElementById('request-modal').classList.remove('hidden');
     
-    // Set default dates (last 30 days)
-    const today = new Date();
-    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    // Set default times (last 1 hour)
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     
-    document.getElementById('to-date').value = today.toISOString().split('T')[0];
-    document.getElementById('from-date').value = thirtyDaysAgo.toISOString().split('T')[0];
+    // Format for datetime-local input (YYYY-MM-DDTHH:MM)
+    const formatDatetime = (d) => {
+        const pad = (n) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    
+    document.getElementById('to-datetime').value = formatDatetime(now);
+    document.getElementById('from-datetime').value = formatDatetime(oneHourAgo);
     
     // Load devices if not already loaded
     if (devices.length === 0) {
@@ -346,15 +352,15 @@ function closeRequestModal() {
 
 async function submitReportRequest() {
     const deviceId = document.getElementById('device-select').value;
-    const fromDate = document.getElementById('from-date').value;
-    const toDate = document.getElementById('to-date').value;
+    const fromDatetime = document.getElementById('from-datetime').value;
+    const toDatetime = document.getElementById('to-datetime').value;
     
     if (!deviceId) {
         alert('Please select a vehicle');
         return;
     }
-    if (!fromDate || !toDate) {
-        alert('Please select both from and to dates');
+    if (!fromDatetime || !toDatetime) {
+        alert('Please select both from and to times');
         return;
     }
     
@@ -375,8 +381,8 @@ async function submitReportRequest() {
                 id: `req_${Date.now().toString(36)}`,
                 deviceId: deviceId,
                 deviceName: selectedDevice?.name || deviceId,
-                fromDate: new Date(fromDate).toISOString(),
-                toDate: new Date(toDate + 'T23:59:59').toISOString(),
+                fromDate: new Date(fromDatetime).toISOString(),
+                toDate: new Date(toDatetime).toISOString(),
                 requestedBy: userEmail,
                 requestedAt: new Date().toISOString(),
                 status: 'Pending'

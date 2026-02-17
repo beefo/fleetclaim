@@ -52,9 +52,9 @@
         
         <!-- Request Report Modal -->
         <div id="request-modal" class="modal hidden">
-            <div class="modal-content">
+            <div class="modal-content modal-request">
                 <h2>Request Collision Report</h2>
-                <p>Select a vehicle and date range to search for collision events:</p>
+                <p>Select a vehicle and time range to search for collision events:</p>
                 
                 <div class="form-group">
                     <label for="device-select">Vehicle</label>
@@ -65,12 +65,12 @@
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="from-date">From Date</label>
-                        <input type="date" id="from-date" class="input-full">
+                        <label for="from-datetime">From</label>
+                        <input type="datetime-local" id="from-datetime" class="input-full">
                     </div>
                     <div class="form-group">
-                        <label for="to-date">To Date</label>
-                        <input type="date" id="to-date" class="input-full">
+                        <label for="to-datetime">To</label>
+                        <input type="datetime-local" id="to-datetime" class="input-full">
                     </div>
                 </div>
                 

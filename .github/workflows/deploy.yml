@@ -69,6 +69,14 @@ jobs:
             --region=${{ env.GCP_REGION }} \
             --quiet
 
+      - name: Deploy Add-In to Cloud Run
+        run: |
+          gcloud run deploy fleetclaim-addin \
+            --image=us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/fleetclaim/addin:${{ github.sha }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --quiet
+
       - name: Get Deployment Info
         run: |
           API_URL=$(gcloud run services describe fleetclaim-api --region=${{ env.GCP_REGION }} --format='value(status.url)')

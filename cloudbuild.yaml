@@ -45,11 +45,34 @@ steps:
       - 'push'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
 
+  # Build Add-In image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
+      - 'src/FleetClaim.AddIn'
+
+  # Push Add-In image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
+
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

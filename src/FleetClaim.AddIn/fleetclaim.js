@@ -108,13 +108,13 @@ async function loadReports() {
         reports = addInData
             .map(item => {
                 try {
-                    const wrapper = typeof item.data === 'string' 
-                        ? JSON.parse(item.data) 
-                        : item.data;
-                    if (wrapper.type === 'report') {
+                    // Geotab API returns 'details', not 'data'
+                    const raw = item.details || item.data;
+                    const wrapper = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    if (wrapper && wrapper.type === 'report') {
                         return wrapper.payload || wrapper;
                     }
-                } catch (e) {}
+                } catch (e) { console.warn('Error parsing report:', e); }
                 return null;
             })
             .filter(r => r !== null)
@@ -131,6 +131,7 @@ async function loadReports() {
 async function loadRequests() {
     const listEl = document.getElementById('requests-list');
     listEl.innerHTML = '<div class="loading">Loading requests...</div>';
+    console.log('FleetClaim: Loading requests...');
     
     try {
         const addInData = await apiCall('Get', {
@@ -138,21 +139,25 @@ async function loadRequests() {
             search: { addInId: ADDIN_ID }
         });
         
+        console.log('FleetClaim: Got', addInData.length, 'AddInData records');
+        
         requests = addInData
             .map(item => {
                 try {
-                    const wrapper = typeof item.data === 'string' 
-                        ? JSON.parse(item.data) 
-                        : item.data;
-                    if (wrapper.type === 'reportRequest') {
+                    // Geotab API returns 'details', not 'data'
+                    const raw = item.details || item.data;
+                    console.log('FleetClaim: Processing item:', raw);
+                    const wrapper = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    if (wrapper && wrapper.type === 'reportRequest') {
                         return wrapper.payload || wrapper;
                     }
-                } catch (e) {}
+                } catch (e) { console.warn('FleetClaim: Error parsing request:', e); }
                 return null;
             })
             .filter(r => r !== null)
             .sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt));
         
+        console.log('FleetClaim: Found', requests.length, 'requests');
         renderRequests(requests);
     } catch (err) {
         console.error('Error loading requests:', err);
@@ -398,9 +403,16 @@ async function submitReportRequest() {
         });
         
         closeRequestModal();
-        loadRequests();
         
-        alert('Report requested! The worker will search for collision events and generate reports.');
+        // Switch to Pending Requests tab to show the new request
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelector('.tab[data-tab="requests"]').classList.add('active');
+        document.getElementById('requests-tab').classList.add('active');
+        
+        await loadRequests();
+        
+        alert('Report requested! Check the Pending Requests tab for status. The worker processes requests every 2 minutes.');
     } catch (err) {
         alert(`Error: ${err.message}`);
     }

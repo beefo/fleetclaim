@@ -5,8 +5,8 @@
  * Does NOT process incidents - that's handled by the backend worker.
  */
 
-// Add-In ID must be a GUID for MyGeotab AddInData
-const ADDIN_ID = '1de32f8e-8401-4df2-930e-8751f2d66ba7';
+// Add-In ID for MyGeotab AddInData
+const ADDIN_ID = 'aji_jHQGE8k2TDodR8tZrpw';
 
 // Geotab API instance (injected by MyGeotab)
 let api = null;

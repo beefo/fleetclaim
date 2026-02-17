@@ -1,0 +1,11 @@
+.git
+.gitignore
+node_modules/
+*.md
+scripts/
+.github/
+**/bin/
+**/obj/
+**/*.user
+.vs/
+.idea/

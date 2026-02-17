@@ -18,8 +18,8 @@ public interface IAddInDataRepository
 
 public class AddInDataRepository : IAddInDataRepository
 {
-    // Add-In ID must be a GUID for MyGeotab AddInData
-    private const string AddInIdValue = "1de32f8e-8401-4df2-930e-8751f2d66ba7";
+    // Add-In ID for MyGeotab AddInData
+    private const string AddInIdValue = "aji_jHQGE8k2TDodR8tZrpw";
     
     public async Task<List<IncidentReport>> GetReportsAsync(API api, DateTime? since = null, CancellationToken ct = default)
     {

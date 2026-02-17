@@ -178,10 +178,8 @@ public class IncidentPollerWorker : BackgroundService
                 if (collisionIncidents.Count == 0)
                 {
                     _logger.LogInformation("No collision incidents found for device {DeviceId}", request.DeviceId);
-                    request.IncidentsFound = 0;
-                    request.ReportsGenerated = 0;
                     await _repository.UpdateRequestStatusAsync(api, request.Id,
-                        ReportRequestStatus.Completed, ct: ct);
+                        ReportRequestStatus.Completed, incidentsFound: 0, reportsGenerated: 0, ct: ct);
                     continue;
                 }
                 
@@ -206,18 +204,18 @@ public class IncidentPollerWorker : BackgroundService
                     }
                 }
                 
-                request.IncidentsFound = collisionIncidents.Count;
-                request.ReportsGenerated = reportsGenerated;
-                
-                // Mark completed
+                // Mark completed with counts
                 await _repository.UpdateRequestStatusAsync(api, request.Id,
-                    ReportRequestStatus.Completed, ct: ct);
+                    ReportRequestStatus.Completed, 
+                    incidentsFound: collisionIncidents.Count, 
+                    reportsGenerated: reportsGenerated, 
+                    ct: ct);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request {RequestId}", request.Id);
                 await _repository.UpdateRequestStatusAsync(api, request.Id,
-                    ReportRequestStatus.Failed, ex.Message, ct);
+                    ReportRequestStatus.Failed, error: ex.Message, ct: ct);
             }
         }
     }

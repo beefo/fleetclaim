@@ -13,21 +13,32 @@ public interface IAddInDataRepository
     
     Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default);
     Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default);
-    Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, CancellationToken ct = default);
+    Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Internal record to track AddInData with its Geotab record ID
+/// </summary>
+internal record AddInDataRecord(string GeotabId, AddInDataWrapper Wrapper);
 
 public class AddInDataRepository : IAddInDataRepository
 {
     // Add-In ID for MyGeotab AddInData
     private const string AddInIdValue = "aji_jHQGE8k2TDodR8tZrpw";
     
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+    
     public async Task<List<IncidentReport>> GetReportsAsync(API api, DateTime? since = null, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
         
         return allData
-            .Where(w => w.Type == "report")
-            .Select(w => w.GetPayload<IncidentReport>())
+            .Where(r => r.Wrapper.Type == "report")
+            .Select(r => r.Wrapper.GetPayload<IncidentReport>())
             .Where(r => r != null && (since == null || r.GeneratedAt >= since))
             .Cast<IncidentReport>()
             .OrderByDescending(r => r.OccurredAt)
@@ -39,8 +50,8 @@ public class AddInDataRepository : IAddInDataRepository
         var allData = await GetAllAddInDataAsync(api, ct);
         
         return allData
-            .Where(w => w.Type == "reportRequest")
-            .Select(w => w.GetPayload<ReportRequest>())
+            .Where(r => r.Wrapper.Type == "reportRequest")
+            .Select(r => r.Wrapper.GetPayload<ReportRequest>())
             .Where(r => r != null && r.Status == ReportRequestStatus.Pending)
             .Cast<ReportRequest>()
             .OrderBy(r => r.RequestedAt)
@@ -52,39 +63,56 @@ public class AddInDataRepository : IAddInDataRepository
         var allData = await GetAllAddInDataAsync(api, ct);
         
         return allData
-            .FirstOrDefault(w => w.Type == "config")
-            ?.GetPayload<CustomerConfig>();
+            .FirstOrDefault(r => r.Wrapper.Type == "config")
+            ?.Wrapper.GetPayload<CustomerConfig>();
     }
     
     public async Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default)
     {
         var wrapper = AddInDataWrapper.ForReport(report);
-        await SaveAddInDataAsync(api, wrapper, ct);
+        await AddNewRecordAsync(api, wrapper, ct);
     }
     
     public async Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default)
     {
         var wrapper = AddInDataWrapper.ForRequest(request);
-        await SaveAddInDataAsync(api, wrapper, ct);
+        await AddNewRecordAsync(api, wrapper, ct);
     }
     
-    public async Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, CancellationToken ct = default)
+    public async Task UpdateRequestStatusAsync(
+        API api, 
+        string requestId, 
+        ReportRequestStatus status, 
+        string? error = null,
+        int? incidentsFound = null,
+        int? reportsGenerated = null,
+        CancellationToken ct = default)
     {
-        // Fetch existing request
-        var requests = await GetPendingRequestsAsync(api, ct);
-        var request = requests.FirstOrDefault(r => r.Id == requestId);
+        // Find the existing record with its Geotab ID
+        var allData = await GetAllAddInDataAsync(api, ct);
         
+        var record = allData.FirstOrDefault(r => 
+            r.Wrapper.Type == "reportRequest" && 
+            r.Wrapper.GetPayload<ReportRequest>()?.Id == requestId);
+        
+        if (record == null) return;
+        
+        var request = record.Wrapper.GetPayload<ReportRequest>();
         if (request == null) return;
         
+        // Update the request
         request.Status = status;
         request.ErrorMessage = error;
+        if (incidentsFound.HasValue) request.IncidentsFound = incidentsFound;
+        if (reportsGenerated.HasValue) request.ReportsGenerated = reportsGenerated;
         
-        await SaveRequestAsync(api, request, ct);
+        // Update the existing record using Set
+        var wrapper = AddInDataWrapper.ForRequest(request);
+        await UpdateExistingRecordAsync(api, record.GeotabId, wrapper, ct);
     }
     
-    private async Task<List<AddInDataWrapper>> GetAllAddInDataAsync(API api, CancellationToken ct)
+    private async Task<List<AddInDataRecord>> GetAllAddInDataAsync(API api, CancellationToken ct)
     {
-        // Use dynamic to work with AddInData's Details property
         var results = await api.CallAsync<List<object>>("Get", typeof(AddInData), new
         {
             search = new { addInId = AddInIdValue }
@@ -93,22 +121,29 @@ public class AddInDataRepository : IAddInDataRepository
         if (results == null || results.Count == 0)
             return [];
         
-        var wrappers = new List<AddInDataWrapper>();
+        var records = new List<AddInDataRecord>();
         
         foreach (var item in results)
         {
             try
             {
-                // Serialize and deserialize to get at the Details
                 var json = JsonSerializer.Serialize(item);
                 using var doc = JsonDocument.Parse(json);
                 
+                // Get the Geotab record ID
+                string? geotabId = null;
+                if (doc.RootElement.TryGetProperty("id", out var idElement))
+                    geotabId = idElement.GetString();
+                
+                if (string.IsNullOrEmpty(geotabId)) continue;
+                
+                // Get the details/wrapper
                 if (doc.RootElement.TryGetProperty("details", out var details) ||
                     doc.RootElement.TryGetProperty("Details", out details))
                 {
-                    var wrapper = details.Deserialize<AddInDataWrapper>();
+                    var wrapper = details.Deserialize<AddInDataWrapper>(JsonOptions);
                     if (wrapper != null)
-                        wrappers.Add(wrapper);
+                        records.Add(new AddInDataRecord(geotabId, wrapper));
                 }
             }
             catch
@@ -117,12 +152,11 @@ public class AddInDataRepository : IAddInDataRepository
             }
         }
         
-        return wrappers;
+        return records;
     }
     
-    private async Task SaveAddInDataAsync(API api, AddInDataWrapper wrapper, CancellationToken ct)
+    private async Task AddNewRecordAsync(API api, AddInDataWrapper wrapper, CancellationToken ct)
     {
-        // Use anonymous object matching AddInData structure
         var entity = new
         {
             addInId = AddInIdValue,
@@ -130,5 +164,17 @@ public class AddInDataRepository : IAddInDataRepository
         };
         
         await api.CallAsync<object>("Add", typeof(AddInData), new { entity }, ct);
+    }
+    
+    private async Task UpdateExistingRecordAsync(API api, string geotabId, AddInDataWrapper wrapper, CancellationToken ct)
+    {
+        var entity = new
+        {
+            id = geotabId,
+            addInId = AddInIdValue,
+            details = wrapper
+        };
+        
+        await api.CallAsync<object>("Set", typeof(AddInData), new { entity }, ct);
     }
 }

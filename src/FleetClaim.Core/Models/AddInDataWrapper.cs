@@ -9,6 +9,12 @@ namespace FleetClaim.Core.Models;
 /// </summary>
 public class AddInDataWrapper
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+    
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
     
@@ -18,20 +24,20 @@ public class AddInDataWrapper
     public static AddInDataWrapper ForReport(IncidentReport report) => new()
     {
         Type = "report",
-        Payload = JsonSerializer.SerializeToElement(report)
+        Payload = JsonSerializer.SerializeToElement(report, SerializerOptions)
     };
     
     public static AddInDataWrapper ForRequest(ReportRequest request) => new()
     {
         Type = "reportRequest",
-        Payload = JsonSerializer.SerializeToElement(request)
+        Payload = JsonSerializer.SerializeToElement(request, SerializerOptions)
     };
     
     public static AddInDataWrapper ForConfig(CustomerConfig config) => new()
     {
         Type = "config",
-        Payload = JsonSerializer.SerializeToElement(config)
+        Payload = JsonSerializer.SerializeToElement(config, SerializerOptions)
     };
     
-    public T? GetPayload<T>() => Payload.Deserialize<T>();
+    public T? GetPayload<T>() => Payload.Deserialize<T>(SerializerOptions);
 }

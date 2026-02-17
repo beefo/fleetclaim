@@ -1,0 +1,57 @@
+steps:
+  # Build Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
+      - '-f'
+      - 'src/FleetClaim.Worker/Dockerfile'
+      - '.'
+
+  # Build API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+      - '-f'
+      - 'src/FleetClaim.Api/Dockerfile'
+      - '.'
+
+  # Push Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
+
+  # Push API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'

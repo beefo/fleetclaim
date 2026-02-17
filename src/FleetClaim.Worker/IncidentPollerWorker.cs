@@ -272,7 +272,7 @@ public class IncidentPollerWorker : BackgroundService
             }
         }, ct);
         
-        var gpsTrail = logRecords?
+        var allGpsPoints = logRecords?
             .OrderBy(r => r.DateTime)
             .Select(r => new GpsPoint
             {
@@ -283,8 +283,17 @@ public class IncidentPollerWorker : BackgroundService
             })
             .ToList() ?? [];
         
-        var maxSpeed = gpsTrail.Any() ? gpsTrail.Max(p => p.SpeedKmh ?? 0) : 0;
-        var midPoint = gpsTrail.Count > 0 ? gpsTrail[gpsTrail.Count / 2] : null;
+        // Limit GPS trail to 100 points max to stay under Geotab's 10KB AddInData limit
+        // Sample evenly if we have more than 100 points
+        var gpsTrail = allGpsPoints.Count <= 100 
+            ? allGpsPoints 
+            : allGpsPoints
+                .Where((_, i) => i % (allGpsPoints.Count / 100 + 1) == 0)
+                .Take(100)
+                .ToList();
+        
+        var maxSpeed = allGpsPoints.Any() ? allGpsPoints.Max(p => p.SpeedKmh ?? 0) : 0;
+        var midPoint = allGpsPoints.Count > 0 ? allGpsPoints[allGpsPoints.Count / 2] : null;
         
         // Build the baseline report
         var report = new IncidentReport

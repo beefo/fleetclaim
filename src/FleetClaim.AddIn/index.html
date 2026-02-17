@@ -53,12 +53,30 @@
         <!-- Request Report Modal -->
         <div id="request-modal" class="modal hidden">
             <div class="modal-content">
-                <h2>Request Report</h2>
-                <p>Enter the Exception Event ID to generate a report:</p>
-                <input type="text" id="incident-id-input" placeholder="Exception Event ID" class="input-full">
+                <h2>Request Collision Report</h2>
+                <p>Select a vehicle and date range to search for collision events:</p>
+                
+                <div class="form-group">
+                    <label for="device-select">Vehicle</label>
+                    <select id="device-select" class="input-full">
+                        <option value="">Loading vehicles...</option>
+                    </select>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="from-date">From Date</label>
+                        <input type="date" id="from-date" class="input-full">
+                    </div>
+                    <div class="form-group">
+                        <label for="to-date">To Date</label>
+                        <input type="date" id="to-date" class="input-full">
+                    </div>
+                </div>
+                
                 <div class="modal-actions">
                     <button id="cancel-request" class="btn btn-secondary">Cancel</button>
-                    <button id="submit-request" class="btn btn-primary">Request Report</button>
+                    <button id="submit-request" class="btn btn-primary">Search & Generate Reports</button>
                 </div>
             </div>
         </div>

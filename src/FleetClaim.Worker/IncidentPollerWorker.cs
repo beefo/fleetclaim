@@ -149,8 +149,8 @@ public class IncidentPollerWorker : BackgroundService
         
         foreach (var request in requests)
         {
-            _logger.LogInformation("Processing manual request {RequestId} for incident {IncidentId}",
-                request.Id, request.IncidentId);
+            _logger.LogInformation("Processing request {RequestId} for device {DeviceId} ({FromDate} to {ToDate})",
+                request.Id, request.DeviceId, request.FromDate, request.ToDate);
             
             try
             {
@@ -158,25 +158,55 @@ public class IncidentPollerWorker : BackgroundService
                 await _repository.UpdateRequestStatusAsync(api, request.Id, 
                     ReportRequestStatus.Processing, ct: ct);
                 
-                // Fetch the incident
+                // Search for collision events for this device in the date range
                 var incidents = await api.CallAsync<List<ExceptionEvent>>("Get", typeof(ExceptionEvent), new
                 {
-                    search = new { id = request.IncidentId }
+                    search = new 
+                    { 
+                        deviceSearch = new { id = request.DeviceId },
+                        fromDate = request.FromDate,
+                        toDate = request.ToDate
+                    }
                 }, ct);
                 
-                var incident = incidents?.FirstOrDefault();
-                if (incident == null)
+                // Filter to collision rules only
+                var collisionIncidents = incidents?
+                    .Where(e => e.Rule?.Name?.Contains("Collision", StringComparison.OrdinalIgnoreCase) == true)
+                    .ToList() ?? [];
+                
+                if (collisionIncidents.Count == 0)
                 {
+                    _logger.LogInformation("No collision incidents found for device {DeviceId}", request.DeviceId);
+                    request.IncidentsFound = 0;
+                    request.ReportsGenerated = 0;
                     await _repository.UpdateRequestStatusAsync(api, request.Id,
-                        ReportRequestStatus.Failed, "Incident not found", ct);
+                        ReportRequestStatus.Completed, ct: ct);
                     continue;
                 }
+                
+                _logger.LogInformation("Found {Count} collision incidents for device {DeviceId}", 
+                    collisionIncidents.Count, request.DeviceId);
                 
                 // Get config for notifications
                 var config = await _repository.GetConfigAsync(api, ct) ?? new CustomerConfig();
                 
-                // Generate report
-                await GenerateAndSaveReportAsync(api, incident, api.Database ?? "unknown", config, ct);
+                // Generate reports for each incident
+                int reportsGenerated = 0;
+                foreach (var incident in collisionIncidents)
+                {
+                    try
+                    {
+                        await GenerateAndSaveReportAsync(api, incident, api.Database ?? "unknown", config, ct);
+                        reportsGenerated++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to generate report for incident {Id}", incident.Id);
+                    }
+                }
+                
+                request.IncidentsFound = collisionIncidents.Count;
+                request.ReportsGenerated = reportsGenerated;
                 
                 // Mark completed
                 await _repository.UpdateRequestStatusAsync(api, request.Id,

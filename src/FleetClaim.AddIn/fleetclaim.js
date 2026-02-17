@@ -204,7 +204,7 @@ function renderRequests(requestsToRender) {
         listEl.innerHTML = `
             <div class="empty-state">
                 <h3>No pending requests</h3>
-                <p>Manual report requests will appear here.</p>
+                <p>Request collision reports for any vehicle and date range.</p>
                 <button class="btn btn-primary" onclick="showRequestModal()">+ Request Report</button>
             </div>`;
         return;
@@ -217,10 +217,11 @@ function renderRequests(requestsToRender) {
     ` + requestsToRender.map(req => `
         <div class="report-card">
             <div class="report-info">
-                <div class="report-title">Incident: ${escapeHtml(req.incidentId)}</div>
+                <div class="report-title">🚗 ${escapeHtml(req.deviceName || req.deviceId || 'Unknown Vehicle')}</div>
                 <div class="report-meta">
+                    <span>📅 ${formatDateShort(req.fromDate)} - ${formatDateShort(req.toDate)}</span>
                     <span>Requested: ${formatDate(req.requestedAt)}</span>
-                    <span>By: ${escapeHtml(req.requestedBy || 'Unknown')}</span>
+                    ${req.incidentsFound !== undefined ? `<span>Found: ${req.incidentsFound} incidents</span>` : ''}
                 </div>
             </div>
             <span class="status status-${(req.status || 'pending').toLowerCase()}">
@@ -307,10 +308,36 @@ function closeModal() {
     document.getElementById('report-modal').classList.add('hidden');
 }
 
+// Cache for devices
+let devices = [];
+
+async function loadDevices() {
+    try {
+        devices = await apiCall('Get', { typeName: 'Device' });
+        devices.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        
+        const select = document.getElementById('device-select');
+        select.innerHTML = '<option value="">Select a vehicle...</option>' +
+            devices.map(d => `<option value="${d.id}">${escapeHtml(d.name || d.id)}</option>`).join('');
+    } catch (err) {
+        console.error('Error loading devices:', err);
+    }
+}
+
 function showRequestModal() {
     document.getElementById('request-modal').classList.remove('hidden');
-    document.getElementById('incident-id-input').value = '';
-    document.getElementById('incident-id-input').focus();
+    
+    // Set default dates (last 30 days)
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    document.getElementById('to-date').value = today.toISOString().split('T')[0];
+    document.getElementById('from-date').value = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    // Load devices if not already loaded
+    if (devices.length === 0) {
+        loadDevices();
+    }
 }
 
 function closeRequestModal() {
@@ -318,11 +345,20 @@ function closeRequestModal() {
 }
 
 async function submitReportRequest() {
-    const incidentId = document.getElementById('incident-id-input').value.trim();
-    if (!incidentId) {
-        alert('Please enter an Incident ID');
+    const deviceId = document.getElementById('device-select').value;
+    const fromDate = document.getElementById('from-date').value;
+    const toDate = document.getElementById('to-date').value;
+    
+    if (!deviceId) {
+        alert('Please select a vehicle');
         return;
     }
+    if (!fromDate || !toDate) {
+        alert('Please select both from and to dates');
+        return;
+    }
+    
+    const selectedDevice = devices.find(d => d.id === deviceId);
     
     try {
         // Get current user
@@ -337,7 +373,10 @@ async function submitReportRequest() {
             type: 'reportRequest',
             payload: {
                 id: `req_${Date.now().toString(36)}`,
-                incidentId: incidentId,
+                deviceId: deviceId,
+                deviceName: selectedDevice?.name || deviceId,
+                fromDate: new Date(fromDate).toISOString(),
+                toDate: new Date(toDate + 'T23:59:59').toISOString(),
                 requestedBy: userEmail,
                 requestedAt: new Date().toISOString(),
                 status: 'Pending'
@@ -348,14 +387,14 @@ async function submitReportRequest() {
             typeName: 'AddInData',
             entity: {
                 addInId: ADDIN_ID,
-                data: request
+                details: request
             }
         });
         
         closeRequestModal();
         loadRequests();
         
-        alert('Report requested! It will be processed shortly.');
+        alert('Report requested! The worker will search for collision events and generate reports.');
     } catch (err) {
         alert(`Error: ${err.message}`);
     }
@@ -395,6 +434,12 @@ function formatDate(dateStr) {
     if (!dateStr) return '—';
     const date = new Date(dateStr);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+
+function formatDateShort(dateStr) {
+    if (!dateStr) return '—';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString();
 }
 
 function escapeHtml(str) {

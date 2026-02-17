@@ -31,6 +31,10 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// Serve static files (Admin UI)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseAuthentication();

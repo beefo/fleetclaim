@@ -12,6 +12,9 @@ RUN dotnet restore FleetClaim.Admin/FleetClaim.Admin.csproj
 COPY src/FleetClaim.Core/ FleetClaim.Core/
 COPY src/FleetClaim.Admin/ FleetClaim.Admin/
 
+# Copy static files
+COPY src/FleetClaim.Admin/wwwroot/ FleetClaim.Admin/wwwroot/
+
 # Build
 RUN dotnet publish FleetClaim.Admin/FleetClaim.Admin.csproj -c Release -o /app
 

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FleetClaim Admin</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ FleetClaim Admin</h1>
+            <div id="auth-status" class="auth-status">Not authenticated</div>
+        </header>
+
+        <div id="auth-form" class="auth-form">
+            <input type="password" id="api-key" placeholder="Enter Admin API Key">
+            <button onclick="authenticate()">Connect</button>
+        </div>
+
+        <main id="dashboard" class="dashboard hidden">
+            <section class="overview-cards">
+                <div class="card">
+                    <h3>Databases</h3>
+                    <div id="db-count" class="big-number">-</div>
+                </div>
+                <div class="card">
+                    <h3>Total Requests</h3>
+                    <div id="request-count" class="big-number">-</div>
+                </div>
+                <div class="card">
+                    <h3>Pending</h3>
+                    <div id="pending-count" class="big-number warning">-</div>
+                </div>
+                <div class="card">
+                    <h3>Reports Generated</h3>
+                    <div id="report-count" class="big-number success">-</div>
+                </div>
+            </section>
+
+            <section class="databases-section">
+                <h2>📊 Databases</h2>
+                <div id="databases-list" class="databases-list">
+                    Loading...
+                </div>
+            </section>
+
+            <section class="requests-section">
+                <h2>📋 Recent Requests</h2>
+                <select id="db-selector" onchange="loadRequests()">
+                    <option value="">Select database...</option>
+                </select>
+                <div id="requests-list" class="requests-list">
+                    Select a database to view requests
+                </div>
+            </section>
+
+            <section class="jobs-section">
+                <h2>⚙️ Recent Worker Executions</h2>
+                <button onclick="loadJobs()" class="refresh-btn">🔄 Refresh</button>
+                <div id="jobs-list" class="jobs-list">
+                    Loading...
+                </div>
+            </section>
+
+            <section class="logs-section">
+                <h2>📝 Recent Logs</h2>
+                <button onclick="loadLogs()" class="refresh-btn">🔄 Refresh</button>
+                <div id="logs-list" class="logs-list">
+                    Loading...
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>FleetClaim Admin Portal • <span id="last-updated">-</span></p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

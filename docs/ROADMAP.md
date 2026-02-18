@@ -44,6 +44,45 @@ Sub-agents should:
 
 ### P1 - High Priority (This Sprint)
 
+- [ ] **Replace JavaScript alerts with toast notifications**
+  - Remove all `alert()` calls from fleetclaim.js
+  - Add toast/snackbar component (bottom of screen, auto-dismiss)
+  - Use for: success messages, errors, confirmations
+  - Style: green for success, red for error, blue for info
+
+- [ ] **Add delete functionality for reports and requests**
+  - Delete button on completed reports (with confirmation)
+  - Delete button on completed/failed requests
+  - Remove from AddInData via API
+  - Refresh list after delete
+
+- [ ] **Add sorting for reports and requests**
+  - Sort dropdown: Date (newest/oldest), Severity, Vehicle name
+  - Remember last sort preference
+  - Apply to both Reports and Requests tabs
+
+- [ ] **Add date filtering with 1-week default**
+  - Date range picker for reports list
+  - Default to last 7 days on load
+  - "All time" option available
+  - Filter applied before rendering
+
+- [ ] **Insurance claim requirements audit**
+  - Research what insurance companies require for fleet accident claims
+  - Audit current PDF against requirements
+  - Add missing fields to report model and PDF
+  - Key items to verify:
+    - Date/time/location of incident
+    - Driver information (license, contact)
+    - Vehicle details (VIN, plate, year/make/model)
+    - Weather conditions at time of incident
+    - Speed data and driving behavior
+    - Witness information fields
+    - Police report number field
+    - Damage description/photos
+    - Third-party vehicle/driver info
+  - Update PDF layout for insurance readability
+
 - [ ] **Add "Send to Email" button in report detail**
   - Quick button to email report to specific address
   - Pre-fill with configured notification emails

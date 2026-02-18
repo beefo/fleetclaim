@@ -21,6 +21,22 @@ public class IncidentReport
     /// The report contains vehicle data for the time period but no specific incident.
     /// </summary>
     public bool IsBaselineReport { get; set; } = false;
+    
+    /// <summary>
+    /// User-provided notes about the incident. Added by fleet managers to provide 
+    /// context for insurance claims (driver statement, circumstances, etc.)
+    /// </summary>
+    public string? Notes { get; set; }
+    
+    /// <summary>
+    /// When notes were last updated
+    /// </summary>
+    public DateTime? NotesUpdatedAt { get; set; }
+    
+    /// <summary>
+    /// Who updated the notes (email or username)
+    /// </summary>
+    public string? NotesUpdatedBy { get; set; }
 }
 
 public enum IncidentSeverity

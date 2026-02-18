@@ -318,6 +318,17 @@ function showReportDetail(report) {
             </div>
         </div>
         
+        <div class="report-section">
+            <h3>📝 Notes & Driver Statement</h3>
+            <p class="notes-hint">Add incident details, driver statements, or context for insurance claims.</p>
+            <textarea id="report-notes" class="notes-textarea" placeholder="Enter notes about this incident...">${escapeHtml(report.notes || '')}</textarea>
+            <div class="notes-actions">
+                <button class="btn btn-secondary" onclick="saveReportNotes('${report.id}')">💾 Save Notes</button>
+                <span id="notes-status" class="notes-status"></span>
+                ${report.notesUpdatedAt ? `<span class="notes-meta">Last updated: ${formatDate(report.notesUpdatedAt)}</span>` : ''}
+            </div>
+        </div>
+        
         <div class="report-actions">
             <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">📄 Download PDF</button>
             ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
@@ -325,6 +336,84 @@ function showReportDetail(report) {
     `;
     
     document.getElementById('report-modal').classList.remove('hidden');
+}
+
+// Save notes for a report
+async function saveReportNotes(reportId) {
+    const notesEl = document.getElementById('report-notes');
+    const statusEl = document.getElementById('notes-status');
+    const notes = notesEl.value.trim();
+    
+    statusEl.textContent = 'Saving...';
+    statusEl.className = 'notes-status';
+    
+    try {
+        // Find the report's AddInData record
+        const results = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        let reportRecord = null;
+        let reportWrapper = null;
+        
+        for (const item of results) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'report' && wrapper.payload.id === reportId) {
+                    reportRecord = item;
+                    reportWrapper = wrapper;
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        if (!reportRecord || !reportWrapper) {
+            throw new Error('Report not found');
+        }
+        
+        // Update notes
+        reportWrapper.payload.notes = notes;
+        reportWrapper.payload.notesUpdatedAt = new Date().toISOString();
+        reportWrapper.payload.notesUpdatedBy = 'FleetClaim User'; // Could get from Geotab session
+        
+        // Remove old record and add updated one (Geotab's Set creates duplicates)
+        await new Promise((resolve, reject) => {
+            api.call('Remove', {
+                typeName: 'AddInData',
+                entity: { id: reportRecord.id }
+            }, resolve, reject);
+        });
+        
+        await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'AddInData',
+                entity: {
+                    addInId: ADDIN_ID,
+                    details: reportWrapper
+                }
+            }, resolve, reject);
+        });
+        
+        // Update local state
+        const localReport = reports.find(r => r.id === reportId);
+        if (localReport) {
+            localReport.notes = notes;
+            localReport.notesUpdatedAt = reportWrapper.payload.notesUpdatedAt;
+        }
+        
+        statusEl.textContent = '✓ Saved!';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } catch (err) {
+        console.error('Error saving notes:', err);
+        statusEl.textContent = '✗ Failed to save';
+        statusEl.className = 'notes-status error';
+    }
 }
 
 // Download PDF for a report by ID
@@ -743,3 +832,4 @@ window.copyShareLink = copyShareLink;
 window.downloadPdf = downloadPdf;
 window.downloadPdfForReport = downloadPdfForReport;
 window.removeEmail = removeEmail;
+window.saveReportNotes = saveReportNotes;

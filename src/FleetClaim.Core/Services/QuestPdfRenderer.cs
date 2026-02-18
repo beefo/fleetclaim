@@ -118,6 +118,33 @@ internal class IncidentReportDocument : IDocument
             
             // Evidence summary
             col.Item().Element(ComposeEvidenceSummary);
+            
+            // Notes section (if user has added notes)
+            if (!string.IsNullOrWhiteSpace(_report.Notes))
+            {
+                col.Item().Element(ComposeNotesSection);
+            }
+        });
+    }
+    
+    private void ComposeNotesSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("Notes & Driver Statement").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            col.Item().PaddingTop(10).Background(LightGray).Padding(10)
+                .Text(_report.Notes ?? "")
+                .FontSize(10)
+                .LineHeight(1.4f);
+            
+            if (_report.NotesUpdatedAt.HasValue)
+            {
+                col.Item().PaddingTop(5).Text(
+                    $"Last updated: {_report.NotesUpdatedAt:yyyy-MM-dd HH:mm} UTC" +
+                    (!string.IsNullOrEmpty(_report.NotesUpdatedBy) ? $" by {_report.NotesUpdatedBy}" : ""))
+                    .FontSize(8).FontColor(Colors.Grey.Darken1);
+            }
         });
     }
     

@@ -528,3 +528,49 @@ select.input-full {
 .settings-status.error {
     color: #c53030;
 }
+
+/* Notes Section */
+.notes-hint {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.notes-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    margin-bottom: 10px;
+}
+
+.notes-textarea:focus {
+    outline: none;
+    border-color: #2b6cb0;
+    box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.1);
+}
+
+.notes-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notes-status {
+    font-size: 14px;
+    color: #38a169;
+}
+
+.notes-status.error {
+    color: #c53030;
+}
+
+.notes-meta {
+    font-size: 12px;
+    color: #888;
+    margin-left: auto;
+}

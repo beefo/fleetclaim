@@ -116,6 +116,49 @@ function initializeUI() {
     
     // Settings
     initializeSettingsUI();
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+}
+
+function handleKeyboardShortcuts(e) {
+    // Don't trigger shortcuts when typing in inputs
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        return;
+    }
+    
+    // R - Refresh
+    if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        loadReports();
+        loadRequests();
+        showToast('Refreshed', 'info', 2000);
+    }
+    
+    // N - New request
+    if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        showRequestModal();
+    }
+    
+    // Escape - Close modals
+    if (e.key === 'Escape') {
+        closeModal();
+        closeRequestModal();
+        closeDeleteModal();
+        closeEmailModal();
+    }
+    
+    // 1, 2, 3 - Switch tabs
+    if (e.key === '1') {
+        document.querySelector('.tab[data-tab="reports"]')?.click();
+    }
+    if (e.key === '2') {
+        document.querySelector('.tab[data-tab="requests"]')?.click();
+    }
+    if (e.key === '3') {
+        document.querySelector('.tab[data-tab="settings"]')?.click();
+    }
 }
 
 // Load reports from AddInData

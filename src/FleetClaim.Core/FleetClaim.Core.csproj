@@ -12,6 +12,7 @@
     <PackageReference Include="QuestPDF" Version="2024.10.*" />
     <PackageReference Include="SendGrid" Version="9.*" />
     <PackageReference Include="Google.Apis.Gmail.v1" Version="*" />
+    <PackageReference Include="MimeKit" Version="*" />
     <PackageReference Include="System.Text.Json" Version="8.*" />
   </ItemGroup>
 

@@ -5,45 +5,19 @@ if (apiKey) {
     authenticate(true);
 }
 
-// Modal close function
+// Modal close function - called from backdrop click
 function closeModal(e) {
     if (e && e.target && e.target.id === 'onboard-modal') {
         document.getElementById('onboard-modal').style.display = 'none';
     }
 }
 
-function hideModal() {
-    document.getElementById('onboard-modal').style.display = 'none';
-}
-
-// Set up modal close handlers after DOM loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Cancel button
-    const cancelBtn = document.getElementById('cancel-btn');
-    if (cancelBtn) {
-        cancelBtn.onclick = function(e) {
-            e.preventDefault();
-            hideModal();
-            return false;
-        };
+// ESC key to close modal
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var modal = document.getElementById('onboard-modal');
+        if (modal) modal.style.display = 'none';
     }
-    
-    // X close button
-    const closeXBtn = document.getElementById('close-x-btn');
-    if (closeXBtn) {
-        closeXBtn.onclick = function(e) {
-            e.preventDefault();
-            hideModal();
-            return false;
-        };
-    }
-    
-    // ESC key
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            hideModal();
-        }
-    });
 });
 
 async function authenticate(silent = false) {

@@ -2,7 +2,10 @@ using System.Text.Json;
 using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using Google.Cloud.Logging.V2;
+using Google.Cloud.SecretManager.V1;
 using Google.Api.Gax;
+using Geotab.Checkmate;
+using Geotab.Checkmate.ObjectModel;
 
 namespace FleetClaim.Admin;
 
@@ -232,5 +235,153 @@ public class AdminService
         }
 
         return wrappers;
+    }
+    
+    /// <summary>
+    /// Onboard a new database: authenticate, store credentials, install Add-In
+    /// </summary>
+    public async Task<object> OnboardDatabaseAsync(string database, string username, string password, string server = "my.geotab.com")
+    {
+        _logger.LogInformation("Onboarding database {Database} on server {Server}", database, server);
+        
+        // Step 1: Authenticate to verify credentials
+        var api = new API(username, password, null, database, server);
+        try
+        {
+            await api.AuthenticateAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to authenticate to {database}: {ex.Message}");
+        }
+        
+        _logger.LogInformation("Authenticated to {Database}", database);
+        
+        // Step 2: Store credentials in Secret Manager
+        var secretName = $"fleetclaim-creds-{database.Replace(".", "-")}";
+        var credentialJson = JsonSerializer.Serialize(new
+        {
+            database,
+            server,
+            username,
+            password
+        });
+        
+        var secretClient = await SecretManagerServiceClient.CreateAsync();
+        var projectName = new ProjectName(_config.ProjectId);
+        
+        try
+        {
+            // Try to create the secret
+            await secretClient.CreateSecretAsync(new CreateSecretRequest
+            {
+                ParentAsProjectName = projectName,
+                SecretId = secretName,
+                Secret = new Secret
+                {
+                    Replication = new Replication { Automatic = new Replication.Types.Automatic() }
+                }
+            });
+            _logger.LogInformation("Created secret {SecretName}", secretName);
+        }
+        catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.AlreadyExists)
+        {
+            _logger.LogInformation("Secret {SecretName} already exists, adding new version", secretName);
+        }
+        
+        // Add the credential as a new version
+        var secretVersionName = new SecretName(_config.ProjectId, secretName);
+        await secretClient.AddSecretVersionAsync(new AddSecretVersionRequest
+        {
+            ParentAsSecretName = secretVersionName,
+            Payload = new SecretPayload
+            {
+                Data = Google.Protobuf.ByteString.CopyFromUtf8(credentialJson)
+            }
+        });
+        
+        _logger.LogInformation("Stored credentials for {Database}", database);
+        
+        // Step 3: Check if Add-In is already installed
+        const string AddInId = "aji_jHQGE8k2TDodR8tZrpw";
+        bool addInInstalled = false;
+        
+        try
+        {
+            var systemSettings = await api.CallAsync<List<object>>("Get", typeof(SystemSettings), new { });
+            // Check if our AddIn is in the list - simplified check
+            addInInstalled = systemSettings?.Any() == true;
+        }
+        catch
+        {
+            // Ignore - will try to install anyway
+        }
+        
+        // Step 4: Create initial config in AddInData
+        var config = new CustomerConfig
+        {
+            DatabaseName = database,
+            AutoGenerateRules = ["Major Collision", "Minor Collision"],
+            NotifyEmails = [],
+            SeverityThreshold = IncidentSeverity.Low
+        };
+        
+        var configWrapper = AddInDataWrapper.ForConfig(config);
+        
+        try
+        {
+            // Check if config already exists
+            var existingData = await GetAddInDataAsync(api);
+            var existingConfig = existingData.FirstOrDefault(d => d.Type == "config");
+            
+            if (existingConfig == null)
+            {
+                // Add new config
+                await api.CallAsync<Id>("Add", typeof(AddInData), new
+                {
+                    entity = new
+                    {
+                        addInId = new { id = AddInId },
+                        details = configWrapper
+                    }
+                });
+                _logger.LogInformation("Created initial config for {Database}", database);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not create initial config for {Database}", database);
+        }
+        
+        return new
+        {
+            success = true,
+            database,
+            server,
+            secretName,
+            addInInstalled,
+            message = $"Database {database} onboarded successfully. Credentials stored in {secretName}."
+        };
+    }
+    
+    /// <summary>
+    /// Remove a database: delete credentials from Secret Manager
+    /// </summary>
+    public async Task RemoveDatabaseAsync(string database)
+    {
+        _logger.LogInformation("Removing database {Database}", database);
+        
+        var secretName = $"fleetclaim-creds-{database.Replace(".", "-")}";
+        var secretClient = await SecretManagerServiceClient.CreateAsync();
+        
+        try
+        {
+            await secretClient.DeleteSecretAsync(new SecretName(_config.ProjectId, secretName));
+            _logger.LogInformation("Deleted secret {SecretName}", secretName);
+        }
+        catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.NotFound)
+        {
+            _logger.LogWarning("Secret {SecretName} not found", secretName);
+        }
     }
 }

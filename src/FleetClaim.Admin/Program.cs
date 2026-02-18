@@ -74,4 +74,48 @@ admin.MapGet("/jobs", async (AdminService svc, int limit = 20) =>
 admin.MapGet("/logs", async (AdminService svc, int limit = 100) => 
     await svc.GetRecentLogsAsync(limit));
 
+// Database onboarding
+admin.MapPost("/databases", async (OnboardDatabaseRequest request, AdminService svc) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Database))
+        return Results.BadRequest(new { error = "Database name is required" });
+    if (string.IsNullOrWhiteSpace(request.Username))
+        return Results.BadRequest(new { error = "Username is required" });
+    if (string.IsNullOrWhiteSpace(request.Password))
+        return Results.BadRequest(new { error = "Password is required" });
+    
+    try
+    {
+        var result = await svc.OnboardDatabaseAsync(
+            request.Database, 
+            request.Username, 
+            request.Password,
+            request.Server ?? "my.geotab.com");
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+});
+
+admin.MapDelete("/databases/{database}", async (string database, AdminService svc) =>
+{
+    try
+    {
+        await svc.RemoveDatabaseAsync(database);
+        return Results.Ok(new { success = true, message = $"Database {database} removed" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+});
+
 app.Run();
+
+public record OnboardDatabaseRequest(
+    string Database, 
+    string Username, 
+    string Password, 
+    string? Server = "my.geotab.com");

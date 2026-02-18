@@ -5,6 +5,27 @@ if (apiKey) {
     authenticate(true);
 }
 
+// Set up modal close handlers after DOM loads
+document.addEventListener('DOMContentLoaded', function() {
+    const cancelBtn = document.getElementById('cancel-btn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('onboard-modal').style.display = 'none';
+        });
+    }
+    
+    const closeBtn = document.querySelector('#onboard-modal .modal-content > button');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('onboard-modal').style.display = 'none';
+        });
+    }
+});
+
 async function authenticate(silent = false) {
     const input = document.getElementById('api-key');
     if (!silent && input.value) {

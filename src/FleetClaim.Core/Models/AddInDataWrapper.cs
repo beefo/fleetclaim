@@ -12,7 +12,8 @@ public class AddInDataWrapper
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,  // Write as camelCase for JS
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
     
     [JsonPropertyName("type")]

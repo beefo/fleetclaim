@@ -575,6 +575,61 @@ select.input-full {
     margin-left: auto;
 }
 
+/* Delete Button */
+.btn-delete {
+    background: none;
+    border: none;
+    color: #dc2626;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    opacity: 0.6;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.btn-delete:hover {
+    opacity: 1;
+    background: #fef2f2;
+}
+
+.report-card {
+    position: relative;
+}
+
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Danger Button */
+.btn-danger {
+    background: #dc2626;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+}
+
+/* Delete Modal */
+.modal-delete {
+    max-width: 400px;
+    text-align: center;
+}
+
+.modal-delete h2 {
+    margin-bottom: 12px;
+    color: #dc2626;
+}
+
+.modal-delete p {
+    color: #666;
+    margin-bottom: 20px;
+}
+
 /* Toast Notifications */
 .toast-container {
     position: fixed;

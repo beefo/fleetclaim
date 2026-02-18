@@ -49,11 +49,12 @@ Sub-agents should:
   - Added toast component (bottom of screen, slides up, auto-dismiss 3.5s)
   - Styles: green (success), red (error), blue (info)
 
-- [ ] **Add delete functionality for reports and requests**
+- [x] **Add delete functionality for reports and requests**
   - Delete button on completed reports (with confirmation)
   - Delete button on completed/failed requests
   - Remove from AddInData via API
   - Refresh list after delete
+  - Added confirmation modal (not browser alert)
 
 - [ ] **Add sorting for reports and requests**
   - Sort dropdown: Date (newest/oldest), Severity, Vehicle name

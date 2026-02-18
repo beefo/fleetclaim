@@ -14,6 +14,13 @@ let state = null;
 let reports = [];
 let requests = [];
 
+// Store AddInData records for delete operations
+let reportRecords = {};  // Map of report.id -> AddInData record id
+let requestRecords = {}; // Map of request.id -> AddInData record id
+
+// Delete confirmation state
+let pendingDelete = null;
+
 // Ensure geotab object exists
 if (typeof geotab === 'undefined') {
     window.geotab = { addin: {} };
@@ -93,6 +100,10 @@ function initializeUI() {
     document.getElementById('cancel-request').addEventListener('click', closeRequestModal);
     document.getElementById('submit-request').addEventListener('click', submitReportRequest);
     
+    // Delete modal
+    document.getElementById('cancel-delete').addEventListener('click', closeDeleteModal);
+    document.getElementById('confirm-delete').addEventListener('click', confirmDelete);
+    
     // Settings
     initializeSettingsUI();
 }
@@ -108,6 +119,8 @@ async function loadReports() {
             search: { addInId: ADDIN_ID }
         });
         
+        reportRecords = {}; // Reset mapping
+        
         reports = addInData
             .map(item => {
                 try {
@@ -115,7 +128,10 @@ async function loadReports() {
                     const raw = item.details || item.data;
                     const wrapper = typeof raw === 'string' ? JSON.parse(raw) : raw;
                     if (wrapper && wrapper.type === 'report') {
-                        return wrapper.payload || wrapper;
+                        const report = wrapper.payload || wrapper;
+                        // Store mapping of report ID to AddInData record ID
+                        reportRecords[report.id] = item.id;
+                        return report;
                     }
                 } catch (e) { console.warn('Error parsing report:', e); }
                 return null;
@@ -144,6 +160,8 @@ async function loadRequests() {
         
         console.log('FleetClaim: Got', addInData.length, 'AddInData records');
         
+        requestRecords = {}; // Reset mapping
+        
         requests = addInData
             .map(item => {
                 try {
@@ -152,7 +170,10 @@ async function loadRequests() {
                     console.log('FleetClaim: Processing item:', raw);
                     const wrapper = typeof raw === 'string' ? JSON.parse(raw) : raw;
                     if (wrapper && wrapper.type === 'reportRequest') {
-                        return wrapper.payload || wrapper;
+                        const request = wrapper.payload || wrapper;
+                        // Store mapping of request ID to AddInData record ID
+                        requestRecords[request.id] = item.id;
+                        return request;
                     }
                 } catch (e) { console.warn('FleetClaim: Error parsing request:', e); }
                 return null;
@@ -195,17 +216,34 @@ function renderReports(reportsToRender) {
                     ${isBaseline ? '<span class="baseline-tag">Baseline</span>' : ''}
                 </div>
             </div>
-            <span class="severity severity-${(report.severity || 'medium').toLowerCase()}">
-                ${report.severity || 'Medium'}
-            </span>
+            <div class="card-actions">
+                <span class="severity severity-${(report.severity || 'medium').toLowerCase()}">
+                    ${report.severity || 'Medium'}
+                </span>
+                <button class="btn-delete" data-delete-report="${report.id}" title="Delete report">🗑️</button>
+            </div>
         </div>
     `}).join('');
     
-    // Add click handlers
+    // Add click handlers for report cards
     listEl.querySelectorAll('.report-card').forEach(card => {
-        card.addEventListener('click', () => {
+        card.addEventListener('click', (e) => {
+            // Don't open detail if clicking delete button
+            if (e.target.closest('.btn-delete')) return;
             const report = reports.find(r => r.id === card.dataset.id);
             if (report) showReportDetail(report);
+        });
+    });
+    
+    // Add click handlers for delete buttons
+    listEl.querySelectorAll('.btn-delete[data-delete-report]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const reportId = btn.dataset.deleteReport;
+            const report = reports.find(r => r.id === reportId);
+            if (report) {
+                showDeleteConfirmation('report', reportId, report.summary || 'Incident Report');
+            }
         });
     });
 }
@@ -227,8 +265,11 @@ function renderRequests(requestsToRender) {
         <div style="margin-bottom: 16px;">
             <button class="btn btn-primary" onclick="showRequestModal()">+ Request Report</button>
         </div>
-    ` + requestsToRender.map(req => `
-        <div class="report-card">
+    ` + requestsToRender.map(req => {
+        const status = (req.status || 'pending').toLowerCase();
+        const canDelete = status === 'completed' || status === 'failed';
+        return `
+        <div class="report-card" data-request-id="${req.id}">
             <div class="report-info">
                 <div class="report-title">🚗 ${escapeHtml(req.deviceName || req.deviceId || 'Unknown Vehicle')}</div>
                 <div class="report-meta">
@@ -237,11 +278,26 @@ function renderRequests(requestsToRender) {
                     ${req.incidentsFound !== undefined ? `<span>Found: ${req.incidentsFound} incidents</span>` : ''}
                 </div>
             </div>
-            <span class="status status-${(req.status || 'pending').toLowerCase()}">
-                ${req.status || 'Pending'}
-            </span>
+            <div class="card-actions">
+                <span class="status status-${status}">
+                    ${req.status || 'Pending'}
+                </span>
+                ${canDelete ? `<button class="btn-delete" data-delete-request="${req.id}" title="Delete request">🗑️</button>` : ''}
+            </div>
         </div>
-    `).join('');
+    `}).join('');
+    
+    // Add click handlers for delete buttons
+    listEl.querySelectorAll('.btn-delete[data-delete-request]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const requestId = btn.dataset.deleteRequest;
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                showDeleteConfirmation('request', requestId, request.deviceName || 'Request');
+            }
+        });
+    });
 }
 
 function showReportDetail(report) {
@@ -646,6 +702,74 @@ function copyShareLink(url) {
 }
 
 // ========================================
+// Delete Functionality
+// ========================================
+
+function showDeleteConfirmation(type, id, name) {
+    pendingDelete = { type, id };
+    
+    const messageEl = document.getElementById('delete-message');
+    if (type === 'report') {
+        messageEl.textContent = `Are you sure you want to delete the report "${name}"? This action cannot be undone.`;
+    } else {
+        messageEl.textContent = `Are you sure you want to delete this request for "${name}"? This action cannot be undone.`;
+    }
+    
+    document.getElementById('delete-modal').classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    pendingDelete = null;
+}
+
+async function confirmDelete() {
+    if (!pendingDelete) return;
+    
+    const { type, id } = pendingDelete;
+    const confirmBtn = document.getElementById('confirm-delete');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Deleting...';
+    
+    try {
+        // Get the AddInData record ID
+        let recordId;
+        if (type === 'report') {
+            recordId = reportRecords[id];
+        } else {
+            recordId = requestRecords[id];
+        }
+        
+        if (!recordId) {
+            throw new Error('Record not found');
+        }
+        
+        // Call Geotab API to remove the AddInData record
+        await new Promise((resolve, reject) => {
+            api.call('Remove', {
+                typeName: 'AddInData',
+                entity: { id: recordId }
+            }, resolve, reject);
+        });
+        
+        // Close modal and refresh list
+        closeDeleteModal();
+        
+        if (type === 'report') {
+            await loadReports();
+        } else {
+            await loadRequests();
+        }
+    } catch (err) {
+        console.error('Error deleting:', err);
+        alert('Failed to delete: ' + err.message);
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Delete';
+    }
+}
+
+// ========================================
 // Settings Management
 // ========================================
 
@@ -869,4 +993,7 @@ window.downloadPdf = downloadPdf;
 window.downloadPdfForReport = downloadPdfForReport;
 window.removeEmail = removeEmail;
 window.saveReportNotes = saveReportNotes;
+window.showDeleteConfirmation = showDeleteConfirmation;
+window.closeDeleteModal = closeDeleteModal;
+window.confirmDelete = confirmDelete;
 window.showToast = showToast;

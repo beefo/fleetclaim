@@ -97,7 +97,21 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+// CORS - allow Add-In and shared link pages to call the API
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
+
+// Enable CORS
+app.UseCors();
 
 // Security headers
 app.Use(async (context, next) =>

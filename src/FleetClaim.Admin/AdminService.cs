@@ -3,7 +3,7 @@ using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using Google.Cloud.Logging.V2;
 using Google.Cloud.SecretManager.V1;
-using Google.Api.Gax;
+using Google.Api.Gax.ResourceNames;
 using Geotab.Checkmate;
 using Geotab.Checkmate.ObjectModel;
 
@@ -320,7 +320,6 @@ public class AdminService
         // Step 4: Create initial config in AddInData
         var config = new CustomerConfig
         {
-            DatabaseName = database,
             AutoGenerateRules = ["Major Collision", "Minor Collision"],
             NotifyEmails = [],
             SeverityThreshold = IncidentSeverity.Low

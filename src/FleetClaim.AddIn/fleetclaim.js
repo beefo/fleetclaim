@@ -397,7 +397,7 @@ function showReportDetail(report) {
         </div>
         
         <div class="report-actions">
-            <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">📄 Download PDF</button>
+            <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">${report.shareUrl ? '📄 Download PDF' : '🔄 Regenerate Report'}</button>
             ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
         </div>
     `;
@@ -492,11 +492,45 @@ async function downloadPdfForReport(reportId) {
     }
     
     if (!report.shareUrl) {
-        showToast('PDF not available — this report was created before PDF support was added', 'error', 5000);
+        showToast('PDF not available — request a new report for this time period', 'info', 5000);
+        // Pre-fill the request modal with this report's data
+        prefillRequestModal(report);
         return;
     }
     
     await downloadPdf(report.shareUrl);
+}
+
+// Pre-fill request modal with report data (for regenerating old reports)
+function prefillRequestModal(report) {
+    showRequestModal();
+    
+    // Pre-select the vehicle
+    const deviceSelect = document.getElementById('device-select');
+    if (report.vehicleId) {
+        deviceSelect.value = report.vehicleId;
+    }
+    
+    // Pre-fill time range (1 hour before and after occurred time)
+    if (report.occurredAt) {
+        const occurred = new Date(report.occurredAt);
+        const from = new Date(occurred.getTime() - 30 * 60 * 1000); // 30 min before
+        const to = new Date(occurred.getTime() + 30 * 60 * 1000);   // 30 min after
+        
+        // Format for datetime-local
+        const formatDatetime = (d) => {
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        };
+        
+        document.getElementById('from-datetime').value = formatDatetime(from);
+        document.getElementById('to-datetime').value = formatDatetime(to);
+    }
+    
+    // Enable force report since we're regenerating
+    document.getElementById('force-report').checked = true;
+    
+    showToast('Pre-filled with old report data. Submit to generate new PDF.', 'info', 4000);
 }
 
 // Download PDF from API using signed share URL

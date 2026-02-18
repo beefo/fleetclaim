@@ -135,6 +135,16 @@ public class AdminService
     {
         try
         {
+            // SECURITY: Validate inputs to prevent command injection
+            // Limit must be positive int (already enforced by type) and capped
+            limit = Math.Clamp(limit, 1, 100);
+            
+            // ProjectId must be alphanumeric with hyphens only
+            if (!System.Text.RegularExpressions.Regex.IsMatch(_config.ProjectId, @"^[a-z][a-z0-9\-]{4,28}[a-z0-9]$"))
+            {
+                return new { error = "Invalid project ID format" };
+            }
+            
             // Use gcloud CLI to get job executions (simpler than using the API directly)
             var psi = new System.Diagnostics.ProcessStartInfo
             {

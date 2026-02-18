@@ -92,8 +92,9 @@ public class ShareLinkService : IShareLinkService
         using var hmac = new HMACSHA256(_signingKey);
         var data = Encoding.UTF8.GetBytes($"{reportId}:{database}");
         var hash = hmac.ComputeHash(data);
-        // Take first 8 bytes for compact signature
-        return Convert.ToBase64String(hash[..8]).TrimEnd('=');
+        // SECURITY: Use 16 bytes (128 bits) for adequate collision resistance
+        // 8 bytes (64 bits) is too weak against birthday attacks
+        return Convert.ToBase64String(hash[..16]).TrimEnd('=');
     }
 }
 

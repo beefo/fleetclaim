@@ -21,15 +21,11 @@ public class ApiKeyAuthHandler : AuthenticationHandler<AuthenticationSchemeOptio
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Check for API key in header
+        // SECURITY: Only accept API key in header, never query string
+        // Query strings are logged in server access logs, browser history, and Referer headers
         if (!Request.Headers.TryGetValue("X-API-Key", out var apiKeyHeader))
         {
-            // Also check query string for convenience
-            if (!Request.Query.TryGetValue("api_key", out var apiKeyQuery))
-            {
-                return Task.FromResult(AuthenticateResult.Fail("Missing API key"));
-            }
-            apiKeyHeader = apiKeyQuery;
+            return Task.FromResult(AuthenticateResult.Fail("Missing X-API-Key header"));
         }
 
         var providedKey = apiKeyHeader.ToString();

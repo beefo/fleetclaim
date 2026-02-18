@@ -95,14 +95,33 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+    
+    // Rate limit for share link access (prevent token brute-forcing)
+    options.AddPolicy("shareLink", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 });
 
-// CORS - allow Add-In and shared link pages to call the API
+// CORS - restrict to known origins (MyGeotab, Add-In, Admin portal)
 builder.Services.AddCors(options =>
 {
+    var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() 
+        ?? new[] { 
+            "https://my.geotab.com",
+            "https://fleetclaim-addin-589116575765.us-central1.run.app",
+            "https://fleetclaim-admin-589116575765.us-central1.run.app",
+            "https://fleetclaim-api-589116575765.us-central1.run.app"
+        };
+    
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -116,10 +135,20 @@ app.UseCors();
 // Security headers
 app.Use(async (context, next) =>
 {
+    context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "SAMEORIGIN");
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    // CSP: Allow scripts/styles from self and Leaflet CDN (for maps), block inline except specific cases
+    context.Response.Headers.Append("Content-Security-Policy", 
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' https://unpkg.com; " +
+        "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
+        "img-src 'self' data: https://*.tile.openstreetmap.org https://maps.geoapify.com; " +
+        "connect-src 'self'; " +
+        "font-src 'self'; " +
+        "frame-ancestors 'self' https://my.geotab.com");
     await next();
 });
 
@@ -177,7 +206,7 @@ app.MapGet("/r/{token}", async (
             statusCode: 500,
             title: "Error");
     }
-});
+}).RequireRateLimiting("shareLink");
 
 // PDF download endpoint - generates PDF on-demand
 app.MapGet("/r/{token}/pdf", async (
@@ -217,7 +246,7 @@ app.MapGet("/r/{token}/pdf", async (
     var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
     var pdfBytes = Convert.FromBase64String(pdfBase64);
     return Results.File(pdfBytes, "application/pdf", $"incident-report-{report.Id}.pdf");
-});
+}).RequireRateLimiting("pdf");
 
 // Direct PDF endpoint - requires signed token for security
 // Token format: base64url(reportId|database|signature)
@@ -304,8 +333,11 @@ app.MapPost("/r/{token}/email", async (
             title: "Service Unavailable");
     }
     
-    // Validate email
-    if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+    // Validate email with proper regex
+    var emailRegex = new System.Text.RegularExpressions.Regex(
+        @"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+    if (string.IsNullOrWhiteSpace(request.Email) || !emailRegex.IsMatch(request.Email))
     {
         return Results.BadRequest(new { error = "Valid email address required" });
     }

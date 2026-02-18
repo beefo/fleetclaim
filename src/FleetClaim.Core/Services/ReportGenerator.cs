@@ -112,25 +112,62 @@ public class ReportGenerator : IReportGenerator
     
     private static string BuildSummary(ExceptionEvent incident, Device? vehicle, EvidencePackage evidence)
     {
-        var parts = new List<string>();
+        var sb = new System.Text.StringBuilder();
         
-        // Event type
+        // Event type and vehicle
         var eventType = incident.Rule?.Name ?? "Incident";
-        parts.Add(eventType);
+        var vehicleName = vehicle?.Name ?? "Unknown vehicle";
+        var eventTime = incident.DateTime ?? DateTime.UtcNow;
         
-        // Vehicle
-        if (vehicle != null)
-            parts.Add($"involving {vehicle.Name}");
+        sb.Append($"{eventType} detected for {vehicleName} on {eventTime:MMMM d, yyyy} at {eventTime:h:mm tt} UTC. ");
         
         // Speed context
         if (evidence.SpeedAtEventKmh.HasValue)
-            parts.Add($"at {evidence.SpeedAtEventKmh:F0} km/h");
+        {
+            var speedDesc = evidence.SpeedAtEventKmh switch
+            {
+                > 100 => "traveling at high speed",
+                > 60 => "traveling at moderate speed",
+                > 30 => "traveling at low speed",
+                _ => "traveling slowly or stationary"
+            };
+            sb.Append($"Vehicle was {speedDesc} ({evidence.SpeedAtEventKmh:F0} km/h). ");
+        }
         
-        // Weather
+        // Deceleration (hard braking indicator)
+        if (evidence.DecelerationMps2.HasValue && evidence.DecelerationMps2 > 3)
+        {
+            var brakingDesc = evidence.DecelerationMps2 switch
+            {
+                > 8 => "extreme braking",
+                > 5 => "hard braking",
+                _ => "moderate braking"
+            };
+            sb.Append($"Data shows {brakingDesc} ({evidence.DecelerationMps2:F1} m/s²). ");
+        }
+        
+        // Weather conditions
         if (!string.IsNullOrEmpty(evidence.WeatherCondition))
-            parts.Add($"({evidence.WeatherCondition} conditions)");
+        {
+            var weatherLower = evidence.WeatherCondition.ToLower();
+            var weatherNote = weatherLower switch
+            {
+                var w when w.Contains("rain") || w.Contains("snow") || w.Contains("ice") => 
+                    $"Weather conditions were adverse ({evidence.WeatherCondition}), which may have been a contributing factor. ",
+                var w when w.Contains("clear") || w.Contains("sunny") => 
+                    $"Weather conditions were clear at the time of the incident. ",
+                _ => $"Weather: {evidence.WeatherCondition}. "
+            };
+            sb.Append(weatherNote);
+        }
         
-        return string.Join(" ", parts);
+        // GPS data availability
+        if (evidence.GpsTrail.Count > 0)
+        {
+            sb.Append($"GPS trail captured with {evidence.GpsTrail.Count} data points for route analysis.");
+        }
+        
+        return sb.ToString().Trim();
     }
 }
 

@@ -149,9 +149,10 @@ Sub-agents should:
   - Link to external video URLs
   - Embed video player in report
 
-- [ ] **AI-generated incident summary**
-  - Use LLM to summarize GPS/speed data
-  - Suggest probable cause
+- [x] **Enhanced incident summary** (v24)
+  - Richer rule-based summaries for insurance context
+  - Speed/braking analysis, weather impact assessment
+  - (Full AI/LLM integration deferred to future)
 
 - [ ] **Report expiry/retention policy**
   - Auto-archive after X days

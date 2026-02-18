@@ -113,10 +113,11 @@ Sub-agents should:
 
 ### P2 - Medium Priority (Next Sprint)
 
-- [ ] **Third-party vehicle info field**
-  - Add otherVehicleInfo to report model
-  - Input fields: plate number, make/model, driver name, insurance
-  - Include in PDF
+- [x] **Third-party vehicle info field** (v23)
+  - Collapsible section in report detail modal
+  - Fields: plate, make/model, color, driver, phone, insurance
+  - Saves to thirdParties array in report model
+  - Already included in PDF from insurance audit
 
 - [ ] **Photo upload capability**
   - Allow attaching photos to reports

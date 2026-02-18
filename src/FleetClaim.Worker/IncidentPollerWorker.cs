@@ -147,8 +147,36 @@ public class IncidentPollerWorker : BackgroundService
         }
     }
     
+    private static readonly TimeSpan StaleRequestTimeout = TimeSpan.FromMinutes(10);
+    
+    private async Task HandleStaleRequestsAsync(API api, CancellationToken ct)
+    {
+        try
+        {
+            var staleRequests = await _repository.GetStaleRequestsAsync(api, StaleRequestTimeout, ct);
+            
+            foreach (var request in staleRequests)
+            {
+                _logger.LogWarning("Marking stale request {RequestId} as failed (stuck in Processing for > {Timeout} minutes)",
+                    request.Id, StaleRequestTimeout.TotalMinutes);
+                
+                await _repository.UpdateRequestStatusAsync(api, request.Id,
+                    ReportRequestStatus.Failed, 
+                    errorMessage: $"Request timed out after {StaleRequestTimeout.TotalMinutes} minutes",
+                    ct: ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling stale requests");
+        }
+    }
+    
     private async Task ProcessReportRequestsAsync(API api, CancellationToken ct)
     {
+        // First, handle stale requests (stuck in Processing for > 10 minutes)
+        await HandleStaleRequestsAsync(api, ct);
+        
         var requests = await _repository.GetPendingRequestsAsync(api, ct);
         
         foreach (var request in requests)

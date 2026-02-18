@@ -9,11 +9,12 @@ public interface IAddInDataRepository
 {
     Task<List<IncidentReport>> GetReportsAsync(API api, DateTime? since = null, CancellationToken ct = default);
     Task<List<ReportRequest>> GetPendingRequestsAsync(API api, CancellationToken ct = default);
+    Task<List<ReportRequest>> GetStaleRequestsAsync(API api, TimeSpan timeout, CancellationToken ct = default);
     Task<CustomerConfig?> GetConfigAsync(API api, CancellationToken ct = default);
     
     Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default);
     Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default);
-    Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, CancellationToken ct = default);
+    Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -58,6 +59,21 @@ public class AddInDataRepository : IAddInDataRepository
             .ToList();
     }
     
+    public async Task<List<ReportRequest>> GetStaleRequestsAsync(API api, TimeSpan timeout, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+        var cutoff = DateTime.UtcNow - timeout;
+        
+        return allData
+            .Where(r => r.Wrapper.Type == "reportRequest")
+            .Select(r => r.Wrapper.GetPayload<ReportRequest>())
+            .Where(r => r != null 
+                && r.Status == ReportRequestStatus.Processing 
+                && r.RequestedAt < cutoff)
+            .Cast<ReportRequest>()
+            .ToList();
+    }
+    
     public async Task<CustomerConfig?> GetConfigAsync(API api, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
@@ -86,6 +102,7 @@ public class AddInDataRepository : IAddInDataRepository
         string? error = null,
         int? incidentsFound = null,
         int? reportsGenerated = null,
+        string? errorMessage = null,
         CancellationToken ct = default)
     {
         // Find the existing record with its Geotab ID
@@ -102,7 +119,7 @@ public class AddInDataRepository : IAddInDataRepository
         
         // Update the request
         request.Status = status;
-        request.ErrorMessage = error;
+        request.ErrorMessage = error ?? errorMessage;
         if (incidentsFound.HasValue) request.IncidentsFound = incidentsFound;
         if (reportsGenerated.HasValue) request.ReportsGenerated = reportsGenerated;
         

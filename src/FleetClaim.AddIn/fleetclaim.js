@@ -420,12 +420,12 @@ async function saveReportNotes(reportId) {
 async function downloadPdfForReport(reportId) {
     const report = reports.find(r => r.id === reportId);
     if (!report) {
-        alert('Report not found');
+        showToast('Report not found', 'error');
         return;
     }
     
     if (!report.shareUrl) {
-        alert('PDF not available for this report.\n\nThis report was created before PDF support was added. Please generate a new report to get PDF export.');
+        showToast('PDF not available — this report was created before PDF support was added', 'error', 5000);
         return;
     }
     
@@ -467,7 +467,7 @@ async function downloadPdf(shareUrl) {
         btn.disabled = false;
     } catch (err) {
         console.error('Error downloading PDF:', err);
-        alert('Failed to download PDF: ' + err.message);
+        showToast('Failed to download PDF: ' + err.message, 'error');
         
         const btn = document.querySelector('.report-actions .btn-primary');
         if (btn) {
@@ -530,11 +530,11 @@ async function submitReportRequest() {
     const forceReport = document.getElementById('force-report').checked;
     
     if (!deviceId) {
-        alert('Please select a vehicle');
+        showToast('Please select a vehicle', 'error');
         return;
     }
     if (!fromDatetime || !toDatetime) {
-        alert('Please select both from and to times');
+        showToast('Please select both from and to times', 'error');
         return;
     }
     
@@ -582,9 +582,9 @@ async function submitReportRequest() {
         
         await loadRequests();
         
-        alert('Report requested! Check the Pending Requests tab for status. The worker processes requests every 2 minutes.');
+        showToast('Report requested! Worker processes every 2 minutes.', 'success', 4000);
     } catch (err) {
-        alert(`Error: ${err.message}`);
+        showToast('Error: ' + err.message, 'error');
     }
 }
 
@@ -641,7 +641,7 @@ function escapeHtml(str) {
 
 function copyShareLink(url) {
     navigator.clipboard.writeText(url).then(() => {
-        alert('Share link copied to clipboard!');
+        showToast('Share link copied to clipboard!', 'success');
     });
 }
 
@@ -721,12 +721,12 @@ function addEmail() {
     
     // Simple email validation
     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-        alert('Please enter a valid email address');
+        showToast('Please enter a valid email address', 'error');
         return;
     }
     
     if (config.notifyEmails.includes(email)) {
-        alert('This email is already in the list');
+        showToast('This email is already in the list', 'info');
         return;
     }
     
@@ -826,6 +826,42 @@ function initializeSettingsUI() {
     document.querySelector('.tab[data-tab="settings"]')?.addEventListener('click', loadSettings);
 }
 
+// ========================================
+// Toast Notification System
+// ========================================
+
+function initToastContainer() {
+    if (!document.getElementById('toast-container')) {
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+}
+
+/**
+ * Show a toast notification
+ * @param {string} message - The message to display
+ * @param {'success'|'error'|'info'} type - The type of toast
+ * @param {number} duration - Auto-dismiss duration in ms (default 3500)
+ */
+function showToast(message, type = 'info', duration = 3500) {
+    initToastContainer();
+    const container = document.getElementById('toast-container');
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    
+    container.appendChild(toast);
+    
+    // Auto-dismiss
+    setTimeout(() => {
+        toast.classList.add('toast-hide');
+        setTimeout(() => toast.remove(), 200);
+    }, duration);
+}
+
 // Expose for onclick handlers
 window.showRequestModal = showRequestModal;
 window.copyShareLink = copyShareLink;
@@ -833,3 +869,4 @@ window.downloadPdf = downloadPdf;
 window.downloadPdfForReport = downloadPdfForReport;
 window.removeEmail = removeEmail;
 window.saveReportNotes = saveReportNotes;
+window.showToast = showToast;

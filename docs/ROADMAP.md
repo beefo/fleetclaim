@@ -44,11 +44,10 @@ Sub-agents should:
 
 ### P1 - High Priority (This Sprint)
 
-- [ ] **Replace JavaScript alerts with toast notifications**
-  - Remove all `alert()` calls from fleetclaim.js
-  - Add toast/snackbar component (bottom of screen, auto-dismiss)
-  - Use for: success messages, errors, confirmations
-  - Style: green for success, red for error, blue for info
+- [x] **Replace JavaScript alerts with toast notifications** (v22)
+  - Removed all 10 `alert()` calls from fleetclaim.js
+  - Added toast component (bottom of screen, slides up, auto-dismiss 3.5s)
+  - Styles: green (success), red (error), blue (info)
 
 - [ ] **Add delete functionality for reports and requests**
   - Delete button on completed reports (with confirmation)

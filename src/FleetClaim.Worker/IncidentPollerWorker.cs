@@ -19,7 +19,7 @@ public class IncidentPollerWorker : BackgroundService
     private readonly IGeotabClientFactory _clientFactory;
     private readonly IAddInDataRepository _repository;
     private readonly IReportGenerator _reportGenerator;
-    private readonly IPdfRenderer _pdfRenderer;
+    private readonly IShareLinkService _shareLinkService;
     private readonly INotificationService _notificationService;
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ILogger<IncidentPollerWorker> _logger;
@@ -32,7 +32,7 @@ public class IncidentPollerWorker : BackgroundService
         IGeotabClientFactory clientFactory,
         IAddInDataRepository repository,
         IReportGenerator reportGenerator,
-        IPdfRenderer pdfRenderer,
+        IShareLinkService shareLinkService,
         INotificationService notificationService,
         IHostApplicationLifetime hostLifetime,
         ILogger<IncidentPollerWorker> logger)
@@ -41,7 +41,7 @@ public class IncidentPollerWorker : BackgroundService
         _clientFactory = clientFactory;
         _repository = repository;
         _reportGenerator = reportGenerator;
-        _pdfRenderer = pdfRenderer;
+        _shareLinkService = shareLinkService;
         _notificationService = notificationService;
         _hostLifetime = hostLifetime;
         _logger = logger;
@@ -336,8 +336,8 @@ public class IncidentPollerWorker : BackgroundService
             }
         }
         
-        // Note: PDF is NOT stored in AddInData due to 10KB size limit
-        // PDFs are generated on-demand via the API /reports/{id}/pdf endpoint
+        // Generate share URL for secure PDF access
+        report.ShareUrl = _shareLinkService.GenerateShareUrl(report.Id, database);
         
         return report;
     }

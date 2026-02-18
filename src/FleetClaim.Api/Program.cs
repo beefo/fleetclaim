@@ -2,7 +2,10 @@ using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using FleetClaim.Core.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
+using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +36,47 @@ builder.Services.AddSingleton<IShareLinkService>(new ShareLinkService(new ShareL
     SigningKey = shareLinkSigningKey
 }));
 
+// Rate limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    
+    // Global rate limit: 100 requests per minute per IP
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    
+    // Stricter limit for PDF generation (expensive operation)
+    options.AddPolicy("pdf", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 var app = builder.Build();
+
+// Security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "SAMEORIGIN");
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    await next();
+});
+
+app.UseRateLimiter();
 
 // Health check
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
@@ -129,16 +172,36 @@ app.MapGet("/r/{token}/pdf", async (
     return Results.File(pdfBytes, "application/pdf", $"incident-report-{report.Id}.pdf");
 });
 
-// Direct PDF endpoint for Add-In use (takes database and report ID)
-app.MapGet("/api/reports/{database}/{reportId}/pdf", async (
-    string database,
-    string reportId,
+// Direct PDF endpoint - requires signed token for security
+// Token format: base64url(reportId|database|signature)
+app.MapGet("/api/reports/{token}/pdf", async (
+    string token,
+    [FromServices] IShareLinkService shareLinkService,
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
     [FromServices] IMemoryCache cache,
     CancellationToken ct) =>
 {
+    // Validate signed token
+    var parsed = shareLinkService.ParseShareToken(token);
+    if (parsed == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var (reportId, database) = parsed.Value;
+    
+    // Validate input format
+    if (!Regex.IsMatch(reportId, @"^(rpt_[a-zA-Z0-9]{10,20}|baseline_req_[a-zA-Z0-9]+)$"))
+    {
+        return Results.BadRequest(new { error = "Invalid report ID format" });
+    }
+    if (!Regex.IsMatch(database, @"^[a-zA-Z0-9_-]{1,64}$"))
+    {
+        return Results.BadRequest(new { error = "Invalid database name" });
+    }
+    
     try
     {
         // Check cache
@@ -168,11 +231,11 @@ app.MapGet("/api/reports/{database}/{reportId}/pdf", async (
     catch (Exception ex)
     {
         return Results.Problem(
-            detail: ex.Message,
+            detail: "Error generating PDF",
             statusCode: 500,
-            title: "Error generating PDF");
+            title: "Error");
     }
-});
+}).RequireRateLimiting("pdf");
 
 app.Run();
 

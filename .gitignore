@@ -40,3 +40,9 @@ coverage/
 # Node
 node_modules/
 package-lock.json
+
+# Local scripts with credentials - never commit
+scripts/*.js
+scripts/*.cs
+!scripts/create-demo-db.sh
+

@@ -316,7 +316,7 @@ function showReportDetail(report) {
         </div>
         
         <div class="report-actions">
-            <button class="btn btn-primary" onclick="downloadPdf('${report.id}')">📄 Download PDF</button>
+            ${report.shareUrl ? `<button class="btn btn-primary" onclick="downloadPdf('${report.shareUrl}')">📄 Download PDF</button>` : ''}
             ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
         </div>
     `;
@@ -324,10 +324,11 @@ function showReportDetail(report) {
     document.getElementById('report-modal').classList.remove('hidden');
 }
 
-// Download PDF from API
-async function downloadPdf(reportId) {
-    const database = api.database || 'unknown';
-    const pdfUrl = `https://fleetclaim-api-589116575765.us-central1.run.app/api/reports/${database}/${reportId}/pdf`;
+// Download PDF from API using signed share URL
+async function downloadPdf(shareUrl) {
+    // shareUrl is like https://fleetclaim-api.../r/TOKEN
+    // PDF endpoint is shareUrl + /pdf
+    const pdfUrl = shareUrl + '/pdf';
     
     try {
         // Show loading state
@@ -344,7 +345,8 @@ async function downloadPdf(reportId) {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         
-        // Download
+        // Download - extract report ID from URL for filename
+        const reportId = shareUrl.split('/').pop()?.substring(0, 16) || 'report';
         const a = document.createElement('a');
         a.href = url;
         a.download = `fleetclaim-report-${reportId}.pdf`;

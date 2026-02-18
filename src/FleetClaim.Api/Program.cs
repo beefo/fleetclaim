@@ -338,9 +338,6 @@ app.MapPost("/r/{token}/email", async (
 
 app.Run();
 
-// Request model for email endpoint
-public record SendEmailRequest(string Email, string? Message = null);
-
 static string RenderReportPage(IncidentReport report)
 {
     var severityColor = report.Severity switch

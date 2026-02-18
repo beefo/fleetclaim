@@ -727,3 +727,23 @@ select.input-full {
     font-size: 12px;
     padding: 1px 4px;
 }
+
+/* Email Modal */
+.modal-email {
+    max-width: 500px;
+}
+
+.modal-email h2 {
+    margin-bottom: 8px;
+}
+
+.modal-email p {
+    color: #666;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.modal-email textarea {
+    resize: vertical;
+    font-family: inherit;
+}

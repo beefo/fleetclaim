@@ -100,6 +100,29 @@
             </div>
         </div>
         
+        <!-- Email Modal -->
+        <div id="email-modal" class="modal hidden">
+            <div class="modal-content modal-email">
+                <h2>📧 Send Report via Email</h2>
+                <p>Enter email address(es) to send the report link:</p>
+                
+                <div class="form-group">
+                    <label for="email-recipient">Recipient Email</label>
+                    <input type="email" id="email-recipient" placeholder="insurance@example.com" class="input-full">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email-message">Optional Message</label>
+                    <textarea id="email-message" rows="3" class="input-full" placeholder="Please find the incident report attached..."></textarea>
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="cancel-email" class="btn btn-secondary">Cancel</button>
+                    <button id="send-email" class="btn btn-primary">📤 Send Email</button>
+                </div>
+            </div>
+        </div>
+        
         <!-- Delete Confirmation Modal -->
         <div id="delete-modal" class="modal hidden">
             <div class="modal-content modal-delete">

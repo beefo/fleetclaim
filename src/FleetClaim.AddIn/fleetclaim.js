@@ -90,6 +90,7 @@ function initializeUI() {
     document.getElementById('search').addEventListener('input', filterAndSortReports);
     document.getElementById('severity-filter').addEventListener('change', filterAndSortReports);
     document.getElementById('date-filter').addEventListener('change', filterAndSortReports);
+    document.getElementById('vehicle-filter')?.addEventListener('change', filterAndSortReports);
     document.getElementById('sort-by').addEventListener('change', filterAndSortReports);
     
     // Load saved preferences from localStorage
@@ -1064,14 +1065,37 @@ function saveFilterPreferences() {
 // Severity order for sorting
 const severityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
 
+// Populate vehicle filter dropdown from available reports
+function populateVehicleFilter() {
+    const select = document.getElementById('vehicle-filter');
+    if (!select) return;
+    
+    const currentValue = select.value;
+    
+    // Get unique vehicles from reports
+    const vehicles = [...new Set(reports.map(r => r.vehicleName || r.vehicleId).filter(Boolean))].sort();
+    
+    select.innerHTML = '<option value="">All Vehicles</option>' +
+        vehicles.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    
+    // Restore selected value
+    if (currentValue && vehicles.includes(currentValue)) {
+        select.value = currentValue;
+    }
+}
+
 function filterAndSortReports() {
     const search = document.getElementById('search').value.toLowerCase();
     const severity = document.getElementById('severity-filter').value;
     const dateFilter = document.getElementById('date-filter').value;
+    const vehicleFilter = document.getElementById('vehicle-filter')?.value || '';
     const sortBy = document.getElementById('sort-by').value;
     
     // Save preferences
     saveFilterPreferences();
+    
+    // Populate vehicle filter dropdown
+    populateVehicleFilter();
     
     // Calculate date cutoff
     let dateCutoff = null;
@@ -1091,10 +1115,14 @@ function filterAndSortReports() {
         const matchesSeverity = !severity || 
             (r.severity || '').toLowerCase() === severity.toLowerCase();
         
+        const matchesVehicle = !vehicleFilter ||
+            (r.vehicleId === vehicleFilter) ||
+            (r.vehicleName === vehicleFilter);
+        
         const reportDate = new Date(r.occurredAt);
         const matchesDate = !dateCutoff || reportDate >= dateCutoff;
         
-        return matchesSearch && matchesSeverity && matchesDate;
+        return matchesSearch && matchesSeverity && matchesVehicle && matchesDate;
     });
     
     // Sort

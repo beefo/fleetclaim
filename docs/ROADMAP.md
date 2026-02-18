@@ -89,10 +89,11 @@ Sub-agents should:
     - CERTIFICATION block with signature lines
     - All data clearly labeled for adjusters
 
-- [ ] **Add "Send to Email" button in report detail**
-  - Quick button to email report to specific address
-  - Pre-fill with configured notification emails
-  - Include PDF attachment
+- [x] **Add "Send to Email" button in report detail** (v23)
+  - 📧 Send to Email button in report actions
+  - Modal with recipient email and optional message
+  - Pre-fills with configured notification emails
+  - Uses mailto: to open user's email client with report link
 
 - [x] **Add report status indicators** (v23)
   - NEW badge for reports < 24h old (animated pulse)

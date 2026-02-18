@@ -210,11 +210,15 @@ function renderReports(reportsToRender) {
     
     listEl.innerHTML = reportsToRender.map(report => {
         const isBaseline = report.isBaselineReport || (report.incidentId && report.incidentId.startsWith('baseline_'));
+        const isNew = report.generatedAt && (Date.now() - new Date(report.generatedAt).getTime()) < 24 * 60 * 60 * 1000;
+        const hasNotes = report.notes && report.notes.trim().length > 0;
         return `
         <div class="report-card" data-id="${report.id}">
             <div class="report-info">
                 <div class="report-title">
                     ${isBaseline ? '📋' : '⚠️'} ${escapeHtml(report.summary || 'Incident Report')}
+                    ${isNew ? '<span class="badge badge-new">NEW</span>' : ''}
+                    ${hasNotes ? '<span class="badge badge-notes" title="Has notes">📝</span>' : ''}
                 </div>
                 <div class="report-meta">
                     <span>🚗 ${escapeHtml(report.vehicleName || report.vehicleId || 'Unknown')}</span>
@@ -646,9 +650,70 @@ async function submitReportRequest() {
         await loadRequests();
         
         showToast('Report requested! Worker processes every 2 minutes.', 'success', 4000);
+        
+        // Start auto-refresh polling to detect when report is ready
+        startRequestPolling(request.payload.id);
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
     }
+}
+
+// Auto-refresh polling to detect completed requests
+let pollingInterval = null;
+let pollingRequestId = null;
+let pollCount = 0;
+const MAX_POLLS = 10; // Max 10 polls (5 minutes at 30s intervals)
+
+function startRequestPolling(requestId) {
+    // Clear any existing polling
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+    }
+    
+    pollingRequestId = requestId;
+    pollCount = 0;
+    
+    // Poll every 30 seconds
+    pollingInterval = setInterval(async () => {
+        pollCount++;
+        
+        if (pollCount > MAX_POLLS) {
+            stopRequestPolling();
+            return;
+        }
+        
+        try {
+            await loadRequests();
+            await loadReports();
+            
+            // Check if our request is completed
+            const request = requests.find(r => r.id === pollingRequestId);
+            if (request && request.status === 'Completed') {
+                showToast('✅ Report ready! Check the Reports tab.', 'success', 5000);
+                stopRequestPolling();
+                
+                // Switch to reports tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.querySelector('.tab[data-tab="reports"]').classList.add('active');
+                document.getElementById('reports-tab').classList.add('active');
+            } else if (request && request.status === 'Failed') {
+                showToast('❌ Report generation failed', 'error', 5000);
+                stopRequestPolling();
+            }
+        } catch (err) {
+            console.error('Polling error:', err);
+        }
+    }, 30000); // 30 seconds
+}
+
+function stopRequestPolling() {
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+    pollingRequestId = null;
+    pollCount = 0;
 }
 
 // Load filter preferences from localStorage

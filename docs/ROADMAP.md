@@ -32,10 +32,9 @@ Sub-agents should:
 - [x] **Add Notes/Driver Statement field** (v21)
   - Editable notes in report detail, saved to AddInData, included in PDF
 
-- [ ] **Deploy v21 and verify**
-  - Check build status, deploy all services, run E2E test
-  - Verify notes save/load correctly
-  - Verify PDF includes notes
+- [x] **Deploy v22 and verify**
+  - All services deployed: Add-In, API, Worker
+  - v22 includes: toasts, delete, sorting, filtering, insurance model
 
 - [ ] **Email notification integration**
   - Configure SMTP or SendGrid credentials in worker

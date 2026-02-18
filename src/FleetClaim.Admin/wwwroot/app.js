@@ -5,25 +5,45 @@ if (apiKey) {
     authenticate(true);
 }
 
+// Modal close function
+function closeModal(e) {
+    if (e && e.target && e.target.id === 'onboard-modal') {
+        document.getElementById('onboard-modal').style.display = 'none';
+    }
+}
+
+function hideModal() {
+    document.getElementById('onboard-modal').style.display = 'none';
+}
+
 // Set up modal close handlers after DOM loads
 document.addEventListener('DOMContentLoaded', function() {
+    // Cancel button
     const cancelBtn = document.getElementById('cancel-btn');
     if (cancelBtn) {
-        cancelBtn.addEventListener('click', function(e) {
+        cancelBtn.onclick = function(e) {
             e.preventDefault();
-            e.stopPropagation();
-            document.getElementById('onboard-modal').style.display = 'none';
-        });
+            hideModal();
+            return false;
+        };
     }
     
-    const closeBtn = document.querySelector('#onboard-modal .modal-content > button');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', function(e) {
+    // X close button
+    const closeXBtn = document.getElementById('close-x-btn');
+    if (closeXBtn) {
+        closeXBtn.onclick = function(e) {
             e.preventDefault();
-            e.stopPropagation();
-            document.getElementById('onboard-modal').style.display = 'none';
-        });
+            hideModal();
+            return false;
+        };
     }
+    
+    // ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideModal();
+        }
+    });
 });
 
 async function authenticate(silent = false) {

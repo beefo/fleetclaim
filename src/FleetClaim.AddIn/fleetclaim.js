@@ -409,6 +409,49 @@ function showReportDetail(report) {
             </div>
         </div>
         
+        <div class="report-section collapsible">
+            <h3 onclick="toggleSection(this)">🚗 Third Party Information <span class="toggle-icon">▼</span></h3>
+            <div class="section-content collapsed">
+                <p class="section-hint">Add information about other vehicles/parties involved (for insurance claims).</p>
+                <div class="third-party-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Vehicle Plate</label>
+                            <input type="text" id="tp-plate" value="${escapeHtml(report.thirdParties?.[0]?.vehiclePlate || '')}" placeholder="ABC-1234">
+                        </div>
+                        <div class="form-group">
+                            <label>Make/Model</label>
+                            <input type="text" id="tp-vehicle" value="${escapeHtml((report.thirdParties?.[0]?.vehicleMake || '') + ' ' + (report.thirdParties?.[0]?.vehicleModel || '')).trim()}" placeholder="Toyota Camry">
+                        </div>
+                        <div class="form-group">
+                            <label>Color</label>
+                            <input type="text" id="tp-color" value="${escapeHtml(report.thirdParties?.[0]?.vehicleColor || '')}" placeholder="Blue">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Driver Name</label>
+                            <input type="text" id="tp-driver" value="${escapeHtml(report.thirdParties?.[0]?.driverName || '')}" placeholder="John Smith">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" id="tp-phone" value="${escapeHtml(report.thirdParties?.[0]?.driverPhone || '')}" placeholder="555-1234">
+                        </div>
+                        <div class="form-group">
+                            <label>Insurance Company</label>
+                            <input type="text" id="tp-insurance" value="${escapeHtml(report.thirdParties?.[0]?.insuranceCompany || '')}" placeholder="State Farm">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Policy Number</label>
+                        <input type="text" id="tp-policy" value="${escapeHtml(report.thirdParties?.[0]?.insurancePolicy || '')}" placeholder="POL-12345">
+                    </div>
+                    <button class="btn btn-secondary" onclick="saveThirdPartyInfo('${report.id}')">💾 Save Third Party Info</button>
+                    <span id="tp-status" class="notes-status"></span>
+                </div>
+            </div>
+        </div>
+        
         <div class="report-actions">
             <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">${report.shareUrl ? '📄 Download PDF' : '🔄 Regenerate Report'}</button>
             ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
@@ -421,6 +464,102 @@ function showReportDetail(report) {
     // Render map if GPS data available
     if (evidence.gpsTrail && evidence.gpsTrail.length > 0) {
         setTimeout(() => renderGpsMap(evidence.gpsTrail, report.occurredAt), 100);
+    }
+}
+
+// Toggle collapsible sections
+function toggleSection(header) {
+    const content = header.nextElementSibling;
+    const icon = header.querySelector('.toggle-icon');
+    
+    if (content.classList.contains('collapsed')) {
+        content.classList.remove('collapsed');
+        icon.textContent = '▲';
+    } else {
+        content.classList.add('collapsed');
+        icon.textContent = '▼';
+    }
+}
+
+// Save third party info
+async function saveThirdPartyInfo(reportId) {
+    const statusEl = document.getElementById('tp-status');
+    statusEl.textContent = 'Saving...';
+    statusEl.className = 'notes-status';
+    
+    const thirdParty = {
+        vehiclePlate: document.getElementById('tp-plate').value.trim(),
+        vehicleMake: document.getElementById('tp-vehicle').value.trim().split(' ')[0] || '',
+        vehicleModel: document.getElementById('tp-vehicle').value.trim().split(' ').slice(1).join(' ') || '',
+        vehicleColor: document.getElementById('tp-color').value.trim(),
+        driverName: document.getElementById('tp-driver').value.trim(),
+        driverPhone: document.getElementById('tp-phone').value.trim(),
+        insuranceCompany: document.getElementById('tp-insurance').value.trim(),
+        insurancePolicy: document.getElementById('tp-policy').value.trim()
+    };
+    
+    try {
+        const results = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        let reportRecord = null;
+        let reportWrapper = null;
+        
+        for (const item of results) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'report' && wrapper.payload.id === reportId) {
+                    reportRecord = item;
+                    reportWrapper = wrapper;
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        if (!reportRecord || !reportWrapper) {
+            throw new Error('Report not found');
+        }
+        
+        // Update third parties (replace first or add)
+        reportWrapper.payload.thirdParties = [thirdParty];
+        
+        // Remove old and add updated
+        await new Promise((resolve, reject) => {
+            api.call('Remove', {
+                typeName: 'AddInData',
+                entity: { id: reportRecord.id }
+            }, resolve, reject);
+        });
+        
+        await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'AddInData',
+                entity: {
+                    addInId: ADDIN_ID,
+                    details: reportWrapper
+                }
+            }, resolve, reject);
+        });
+        
+        // Update local state
+        const localReport = reports.find(r => r.id === reportId);
+        if (localReport) {
+            localReport.thirdParties = [thirdParty];
+        }
+        
+        statusEl.textContent = '✓ Saved!';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } catch (err) {
+        console.error('Error saving third party info:', err);
+        statusEl.textContent = '✗ Failed to save';
+        statusEl.className = 'notes-status error';
     }
 }
 
@@ -1355,3 +1494,5 @@ window.showToast = showToast;
 window.showEmailModal = showEmailModal;
 window.closeEmailModal = closeEmailModal;
 window.sendReportEmail = sendReportEmail;
+window.toggleSection = toggleSection;
+window.saveThirdPartyInfo = saveThirdPartyInfo;

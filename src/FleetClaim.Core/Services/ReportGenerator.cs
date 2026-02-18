@@ -117,7 +117,7 @@ public class ReportGenerator : IReportGenerator
         // Event type and vehicle
         var eventType = incident.Rule?.Name ?? "Incident";
         var vehicleName = vehicle?.Name ?? "Unknown vehicle";
-        var eventTime = incident.DateTime ?? DateTime.UtcNow;
+        var eventTime = incident.ActiveFrom ?? DateTime.UtcNow;
         
         sb.Append($"{eventType} detected for {vehicleName} on {eventTime:MMMM d, yyyy} at {eventTime:h:mm tt} UTC. ");
         

@@ -123,10 +123,11 @@ Sub-agents should:
   - Store as base64 or external URL
   - Display in report detail and PDF
 
-- [ ] **Map preview in Add-In**
-  - Render GPS trail on embedded map
-  - Use Leaflet.js (free) or Google Maps
-  - Click to open full-screen
+- [x] **Map preview in Add-In** (v23)
+  - Interactive Leaflet map in report detail
+  - Polyline showing GPS trail
+  - Markers: 🟢 Start, 🏁 End, ⚠️ Incident point
+  - Auto-fit bounds, Google Maps fallback link
 
 - [ ] **Report search improvements**
   - Search by date range

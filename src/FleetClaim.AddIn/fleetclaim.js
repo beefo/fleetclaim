@@ -92,6 +92,9 @@ function initializeUI() {
     // Request modal
     document.getElementById('cancel-request').addEventListener('click', closeRequestModal);
     document.getElementById('submit-request').addEventListener('click', submitReportRequest);
+    
+    // Settings
+    initializeSettingsUI();
 }
 
 // Load reports from AddInData
@@ -553,8 +556,190 @@ function copyShareLink(url) {
     });
 }
 
+// ========================================
+// Settings Management
+// ========================================
+
+let config = {
+    notifyEmails: [],
+    notifyWebhook: null,
+    severityThreshold: 'Medium'
+};
+
+// Load config from AddInData
+async function loadSettings() {
+    try {
+        const results = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        for (const item of results) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'config') {
+                    config = {
+                        notifyEmails: wrapper.payload.notifyEmails || [],
+                        notifyWebhook: wrapper.payload.notifyWebhook || null,
+                        severityThreshold: wrapper.payload.severityThreshold || 'Medium'
+                    };
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        renderSettingsUI();
+    } catch (err) {
+        console.error('Error loading settings:', err);
+    }
+}
+
+// Render settings to UI
+function renderSettingsUI() {
+    // Email chips
+    const emailList = document.getElementById('email-list');
+    emailList.innerHTML = config.notifyEmails.map(email => `
+        <div class="email-chip">
+            ${escapeHtml(email)}
+            <button onclick="removeEmail('${escapeHtml(email)}')" title="Remove">&times;</button>
+        </div>
+    `).join('');
+    
+    // Webhook
+    const webhookInput = document.getElementById('webhook-url');
+    if (webhookInput) {
+        webhookInput.value = config.notifyWebhook || '';
+    }
+    
+    // Severity threshold
+    const severitySelect = document.getElementById('severity-threshold');
+    if (severitySelect) {
+        severitySelect.value = config.severityThreshold || 'Medium';
+    }
+}
+
+// Add email to list
+function addEmail() {
+    const input = document.getElementById('notify-email-input');
+    const email = input.value.trim().toLowerCase();
+    
+    if (!email) return;
+    
+    // Simple email validation
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        alert('Please enter a valid email address');
+        return;
+    }
+    
+    if (config.notifyEmails.includes(email)) {
+        alert('This email is already in the list');
+        return;
+    }
+    
+    config.notifyEmails.push(email);
+    input.value = '';
+    renderSettingsUI();
+}
+
+// Remove email from list
+function removeEmail(email) {
+    config.notifyEmails = config.notifyEmails.filter(e => e !== email);
+    renderSettingsUI();
+}
+
+// Save settings to AddInData
+async function saveSettings() {
+    const statusEl = document.getElementById('settings-status');
+    const saveBtn = document.getElementById('save-settings');
+    
+    // Update config from UI
+    config.notifyWebhook = document.getElementById('webhook-url').value.trim() || null;
+    config.severityThreshold = document.getElementById('severity-threshold').value;
+    
+    statusEl.textContent = 'Saving...';
+    statusEl.className = 'settings-status';
+    saveBtn.disabled = true;
+    
+    try {
+        // First, find existing config record to remove it
+        const existingRecords = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        for (const item of existingRecords) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'config') {
+                    // Remove existing config
+                    await new Promise((resolve, reject) => {
+                        api.call('Remove', {
+                            typeName: 'AddInData',
+                            entity: { id: item.id }
+                        }, resolve, reject);
+                    });
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        // Add new config
+        const configData = {
+            type: 'config',
+            payload: {
+                notifyEmails: config.notifyEmails,
+                notifyWebhook: config.notifyWebhook,
+                severityThreshold: config.severityThreshold,
+                autoGenerateRules: ['Major Collision', 'Minor Collision']
+            }
+        };
+        
+        await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'AddInData',
+                entity: {
+                    addInId: ADDIN_ID,
+                    details: configData
+                }
+            }, resolve, reject);
+        });
+        
+        statusEl.textContent = '✓ Settings saved!';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } catch (err) {
+        console.error('Error saving settings:', err);
+        statusEl.textContent = '✗ Failed to save';
+        statusEl.className = 'settings-status error';
+    } finally {
+        saveBtn.disabled = false;
+    }
+}
+
+// Initialize settings event listeners
+function initializeSettingsUI() {
+    document.getElementById('add-email-btn')?.addEventListener('click', addEmail);
+    document.getElementById('notify-email-input')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addEmail();
+    });
+    document.getElementById('save-settings')?.addEventListener('click', saveSettings);
+    
+    // Load settings when settings tab is clicked
+    document.querySelector('.tab[data-tab="settings"]')?.addEventListener('click', loadSettings);
+}
+
 // Expose for onclick handlers
 window.showRequestModal = showRequestModal;
 window.copyShareLink = copyShareLink;
 window.downloadPdf = downloadPdf;
 window.downloadPdfForReport = downloadPdfForReport;
+window.removeEmail = removeEmail;

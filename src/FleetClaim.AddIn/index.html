@@ -16,6 +16,7 @@
         <div class="tabs">
             <button class="tab active" data-tab="reports">Reports</button>
             <button class="tab" data-tab="requests">Pending Requests</button>
+            <button class="tab" data-tab="settings">⚙️ Settings</button>
         </div>
         
         <div id="reports-tab" class="tab-content active">
@@ -39,6 +40,43 @@
         <div id="requests-tab" class="tab-content">
             <div id="requests-list" class="reports-list">
                 <div class="loading">Loading requests...</div>
+            </div>
+        </div>
+        
+        <div id="settings-tab" class="tab-content">
+            <div class="settings-container">
+                <h2>Notification Settings</h2>
+                <p class="settings-desc">Configure email notifications when incident reports are generated.</p>
+                
+                <div class="form-group">
+                    <label for="notify-emails">Notification Emails</label>
+                    <div class="email-input-container">
+                        <input type="email" id="notify-email-input" placeholder="Add email address..." class="input-full">
+                        <button id="add-email-btn" class="btn btn-secondary">Add</button>
+                    </div>
+                    <div id="email-list" class="email-chips"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="webhook-url">Webhook URL (optional)</label>
+                    <input type="url" id="webhook-url" placeholder="https://your-webhook-endpoint.com/..." class="input-full">
+                    <p class="input-hint">FleetClaim will POST report data to this URL when incidents are detected.</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="severity-threshold">Minimum Severity for Auto-Reports</label>
+                    <select id="severity-threshold" class="input-full">
+                        <option value="Low">Low (all incidents)</option>
+                        <option value="Medium" selected>Medium and above</option>
+                        <option value="High">High and Critical only</option>
+                        <option value="Critical">Critical only</option>
+                    </select>
+                </div>
+                
+                <div class="settings-actions">
+                    <button id="save-settings" class="btn btn-primary">💾 Save Settings</button>
+                    <span id="settings-status" class="settings-status"></span>
+                </div>
             </div>
         </div>
         

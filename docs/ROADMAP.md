@@ -168,8 +168,9 @@ Sub-agents should:
   - E2E test for full request → report → PDF flow
   - Mock Geotab API for CI
 
-- [ ] **Hardcoded API URL in Add-In**
-  - Move to config or auto-detect
+- [x] **Hardcoded API URL in Add-In** (resolved)
+  - Add-In uses shareUrl from report data (no hardcoding)
+  - Worker generates shareUrl with configurable SHARE_LINK_BASE_URL env var
 
 - [x] **Add request timeout handling** (v24)
   - Worker checks for stale requests (Processing > 10 min)

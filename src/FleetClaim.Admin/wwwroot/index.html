@@ -47,37 +47,6 @@
                     Loading...
                 </div>
             </section>
-            
-            <!-- Onboard Database Modal -->
-            <div id="onboard-modal" class="modal hidden">
-                <div class="modal-content">
-                    <h3>Add New Database</h3>
-                    <form id="onboard-form" onsubmit="onboardDatabase(event)">
-                        <div class="form-group">
-                            <label for="db-name">Database Name</label>
-                            <input type="text" id="db-name" placeholder="e.g., company_fleet" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="db-server">Server</label>
-                            <input type="text" id="db-server" value="my.geotab.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="db-username">Username (API User)</label>
-                            <input type="text" id="db-username" placeholder="e.g., fleetclaim_svc@company.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="db-password">Password</label>
-                            <input type="password" id="db-password" required>
-                        </div>
-                        <div class="modal-actions">
-                            <button type="button" onclick="hideOnboardModal()" class="btn-secondary">Cancel</button>
-                            <button type="submit" class="btn-primary" id="onboard-submit">Add Database</button>
-                        </div>
-                    </form>
-                    <div id="onboard-result" class="hidden"></div>
-                </div>
-            </div>
-
             <section class="requests-section">
                 <h2>📋 Recent Requests</h2>
                 <select id="db-selector" onchange="loadRequests()">
@@ -108,6 +77,36 @@
         <footer>
             <p>FleetClaim Admin Portal • <span id="last-updated">-</span></p>
         </footer>
+    </div>
+
+    <!-- Onboard Database Modal (outside container for proper z-index) -->
+    <div id="onboard-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Add New Database</h3>
+            <form id="onboard-form" onsubmit="onboardDatabase(event)">
+                <div class="form-group">
+                    <label for="db-name">Database Name</label>
+                    <input type="text" id="db-name" placeholder="e.g., company_fleet" required>
+                </div>
+                <div class="form-group">
+                    <label for="db-server">Server</label>
+                    <input type="text" id="db-server" value="my.geotab.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="db-username">Username (API User)</label>
+                    <input type="text" id="db-username" placeholder="e.g., fleetclaim_svc@company.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="db-password">Password</label>
+                    <input type="password" id="db-password" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="hideOnboardModal()" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary" id="onboard-submit">Add Database</button>
+                </div>
+            </form>
+            <div id="onboard-result" class="hidden"></div>
+        </div>
     </div>
 
     <script src="app.js"></script>

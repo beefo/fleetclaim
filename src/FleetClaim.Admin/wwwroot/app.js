@@ -301,7 +301,14 @@ setInterval(() => {
 
 // Database onboarding
 function showOnboardModal() {
-    document.getElementById('onboard-modal').classList.remove('hidden');
+    console.log('showOnboardModal called');
+    const modal = document.getElementById('onboard-modal');
+    console.log('Modal element:', modal);
+    if (!modal) {
+        alert('Modal element not found!');
+        return;
+    }
+    modal.classList.remove('hidden');
     document.getElementById('onboard-form').reset();
     document.getElementById('db-server').value = 'my.geotab.com';
     document.getElementById('onboard-result').classList.add('hidden');

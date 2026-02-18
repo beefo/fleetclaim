@@ -298,3 +298,70 @@ setInterval(() => {
         loadDashboard();
     }
 }, 30000);
+
+// Database onboarding
+function showOnboardModal() {
+    document.getElementById('onboard-modal').classList.remove('hidden');
+    document.getElementById('onboard-form').reset();
+    document.getElementById('db-server').value = 'my.geotab.com';
+    document.getElementById('onboard-result').classList.add('hidden');
+}
+
+function hideOnboardModal() {
+    document.getElementById('onboard-modal').classList.add('hidden');
+}
+
+async function onboardDatabase(event) {
+    event.preventDefault();
+    
+    const submitBtn = document.getElementById('onboard-submit');
+    const resultDiv = document.getElementById('onboard-result');
+    
+    const payload = {
+        database: document.getElementById('db-name').value.trim(),
+        server: document.getElementById('db-server').value.trim(),
+        username: document.getElementById('db-username').value.trim(),
+        password: document.getElementById('db-password').value
+    };
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Connecting...';
+    resultDiv.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/admin/databases', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': apiKey
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            resultDiv.innerHTML = `
+                <div class="success-message">
+                    ✅ ${data.message}<br>
+                    <small>Secret: ${data.secretName}</small>
+                </div>
+            `;
+            resultDiv.classList.remove('hidden');
+            
+            // Refresh dashboard after 2 seconds
+            setTimeout(() => {
+                hideOnboardModal();
+                loadDashboard();
+            }, 2000);
+        } else {
+            throw new Error(data.detail || data.error || 'Unknown error');
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        resultDiv.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add Database';
+    }
+}

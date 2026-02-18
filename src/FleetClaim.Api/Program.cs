@@ -505,7 +505,7 @@ static string RenderReportPage(IncidentReport report)
                     """ : "")}}
                     
                     <div class="actions">
-                        <a href="pdf" class="btn">Download PDF Report</a>
+                        <a href="/r/{token}/pdf" class="btn" download="incident-report.pdf">📄 Download PDF Report</a>
                     </div>
                 </div>
                 

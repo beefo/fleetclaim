@@ -20,12 +20,61 @@ public class QuestPdfRenderer : IPdfRenderer
         QuestPDF.Settings.License = LicenseType.Community;
     }
     
-    public Task<string> RenderPdfAsync(IncidentReport report, CancellationToken ct = default)
+    public async Task<string> RenderPdfAsync(IncidentReport report, CancellationToken ct = default)
     {
-        var document = new IncidentReportDocument(report, _options);
+        // Fetch static map image if GPS data available
+        byte[]? mapImage = null;
+        if (report.Evidence?.GpsTrail?.Count > 0)
+        {
+            mapImage = await FetchStaticMapImageAsync(report);
+        }
+        
+        var document = new IncidentReportDocument(report, _options, mapImage);
         var pdfBytes = document.GeneratePdf();
         var base64 = Convert.ToBase64String(pdfBytes);
-        return Task.FromResult(base64);
+        return base64;
+    }
+    
+    private async Task<byte[]?> FetchStaticMapImageAsync(IncidentReport report)
+    {
+        if (report.Evidence?.GpsTrail == null || report.Evidence.GpsTrail.Count == 0)
+            return null;
+        
+        try
+        {
+            // Get center point (closest to incident time)
+            var centerPoint = report.Evidence.GpsTrail
+                .OrderBy(p => Math.Abs((p.Timestamp - report.OccurredAt).TotalSeconds))
+                .First();
+            
+            // Build polyline path for the route
+            var pathPoints = report.Evidence.GpsTrail
+                .Where((_, i) => i % Math.Max(1, report.Evidence.GpsTrail.Count / 30) == 0)
+                .Take(30)
+                .Select(p => $"{p.Longitude:F5},{p.Latitude:F5}");
+            var polyline = string.Join(",", pathPoints);
+            
+            // Use geoapify free tier (3000 req/day) - no API key needed for basic usage
+            var mapUrl = $"https://maps.geoapify.com/v1/staticmap?" +
+                $"style=osm-bright&width=600&height=250" +
+                $"&center=lonlat:{centerPoint.Longitude:F5},{centerPoint.Latitude:F5}&zoom=13" +
+                $"&marker=lonlat:{centerPoint.Longitude:F5},{centerPoint.Latitude:F5};color:%23ff0000;size:medium;type:awesome";
+            
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(15);
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "FleetClaim/1.0");
+            
+            var response = await httpClient.GetAsync(mapUrl);
+            if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+            {
+                return await response.Content.ReadAsByteArrayAsync();
+            }
+        }
+        catch
+        {
+            // Map fetch failed, continue without map image
+        }
+        return null;
     }
 }
 
@@ -40,6 +89,7 @@ internal class IncidentReportDocument : IDocument
 {
     private readonly IncidentReport _report;
     private readonly PdfOptions _options;
+    private readonly byte[]? _mapImage;
     
     private static readonly string PrimaryColor = "#1a365d";
     private static readonly string AccentColor = "#2b6cb0";
@@ -47,10 +97,11 @@ internal class IncidentReportDocument : IDocument
     private static readonly string BorderColor = "#e2e8f0";
     private static readonly string WarningColor = "#c53030";
     
-    public IncidentReportDocument(IncidentReport report, PdfOptions options)
+    public IncidentReportDocument(IncidentReport report, PdfOptions options, byte[]? mapImage = null)
     {
         _report = report;
         _options = options;
+        _mapImage = mapImage;
     }
     
     public DocumentMetadata GetMetadata() => new()
@@ -448,20 +499,26 @@ internal class IncidentReportDocument : IDocument
                 return;
             }
             
-            // Map placeholder
-            var mapUrl = GenerateStaticMapUrl();
-            col.Item().PaddingTop(10).Height(180).Background(LightGray).AlignCenter().AlignMiddle()
-                .Column(inner =>
-                {
-                    inner.Item().Text("GPS Map Preview").FontSize(10).FontColor(Colors.Grey.Darken1);
-                    inner.Item().PaddingTop(5).Text($"{_report.Evidence.GpsTrail.Count} GPS points recorded")
-                        .FontSize(9).FontColor(Colors.Grey.Medium);
-                    if (!string.IsNullOrEmpty(mapUrl))
+            // Map image or placeholder
+            if (_mapImage != null && _mapImage.Length > 0)
+            {
+                col.Item().PaddingTop(10).AlignCenter().Image(_mapImage).FitWidth();
+                col.Item().PaddingTop(4).AlignCenter().Text($"GPS route with {_report.Evidence.GpsTrail.Count} data points")
+                    .FontSize(8).FontColor(Colors.Grey.Darken1);
+            }
+            else
+            {
+                // Fallback placeholder if map fetch failed
+                col.Item().PaddingTop(10).Height(120).Background(LightGray).AlignCenter().AlignMiddle()
+                    .Column(inner =>
                     {
-                        inner.Item().PaddingTop(5).Text("View interactive map at share URL below")
+                        inner.Item().Text("📍 GPS Data Available").FontSize(10).FontColor(Colors.Grey.Darken1);
+                        inner.Item().PaddingTop(5).Text($"{_report.Evidence.GpsTrail.Count} GPS points recorded")
+                            .FontSize(9).FontColor(Colors.Grey.Medium);
+                        inner.Item().PaddingTop(5).Text("View interactive map at share URL")
                             .FontSize(8).FontColor(AccentColor);
-                    }
-                });
+                    });
+            }
             
             // GPS coordinates summary
             var first = _report.Evidence.GpsTrail.First();
@@ -780,26 +837,4 @@ internal class IncidentReportDocument : IDocument
             .Padding(12);
     }
     
-    private string? GenerateStaticMapUrl()
-    {
-        if (_report.Evidence.GpsTrail.Count == 0 || string.IsNullOrEmpty(_options.GoogleMapsApiKey))
-            return null;
-        
-        var points = _report.Evidence.GpsTrail
-            .Where((_, i) => i % Math.Max(1, _report.Evidence.GpsTrail.Count / 50) == 0)
-            .Take(50);
-        
-        var pathPoints = string.Join("|", points.Select(p => $"{p.Latitude:F5},{p.Longitude:F5}"));
-        
-        var center = _report.Evidence.GpsTrail
-            .OrderBy(p => Math.Abs((p.Timestamp - _report.OccurredAt).TotalSeconds))
-            .First();
-        
-        return $"https://maps.googleapis.com/maps/api/staticmap?" +
-               $"center={center.Latitude:F5},{center.Longitude:F5}" +
-               $"&zoom=14&size=600x300&maptype=roadmap" +
-               $"&path=color:0x0000ff|weight:3|{pathPoints}" +
-               $"&markers=color:red|{center.Latitude:F5},{center.Longitude:F5}" +
-               $"&key={_options.GoogleMapsApiKey}";
-    }
 }

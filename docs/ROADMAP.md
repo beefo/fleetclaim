@@ -130,10 +130,13 @@ Sub-agents should:
   - Markers: 🟢 Start, 🏁 End, ⚠️ Incident point
   - Auto-fit bounds, Google Maps fallback link
 
-- [x] **Report search improvements** (v23)
+- [x] **Report search improvements** (v23-v25)
   - Vehicle filter dropdown (auto-populated)
-  - Already has: text search, severity filter, date range filter
-  - Already has: sorting by date/severity/vehicle
+  - Text search, severity filter, date range filter
+  - Sorting by date/severity/vehicle
+  - Stats bar with counts and severity breakdown
+  - Prominent "Request Report" button in toolbar
+  - Keyboard shortcuts (R=refresh, N=new, Esc=close, 1/2/3=tabs)
 
 ### P3 - Low Priority (Future)
 

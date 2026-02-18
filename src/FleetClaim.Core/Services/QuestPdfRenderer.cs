@@ -7,6 +7,7 @@ namespace FleetClaim.Core.Services;
 
 /// <summary>
 /// PDF renderer using QuestPDF for professional incident reports.
+/// Designed for insurance claim submission with all required fields.
 /// </summary>
 public class QuestPdfRenderer : IPdfRenderer
 {
@@ -44,6 +45,7 @@ internal class IncidentReportDocument : IDocument
     private static readonly string AccentColor = "#2b6cb0";
     private static readonly string LightGray = "#f7fafc";
     private static readonly string BorderColor = "#e2e8f0";
+    private static readonly string WarningColor = "#c53030";
     
     public IncidentReportDocument(IncidentReport report, PdfOptions options)
     {
@@ -55,7 +57,8 @@ internal class IncidentReportDocument : IDocument
     {
         Title = $"Incident Report - {_report.Id}",
         Author = _options.CompanyName,
-        Subject = $"Incident {_report.IncidentId}",
+        Subject = $"Vehicle Incident Report for Insurance Claim - {_report.IncidentId}",
+        Keywords = "incident report, insurance claim, fleet, vehicle accident",
         CreationDate = _report.GeneratedAt
     };
     
@@ -81,15 +84,19 @@ internal class IncidentReportDocument : IDocument
             {
                 col.Item().Text(_options.CompanyName)
                     .Bold().FontSize(20).FontColor(PrimaryColor);
-                col.Item().Text("Incident Evidence Report")
+                col.Item().Text("Vehicle Incident Report")
                     .FontSize(12).FontColor(AccentColor);
+                col.Item().Text("For Insurance Claim Submission")
+                    .FontSize(9).FontColor(Colors.Grey.Darken1).Italic();
             });
             
-            row.ConstantItem(120).Column(col =>
+            row.ConstantItem(140).Column(col =>
             {
                 col.Item().AlignRight().Text($"Report #{_report.Id}")
                     .Bold().FontSize(10);
-                col.Item().AlignRight().Text($"Generated: {_report.GeneratedAt:MMM dd, yyyy HH:mm}")
+                col.Item().AlignRight().Text($"Incident ID: {_report.IncidentId}")
+                    .FontSize(8);
+                col.Item().AlignRight().Text($"Generated: {_report.GeneratedAt:MMM dd, yyyy HH:mm} UTC")
                     .FontSize(8).FontColor(Colors.Grey.Darken1);
             });
         });
@@ -97,54 +104,72 @@ internal class IncidentReportDocument : IDocument
     
     private void ComposeContent(IContainer container)
     {
-        container.PaddingVertical(20).Column(col =>
+        container.PaddingVertical(15).Column(col =>
         {
-            col.Spacing(15);
+            col.Spacing(12);
             
-            // Severity badge + summary
+            // 1. Severity banner + incident summary
             col.Item().Element(ComposeSeverityBanner);
             
-            // Incident Details section
-            col.Item().Element(ComposeIncidentDetails);
+            // 2. INCIDENT OVERVIEW (Date, Time, Location)
+            col.Item().Element(ComposeIncidentOverview);
             
-            // GPS Map placeholder
-            col.Item().Element(ComposeMapSection);
+            // 3. VEHICLE INFORMATION (VIN, Plate, Make/Model)
+            col.Item().Element(ComposeVehicleInfo);
             
-            // Speed chart (simplified data table)
+            // 4. DRIVER INFORMATION (License, Contact)
+            col.Item().Element(ComposeDriverInfo);
+            
+            // 5. DAMAGE ASSESSMENT
+            col.Item().Element(ComposeDamageSection);
+            
+            // 6. POLICE REPORT
+            if (!string.IsNullOrEmpty(_report.PoliceReportNumber) || _report.PoliceReportDate.HasValue)
+            {
+                col.Item().Element(ComposePoliceReport);
+            }
+            
+            // 7. THIRD-PARTY INFORMATION
+            if (_report.ThirdParties.Count > 0)
+            {
+                col.Item().Element(ComposeThirdPartyInfo);
+            }
+            
+            // 8. WITNESS INFORMATION
+            if (_report.Witnesses.Count > 0)
+            {
+                col.Item().Element(ComposeWitnessInfo);
+            }
+            
+            // 9. GPS & TELEMATICS DATA
+            col.Item().Element(ComposeGpsSection);
+            
+            // 10. SPEED ANALYSIS
             col.Item().Element(ComposeSpeedSection);
             
-            // Diagnostics table
+            // 11. CONDITIONS (Weather, Road, Light)
+            col.Item().Element(ComposeConditionsSection);
+            
+            // 12. DIAGNOSTIC DATA
             col.Item().Element(ComposeDiagnosticsSection);
             
-            // Evidence summary
-            col.Item().Element(ComposeEvidenceSummary);
+            // 13. DRIVER HOS STATUS
+            if (_report.Evidence.DriverHosStatus != null)
+            {
+                col.Item().Element(ComposeHosSection);
+            }
             
-            // Notes section (if user has added notes)
+            // 14. NOTES & DRIVER STATEMENT
             if (!string.IsNullOrWhiteSpace(_report.Notes))
             {
                 col.Item().Element(ComposeNotesSection);
             }
-        });
-    }
-    
-    private void ComposeNotesSection(IContainer container)
-    {
-        container.Element(SectionBox).Column(col =>
-        {
-            col.Item().Text("Notes & Driver Statement").Bold().FontSize(12).FontColor(PrimaryColor);
             
-            col.Item().PaddingTop(10).Background(LightGray).Padding(10)
-                .Text(_report.Notes ?? "")
-                .FontSize(10)
-                .LineHeight(1.4f);
+            // 15. EVIDENCE SUMMARY
+            col.Item().Element(ComposeEvidenceSummary);
             
-            if (_report.NotesUpdatedAt.HasValue)
-            {
-                col.Item().PaddingTop(5).Text(
-                    $"Last updated: {_report.NotesUpdatedAt:yyyy-MM-dd HH:mm} UTC" +
-                    (!string.IsNullOrEmpty(_report.NotesUpdatedBy) ? $" by {_report.NotesUpdatedBy}" : ""))
-                    .FontSize(8).FontColor(Colors.Grey.Darken1);
-            }
+            // 16. CERTIFICATION BLOCK
+            col.Item().Element(ComposeCertificationBlock);
         });
     }
     
@@ -167,71 +192,274 @@ internal class IncidentReportDocument : IDocument
         });
     }
     
-    private void ComposeIncidentDetails(IContainer container)
+    private void ComposeIncidentOverview(IContainer container)
     {
         container.Element(SectionBox).Column(col =>
         {
-            col.Item().Text("Incident Details").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().Text("INCIDENT OVERVIEW").Bold().FontSize(12).FontColor(PrimaryColor);
             col.Item().PaddingTop(10).Row(row =>
             {
                 row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
                 {
-                    ["Incident ID"] = _report.IncidentId,
-                    ["Occurred At"] = _report.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss UTC"),
-                    ["Vehicle"] = _report.VehicleName ?? _report.VehicleId,
+                    ["Date of Incident"] = _report.OccurredAt.ToString("MMMM dd, yyyy"),
+                    ["Time of Incident"] = _report.OccurredAt.ToString("HH:mm:ss") + " UTC",
+                    ["Incident Type"] = _report.IsBaselineReport ? "Baseline Report (No Event)" : "Collision/Impact Event",
                 }));
                 
                 row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
                 {
-                    ["Driver"] = _report.DriverName ?? _report.DriverId ?? "Unknown",
-                    ["Vehicle ID"] = _report.VehicleId,
-                    ["Report Generated"] = _report.GeneratedAt.ToString("yyyy-MM-dd HH:mm UTC"),
+                    ["Address"] = _report.IncidentAddress ?? "See GPS coordinates",
+                    ["City/State"] = FormatCityState(),
+                    ["Country"] = _report.IncidentCountry ?? "-",
+                }));
+            });
+            
+            // GPS Coordinates
+            if (_report.Evidence.GpsTrail.Count > 0)
+            {
+                var incidentPoint = _report.Evidence.GpsTrail
+                    .OrderBy(p => Math.Abs((p.Timestamp - _report.OccurredAt).TotalSeconds))
+                    .First();
+                col.Item().PaddingTop(8).Text($"GPS Coordinates: {incidentPoint.Latitude:F6}, {incidentPoint.Longitude:F6}")
+                    .FontSize(9).FontColor(Colors.Grey.Darken1);
+            }
+        });
+    }
+    
+    private string FormatCityState()
+    {
+        var parts = new[] { _report.IncidentCity, _report.IncidentState }
+            .Where(p => !string.IsNullOrEmpty(p));
+        return parts.Any() ? string.Join(", ", parts) : "-";
+    }
+    
+    private void ComposeVehicleInfo(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("VEHICLE INFORMATION").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["Vehicle Name"] = _report.VehicleName ?? "-",
+                    ["VIN"] = _report.VehicleVin ?? "-",
+                    ["License Plate"] = _report.VehiclePlate ?? "-",
+                    ["Geotab Device ID"] = _report.VehicleId,
+                }));
+                
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["Year"] = _report.VehicleYear ?? "-",
+                    ["Make"] = _report.VehicleMake ?? "-",
+                    ["Model"] = _report.VehicleModel ?? "-",
+                    ["Odometer"] = _report.OdometerKm.HasValue ? $"{_report.OdometerKm:N0} km" : "-",
                 }));
             });
         });
     }
     
-    private void DetailColumn(IContainer container, Dictionary<string, string?> details)
+    private void ComposeDriverInfo(IContainer container)
     {
-        container.Column(col =>
+        container.Element(SectionBox).Column(col =>
         {
-            col.Spacing(4);
-            foreach (var (label, value) in details)
+            col.Item().Text("DRIVER INFORMATION").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().PaddingTop(10).Row(row =>
             {
-                col.Item().Row(row =>
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
                 {
-                    row.ConstantItem(100).Text(label + ":").FontColor(Colors.Grey.Darken1);
-                    row.RelativeItem().Text(value ?? "-");
-                });
+                    ["Driver Name"] = _report.DriverName ?? "Unknown",
+                    ["Driver ID"] = _report.DriverId ?? "-",
+                    ["License Number"] = _report.DriverLicenseNumber ?? "-",
+                    ["License State/Province"] = _report.DriverLicenseState ?? "-",
+                }));
+                
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["Phone"] = _report.DriverPhone ?? "-",
+                    ["Email"] = _report.DriverEmail ?? "-",
+                }));
+            });
+        });
+    }
+    
+    private void ComposeDamageSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("DAMAGE ASSESSMENT").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["Damage Level"] = _report.DamageLevel?.ToString() ?? "Not Assessed",
+                    ["Vehicle Driveable"] = FormatBool(_report.VehicleDriveable),
+                    ["Airbag Deployed"] = FormatBool(_report.AirbagDeployed),
+                }));
+                
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["Injuries Reported"] = FormatBool(_report.InjuriesReported),
+                }));
+            });
+            
+            if (!string.IsNullOrWhiteSpace(_report.DamageDescription))
+            {
+                col.Item().PaddingTop(8).Text("Damage Description:").Bold().FontSize(9);
+                col.Item().PaddingTop(4).Background(LightGray).Padding(8)
+                    .Text(_report.DamageDescription)
+                    .FontSize(9).LineHeight(1.3f);
+            }
+            
+            if (!string.IsNullOrWhiteSpace(_report.InjuryDescription))
+            {
+                col.Item().PaddingTop(8).Text("Injury Details:").Bold().FontSize(9).FontColor(WarningColor);
+                col.Item().PaddingTop(4).Background("#fff5f5").Border(1).BorderColor(WarningColor).Padding(8)
+                    .Text(_report.InjuryDescription)
+                    .FontSize(9).LineHeight(1.3f);
             }
         });
     }
     
-    private void ComposeMapSection(IContainer container)
+    private static string FormatBool(bool? value) => value switch
+    {
+        true => "Yes",
+        false => "No",
+        null => "Unknown"
+    };
+    
+    private void ComposePoliceReport(IContainer container)
     {
         container.Element(SectionBox).Column(col =>
         {
-            col.Item().Text("GPS Trail").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().Text("POLICE REPORT").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["Report Number"] = _report.PoliceReportNumber ?? "-",
+                    ["Agency"] = _report.PoliceAgency ?? "-",
+                    ["Report Date"] = _report.PoliceReportDate?.ToString("yyyy-MM-dd") ?? "-",
+                }));
+            });
+        });
+    }
+    
+    private void ComposeThirdPartyInfo(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("OTHER PARTIES INVOLVED").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            for (int i = 0; i < _report.ThirdParties.Count; i++)
+            {
+                var party = _report.ThirdParties[i];
+                col.Item().PaddingTop(i == 0 ? 10 : 15).Text($"Party {i + 1}").Bold().FontSize(10).FontColor(AccentColor);
+                
+                col.Item().PaddingTop(6).Row(row =>
+                {
+                    row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                    {
+                        ["Driver Name"] = party.DriverName ?? "-",
+                        ["Driver Phone"] = party.DriverPhone ?? "-",
+                        ["License #"] = party.DriverLicense ?? "-",
+                        ["License State"] = party.DriverLicenseState ?? "-",
+                    }));
+                    
+                    row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                    {
+                        ["Vehicle Plate"] = party.VehiclePlate ?? "-",
+                        ["Make/Model"] = FormatMakeModel(party.VehicleMake, party.VehicleModel),
+                        ["Color"] = party.VehicleColor ?? "-",
+                        ["VIN"] = party.VehicleVin ?? "-",
+                    }));
+                });
+                
+                if (!string.IsNullOrEmpty(party.InsuranceCompany))
+                {
+                    col.Item().PaddingTop(6).Background(LightGray).Padding(6).Row(row =>
+                    {
+                        row.RelativeItem().Text($"Insurance: {party.InsuranceCompany}").FontSize(9);
+                        if (!string.IsNullOrEmpty(party.InsurancePolicyNumber))
+                            row.RelativeItem().Text($"Policy #: {party.InsurancePolicyNumber}").FontSize(9);
+                        if (!string.IsNullOrEmpty(party.InsuranceClaimNumber))
+                            row.RelativeItem().Text($"Claim #: {party.InsuranceClaimNumber}").FontSize(9);
+                    });
+                }
+            }
+        });
+    }
+    
+    private static string FormatMakeModel(string? make, string? model)
+    {
+        if (string.IsNullOrEmpty(make) && string.IsNullOrEmpty(model)) return "-";
+        return $"{make ?? ""} {model ?? ""}".Trim();
+    }
+    
+    private void ComposeWitnessInfo(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("WITNESSES").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            col.Item().PaddingTop(10).Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(2);
+                    columns.RelativeColumn(3);
+                });
+                
+                table.Header(header =>
+                {
+                    header.Cell().Background(LightGray).Padding(4).Text("Name").Bold().FontSize(9);
+                    header.Cell().Background(LightGray).Padding(4).Text("Phone").Bold().FontSize(9);
+                    header.Cell().Background(LightGray).Padding(4).Text("Email").Bold().FontSize(9);
+                    header.Cell().Background(LightGray).Padding(4).Text("Statement").Bold().FontSize(9);
+                });
+                
+                foreach (var witness in _report.Witnesses)
+                {
+                    table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                        .Text(witness.Name ?? "-").FontSize(8);
+                    table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                        .Text(witness.Phone ?? "-").FontSize(8);
+                    table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                        .Text(witness.Email ?? "-").FontSize(8);
+                    table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                        .Text(witness.Statement ?? "-").FontSize(8);
+                }
+            });
+        });
+    }
+    
+    private void ComposeGpsSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("GPS TRAIL & LOCATION DATA").Bold().FontSize(12).FontColor(PrimaryColor);
             
             if (_report.Evidence.GpsTrail.Count == 0)
             {
-                col.Item().PaddingTop(10).Text("No GPS data available")
+                col.Item().PaddingTop(10).Text("No GPS data available for this incident window.")
                     .Italic().FontColor(Colors.Grey.Darken1);
                 return;
             }
             
-            // Show map URL or placeholder
+            // Map placeholder
             var mapUrl = GenerateStaticMapUrl();
-            col.Item().PaddingTop(10).Height(200).Background(LightGray).AlignCenter().AlignMiddle()
+            col.Item().PaddingTop(10).Height(180).Background(LightGray).AlignCenter().AlignMiddle()
                 .Column(inner =>
                 {
                     inner.Item().Text("GPS Map Preview").FontSize(10).FontColor(Colors.Grey.Darken1);
-                    inner.Item().PaddingTop(5).Text($"{_report.Evidence.GpsTrail.Count} points recorded")
+                    inner.Item().PaddingTop(5).Text($"{_report.Evidence.GpsTrail.Count} GPS points recorded")
                         .FontSize(9).FontColor(Colors.Grey.Medium);
                     if (!string.IsNullOrEmpty(mapUrl))
                     {
-                        inner.Item().PaddingTop(5).Text("Map URL: " + mapUrl[..Math.Min(60, mapUrl.Length)] + "...")
-                            .FontSize(7).FontColor(Colors.Grey.Darken1);
+                        inner.Item().PaddingTop(5).Text("View interactive map at share URL below")
+                            .FontSize(8).FontColor(AccentColor);
                     }
                 });
             
@@ -240,9 +468,9 @@ internal class IncidentReportDocument : IDocument
             var last = _report.Evidence.GpsTrail.Last();
             col.Item().PaddingTop(10).Row(row =>
             {
-                row.RelativeItem().Text($"Start: {first.Latitude:F5}, {first.Longitude:F5} @ {first.Timestamp:HH:mm:ss}")
+                row.RelativeItem().Text($"Trail Start: {first.Latitude:F5}, {first.Longitude:F5} @ {first.Timestamp:HH:mm:ss}")
                     .FontSize(8);
-                row.RelativeItem().Text($"End: {last.Latitude:F5}, {last.Longitude:F5} @ {last.Timestamp:HH:mm:ss}")
+                row.RelativeItem().Text($"Trail End: {last.Latitude:F5}, {last.Longitude:F5} @ {last.Timestamp:HH:mm:ss}")
                     .FontSize(8);
             });
         });
@@ -252,7 +480,7 @@ internal class IncidentReportDocument : IDocument
     {
         container.Element(SectionBox).Column(col =>
         {
-            col.Item().Text("Speed Analysis").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().Text("SPEED & DECELERATION ANALYSIS").Bold().FontSize(12).FontColor(PrimaryColor);
             
             col.Item().PaddingTop(10).Row(row =>
             {
@@ -264,12 +492,11 @@ internal class IncidentReportDocument : IDocument
                     _report.Evidence.DecelerationMps2?.ToString("F1") ?? "-", "m/s²"));
             });
             
-            // Speed over time (simplified - show key points)
+            // Speed over time table
             if (_report.Evidence.GpsTrail.Count > 0)
             {
-                col.Item().PaddingTop(15).Text("Speed Profile (sampled)").FontSize(9).FontColor(Colors.Grey.Darken1);
+                col.Item().PaddingTop(12).Text("Speed Profile (sampled points)").FontSize(9).FontColor(Colors.Grey.Darken1);
                 
-                // Sample every Nth point to keep table manageable
                 var sampleRate = Math.Max(1, _report.Evidence.GpsTrail.Count / 10);
                 var samples = _report.Evidence.GpsTrail
                     .Where((_, i) => i % sampleRate == 0)
@@ -319,15 +546,46 @@ internal class IncidentReportDocument : IDocument
         });
     }
     
+    private void ComposeConditionsSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("CONDITIONS AT TIME OF INCIDENT").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Element(c => ConditionItem(c, "Weather", 
+                    _report.Evidence.WeatherCondition ?? "Unknown"));
+                row.RelativeItem().Element(c => ConditionItem(c, "Temperature", 
+                    _report.Evidence.TemperatureCelsius.HasValue 
+                        ? $"{_report.Evidence.TemperatureCelsius:F0}°C" 
+                        : "Unknown"));
+                row.RelativeItem().Element(c => ConditionItem(c, "Road Condition", 
+                    _report.Evidence.RoadCondition ?? "Unknown"));
+                row.RelativeItem().Element(c => ConditionItem(c, "Lighting", 
+                    _report.Evidence.LightCondition ?? "Unknown"));
+            });
+        });
+    }
+    
+    private void ConditionItem(IContainer container, string label, string value)
+    {
+        container.Column(col =>
+        {
+            col.Item().Text(label).FontSize(8).FontColor(Colors.Grey.Darken1);
+            col.Item().Text(value).Bold().FontSize(11);
+        });
+    }
+    
     private void ComposeDiagnosticsSection(IContainer container)
     {
         container.Element(SectionBox).Column(col =>
         {
-            col.Item().Text("Diagnostic Data").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().Text("VEHICLE DIAGNOSTIC DATA").Bold().FontSize(12).FontColor(PrimaryColor);
             
             if (_report.Evidence.Diagnostics.Count == 0)
             {
-                col.Item().PaddingTop(10).Text("No diagnostic codes recorded during incident window")
+                col.Item().PaddingTop(10).Text("No diagnostic codes recorded during incident window.")
                     .Italic().FontColor(Colors.Grey.Darken1);
                 return;
             }
@@ -365,7 +623,47 @@ internal class IncidentReportDocument : IDocument
             
             if (_report.Evidence.Diagnostics.Count > 20)
             {
-                col.Item().PaddingTop(5).Text($"... and {_report.Evidence.Diagnostics.Count - 20} more")
+                col.Item().PaddingTop(5).Text($"... and {_report.Evidence.Diagnostics.Count - 20} additional codes")
+                    .FontSize(8).FontColor(Colors.Grey.Darken1);
+            }
+        });
+    }
+    
+    private void ComposeHosSection(IContainer container)
+    {
+        var hos = _report.Evidence.DriverHosStatus!;
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("DRIVER HOURS OF SERVICE (HOS)").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Element(c => DetailColumn(c, new Dictionary<string, string?>
+                {
+                    ["HOS Status at Incident"] = hos.Status ?? "Unknown",
+                    ["Drive Time Remaining"] = hos.DriveTimeRemaining?.ToString(@"h\:mm") ?? "-",
+                    ["Duty Time Remaining"] = hos.DutyTimeRemaining?.ToString(@"h\:mm") ?? "-",
+                }));
+            });
+        });
+    }
+    
+    private void ComposeNotesSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("NOTES & DRIVER STATEMENT").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            col.Item().PaddingTop(10).Background(LightGray).Padding(10)
+                .Text(_report.Notes ?? "")
+                .FontSize(10)
+                .LineHeight(1.4f);
+            
+            if (_report.NotesUpdatedAt.HasValue)
+            {
+                col.Item().PaddingTop(5).Text(
+                    $"Last updated: {_report.NotesUpdatedAt:yyyy-MM-dd HH:mm} UTC" +
+                    (!string.IsNullOrEmpty(_report.NotesUpdatedBy) ? $" by {_report.NotesUpdatedBy}" : ""))
                     .FontSize(8).FontColor(Colors.Grey.Darken1);
             }
         });
@@ -375,32 +673,22 @@ internal class IncidentReportDocument : IDocument
     {
         container.Element(SectionBox).Column(col =>
         {
-            col.Item().Text("Evidence Summary").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().Text("EVIDENCE SUMMARY").Bold().FontSize(12).FontColor(PrimaryColor);
             
             col.Item().PaddingTop(10).Row(row =>
             {
-                row.RelativeItem().Element(c => SummaryItem(c, "GPS Points", 
+                row.RelativeItem().Element(c => SummaryItem(c, "GPS Data Points", 
                     _report.Evidence.GpsTrail.Count.ToString()));
                 row.RelativeItem().Element(c => SummaryItem(c, "Diagnostic Codes", 
                     _report.Evidence.Diagnostics.Count.ToString()));
-                row.RelativeItem().Element(c => SummaryItem(c, "Weather", 
-                    _report.Evidence.WeatherCondition ?? "Unknown"));
-                row.RelativeItem().Element(c => SummaryItem(c, "Temperature", 
-                    _report.Evidence.TemperatureCelsius.HasValue 
-                        ? $"{_report.Evidence.TemperatureCelsius:F0}°C" 
-                        : "-"));
+                row.RelativeItem().Element(c => SummaryItem(c, "Witnesses", 
+                    _report.Witnesses.Count.ToString()));
+                row.RelativeItem().Element(c => SummaryItem(c, "Photos", 
+                    _report.Evidence.PhotoUrls.Count.ToString()));
             });
             
-            // HOS status if available
-            if (_report.Evidence.DriverHosStatus != null)
-            {
-                col.Item().PaddingTop(10).Background(LightGray).Padding(8).Column(hos =>
-                {
-                    hos.Item().Text("Driver HOS Status at Incident").Bold().FontSize(9);
-                    hos.Item().PaddingTop(4).Text($"Status: {_report.Evidence.DriverHosStatus.Status ?? "Unknown"}")
-                        .FontSize(9);
-                });
-            }
+            col.Item().PaddingTop(10).Text("Data Source: Geotab GO Device Telematics")
+                .FontSize(8).FontColor(Colors.Grey.Darken1);
         });
     }
     
@@ -409,7 +697,36 @@ internal class IncidentReportDocument : IDocument
         container.Column(col =>
         {
             col.Item().Text(label).FontSize(8).FontColor(Colors.Grey.Darken1);
-            col.Item().Text(value).Bold().FontSize(11);
+            col.Item().Text(value).Bold().FontSize(14);
+        });
+    }
+    
+    private void ComposeCertificationBlock(IContainer container)
+    {
+        container.Background("#f0f4f8").Border(1).BorderColor(BorderColor).Padding(12).Column(col =>
+        {
+            col.Item().Text("CERTIFICATION").Bold().FontSize(10).FontColor(PrimaryColor);
+            col.Item().PaddingTop(6).Text(
+                "This report was automatically generated from telematics data recorded by the vehicle's " +
+                "Geotab GO device. The GPS trail, speed data, and diagnostic information represent an " +
+                "unaltered record of the vehicle's operation during the incident window. This data is " +
+                "provided for insurance claim purposes and may be used as supporting documentation.")
+                .FontSize(8).LineHeight(1.4f);
+            
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Column(sig =>
+                {
+                    sig.Item().Text("Fleet Manager Signature:").FontSize(8);
+                    sig.Item().PaddingTop(20).BorderBottom(1).BorderColor(Colors.Black);
+                });
+                row.ConstantItem(20);
+                row.RelativeItem().Column(date =>
+                {
+                    date.Item().Text("Date:").FontSize(8);
+                    date.Item().PaddingTop(20).BorderBottom(1).BorderColor(Colors.Black);
+                });
+            });
         });
     }
     
@@ -419,7 +736,7 @@ internal class IncidentReportDocument : IDocument
         {
             col.Item().BorderTop(1).BorderColor(BorderColor).PaddingTop(5).Row(row =>
             {
-                row.RelativeItem().Text($"{_options.CompanyName} - Incident Report")
+                row.RelativeItem().Text($"{_options.CompanyName} - Vehicle Incident Report")
                     .FontSize(8).FontColor(Colors.Grey.Darken1);
                 row.RelativeItem().AlignRight().Text(text =>
                 {
@@ -432,8 +749,24 @@ internal class IncidentReportDocument : IDocument
             
             if (!string.IsNullOrEmpty(_report.ShareUrl))
             {
-                col.Item().PaddingTop(3).Text($"View online: {_report.ShareUrl}")
+                col.Item().PaddingTop(3).Text($"View online with interactive map: {_report.ShareUrl}")
                     .FontSize(7).FontColor(AccentColor);
+            }
+        });
+    }
+    
+    private void DetailColumn(IContainer container, Dictionary<string, string?> details)
+    {
+        container.Column(col =>
+        {
+            col.Spacing(4);
+            foreach (var (label, value) in details)
+            {
+                col.Item().Row(row =>
+                {
+                    row.ConstantItem(110).Text(label + ":").FontColor(Colors.Grey.Darken1).FontSize(9);
+                    row.RelativeItem().Text(value ?? "-").FontSize(9);
+                });
             }
         });
     }
@@ -452,14 +785,12 @@ internal class IncidentReportDocument : IDocument
         if (_report.Evidence.GpsTrail.Count == 0 || string.IsNullOrEmpty(_options.GoogleMapsApiKey))
             return null;
         
-        // Build a polyline path for Google Static Maps
         var points = _report.Evidence.GpsTrail
             .Where((_, i) => i % Math.Max(1, _report.Evidence.GpsTrail.Count / 50) == 0)
             .Take(50);
         
         var pathPoints = string.Join("|", points.Select(p => $"{p.Latitude:F5},{p.Longitude:F5}"));
         
-        // Find incident point (center)
         var center = _report.Evidence.GpsTrail
             .OrderBy(p => Math.Abs((p.Timestamp - _report.OccurredAt).TotalSeconds))
             .First();

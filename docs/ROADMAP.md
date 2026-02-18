@@ -67,21 +67,28 @@ Sub-agents should:
   - "All time" option available
   - Filter applied before rendering, saved to localStorage
 
-- [ ] **Insurance claim requirements audit**
-  - Research what insurance companies require for fleet accident claims
-  - Audit current PDF against requirements
-  - Add missing fields to report model and PDF
-  - Key items to verify:
-    - Date/time/location of incident
-    - Driver information (license, contact)
-    - Vehicle details (VIN, plate, year/make/model)
-    - Weather conditions at time of incident
-    - Speed data and driving behavior
-    - Witness information fields
-    - Police report number field
-    - Damage description/photos
-    - Third-party vehicle/driver info
-  - Update PDF layout for insurance readability
+- [x] **Insurance claim requirements audit** (v22)
+  - Researched fleet accident insurance claim requirements
+  - Added to IncidentReport.cs model:
+    - Vehicle: VIN, plate, year/make/model, odometer
+    - Driver: license number, license state, phone, email
+    - Location: address, city, state, country fields
+    - Police report: number, agency, date
+    - Damage: description, severity level, driveable status, airbag deployed
+    - Injuries: reported flag, description
+    - Witnesses: name, phone, email, statement (list)
+    - Third parties: vehicle info, driver info, insurance details (list)
+    - Conditions: road condition, light condition added to Evidence
+  - Updated QuestPdfRenderer.cs with professional insurance-ready layout:
+    - Clear section headers: INCIDENT OVERVIEW, VEHICLE INFORMATION, DRIVER INFORMATION
+    - DAMAGE ASSESSMENT section with injury details
+    - POLICE REPORT section (conditional)
+    - OTHER PARTIES INVOLVED section (conditional)
+    - WITNESSES table (conditional)
+    - CONDITIONS AT TIME OF INCIDENT (weather, road, lighting)
+    - DRIVER HOURS OF SERVICE section
+    - CERTIFICATION block with signature lines
+    - All data clearly labeled for adjusters
 
 - [ ] **Add "Send to Email" button in report detail**
   - Quick button to email report to specific address

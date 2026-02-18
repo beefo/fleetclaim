@@ -389,6 +389,15 @@ function showReportDetail(report) {
             </div>
         </div>
         
+        ${evidence.gpsTrail && evidence.gpsTrail.length > 0 ? `
+        <div class="report-section">
+            <h3>🗺️ GPS Trail</h3>
+            <div id="map-container" class="map-container">
+                <div class="map-loading">Loading map...</div>
+            </div>
+        </div>
+        ` : ''}
+        
         <div class="report-section">
             <h3>📝 Notes & Driver Statement</h3>
             <p class="notes-hint">Add incident details, driver statements, or context for insurance claims.</p>
@@ -408,6 +417,83 @@ function showReportDetail(report) {
     `;
     
     document.getElementById('report-modal').classList.remove('hidden');
+    
+    // Render map if GPS data available
+    if (evidence.gpsTrail && evidence.gpsTrail.length > 0) {
+        setTimeout(() => renderGpsMap(evidence.gpsTrail, report.occurredAt), 100);
+    }
+}
+
+// Render GPS trail on a Leaflet map
+function renderGpsMap(gpsTrail, occurredAt) {
+    const container = document.getElementById('map-container');
+    if (!container || !window.L) {
+        // Leaflet not loaded yet - show static fallback
+        if (container) {
+            const center = gpsTrail[Math.floor(gpsTrail.length / 2)];
+            container.innerHTML = `
+                <div class="map-static">
+                    <p>📍 ${gpsTrail.length} GPS points recorded</p>
+                    <p>Center: ${center.latitude.toFixed(5)}, ${center.longitude.toFixed(5)}</p>
+                    <a href="https://www.google.com/maps?q=${center.latitude},${center.longitude}" target="_blank" class="btn btn-secondary">
+                        🗺️ Open in Google Maps
+                    </a>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    container.innerHTML = '<div id="gps-map" style="height: 300px; width: 100%;"></div>';
+    
+    // Calculate center
+    const lats = gpsTrail.map(p => p.latitude);
+    const lngs = gpsTrail.map(p => p.longitude);
+    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+    
+    const map = L.map('gps-map').setView([centerLat, centerLng], 14);
+    
+    // Add OpenStreetMap tiles (free)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Draw the GPS trail as a polyline
+    const coordinates = gpsTrail.map(p => [p.latitude, p.longitude]);
+    const polyline = L.polyline(coordinates, { color: '#2563eb', weight: 4 }).addTo(map);
+    
+    // Add markers for start, end, and incident point
+    if (gpsTrail.length > 0) {
+        const start = gpsTrail[0];
+        const end = gpsTrail[gpsTrail.length - 1];
+        
+        // Find point closest to occurred time
+        let incidentPoint = start;
+        if (occurredAt) {
+            const occurredTime = new Date(occurredAt).getTime();
+            incidentPoint = gpsTrail.reduce((closest, point) => {
+                const pointTime = new Date(point.timestamp).getTime();
+                const closestTime = new Date(closest.timestamp).getTime();
+                return Math.abs(pointTime - occurredTime) < Math.abs(closestTime - occurredTime) ? point : closest;
+            }, start);
+        }
+        
+        L.marker([start.latitude, start.longitude], {
+            icon: L.divIcon({ className: 'map-marker map-marker-start', html: '🟢' })
+        }).addTo(map).bindPopup('Start');
+        
+        L.marker([end.latitude, end.longitude], {
+            icon: L.divIcon({ className: 'map-marker map-marker-end', html: '🏁' })
+        }).addTo(map).bindPopup('End');
+        
+        L.marker([incidentPoint.latitude, incidentPoint.longitude], {
+            icon: L.divIcon({ className: 'map-marker map-marker-incident', html: '⚠️' })
+        }).addTo(map).bindPopup(`Incident Point<br>Speed: ${incidentPoint.speedKmh?.toFixed(0) || '?'} km/h`);
+    }
+    
+    // Fit bounds to show entire trail
+    map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
 }
 
 // Save notes for a report

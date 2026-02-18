@@ -747,3 +747,39 @@ select.input-full {
     resize: vertical;
     font-family: inherit;
 }
+
+/* GPS Map */
+.map-container {
+    height: 320px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f0f0f0;
+}
+
+.map-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #666;
+}
+
+.map-static {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    text-align: center;
+    color: #666;
+}
+
+.map-marker {
+    font-size: 24px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+#gps-map {
+    z-index: 1;
+}

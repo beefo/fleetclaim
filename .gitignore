@@ -6,11 +6,28 @@ out/
 # IDE
 .vs/
 .vscode/
-*.user
+.idea/
 *.suo
+*.user
 
 # Rider
 .idea/
+
+# Node
+node_modules/
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test results
+TestResults/
+coverage/
 
 # Terraform
 .terraform/
@@ -19,30 +36,13 @@ out/
 *.tfvars
 !terraform.tfvars.example
 
-# Secrets - never commit
+# Secrets - NEVER commit
 **/secrets/
-*.pem
 *.key
+*.pem
 creds.json
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Test results
-TestResults/
-coverage/
-
-# Node
-node_modules/
-package-lock.json
-
-# Local scripts with credentials - never commit
+# Test scripts with credentials - keep local only
 scripts/*.js
 scripts/*.cs
 !scripts/create-demo-db.sh
-

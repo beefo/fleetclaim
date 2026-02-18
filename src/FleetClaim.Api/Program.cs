@@ -18,13 +18,16 @@ var shareLinkSigningKey = builder.Configuration["SHARE_LINK_SIGNING_KEY"]
     ?? Environment.GetEnvironmentVariable("SHARE_LINK_SIGNING_KEY")
     ?? throw new InvalidOperationException("SHARE_LINK_SIGNING_KEY is required");
 
-// SendGrid for email
-var sendGridApiKey = builder.Configuration["SENDGRID_API_KEY"]
-    ?? Environment.GetEnvironmentVariable("SENDGRID_API_KEY");
-
-var emailFromAddress = builder.Configuration["EMAIL_FROM_ADDRESS"]
-    ?? Environment.GetEnvironmentVariable("EMAIL_FROM_ADDRESS")
-    ?? "noreply@fleetclaim.app";
+// Gmail API for email (using OAuth credentials from Secret Manager)
+var gmailClientId = builder.Configuration["GMAIL_CLIENT_ID"]
+    ?? Environment.GetEnvironmentVariable("GMAIL_CLIENT_ID");
+var gmailClientSecret = builder.Configuration["GMAIL_CLIENT_SECRET"]
+    ?? Environment.GetEnvironmentVariable("GMAIL_CLIENT_SECRET");
+var gmailRefreshToken = builder.Configuration["GMAIL_REFRESH_TOKEN"]
+    ?? Environment.GetEnvironmentVariable("GMAIL_REFRESH_TOKEN");
+var gmailFromEmail = builder.Configuration["GMAIL_FROM_EMAIL"]
+    ?? Environment.GetEnvironmentVariable("GMAIL_FROM_EMAIL")
+    ?? "clawbif@gmail.com";
 
 // PDF options
 var pdfOptions = new PdfOptions
@@ -44,21 +47,25 @@ builder.Services.AddSingleton<IShareLinkService>(new ShareLinkService(new ShareL
     SigningKey = shareLinkSigningKey
 }));
 
-// Notification service for email
-if (!string.IsNullOrEmpty(sendGridApiKey))
+// Gmail email service
+if (!string.IsNullOrEmpty(gmailRefreshToken) && !string.IsNullOrEmpty(gmailClientId))
 {
-    builder.Services.AddSingleton<INotificationService>(new NotificationService(new NotificationOptions
-    {
-        UseSendGrid = true,
-        SendGridApiKey = sendGridApiKey,
-        FromEmail = emailFromAddress,
-        FromName = "FleetClaim"
-    }));
+    builder.Services.AddSingleton<IGmailEmailService>(new GmailEmailService(
+        new GmailOAuthCredentials
+        {
+            ClientId = gmailClientId,
+            ClientSecret = gmailClientSecret ?? "",
+            RefreshToken = gmailRefreshToken,
+            AccessToken = "" // Will use refresh token to get new access token
+        },
+        gmailFromEmail,
+        "FleetClaim"
+    ));
 }
 else
 {
-    // No-op notification service if SendGrid not configured
-    builder.Services.AddSingleton<INotificationService>(new NotificationService(new NotificationOptions()));
+    // Register null service if Gmail not configured
+    builder.Services.AddSingleton<IGmailEmailService?>(sp => null);
 }
 
 // Rate limiting
@@ -269,10 +276,19 @@ app.MapPost("/r/{token}/email", async (
     [FromServices] IShareLinkService shareLinkService,
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
-    [FromServices] INotificationService notificationService,
+    [FromServices] IGmailEmailService? gmailService,
     [FromServices] IMemoryCache cache,
     CancellationToken ct) =>
 {
+    // Check if email service is configured
+    if (gmailService == null)
+    {
+        return Results.Problem(
+            detail: "Email service not configured. Please set up Gmail API credentials.",
+            statusCode: 503,
+            title: "Service Unavailable");
+    }
+    
     // Validate email
     if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
     {
@@ -306,13 +322,8 @@ app.MapPost("/r/{token}/email", async (
             return Results.NotFound(new { error = "Report not found" });
         }
         
-        // Send email
-        var config = new CustomerConfig
-        {
-            NotifyEmails = [request.Email]
-        };
-        
-        await notificationService.SendNotificationsAsync(report, config, ct);
+        // Send email via Gmail
+        await gmailService.SendReportEmailAsync(report, request.Email, request.Message, ct);
         
         return Results.Ok(new { success = true, message = $"Email sent to {request.Email}" });
     }

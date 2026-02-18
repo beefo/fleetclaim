@@ -18,6 +18,14 @@ var shareLinkSigningKey = builder.Configuration["SHARE_LINK_SIGNING_KEY"]
     ?? Environment.GetEnvironmentVariable("SHARE_LINK_SIGNING_KEY")
     ?? throw new InvalidOperationException("SHARE_LINK_SIGNING_KEY is required");
 
+// SendGrid for email
+var sendGridApiKey = builder.Configuration["SENDGRID_API_KEY"]
+    ?? Environment.GetEnvironmentVariable("SENDGRID_API_KEY");
+
+var emailFromAddress = builder.Configuration["EMAIL_FROM_ADDRESS"]
+    ?? Environment.GetEnvironmentVariable("EMAIL_FROM_ADDRESS")
+    ?? "noreply@fleetclaim.app";
+
 // PDF options
 var pdfOptions = new PdfOptions
 {
@@ -35,6 +43,23 @@ builder.Services.AddSingleton<IShareLinkService>(new ShareLinkService(new ShareL
 {
     SigningKey = shareLinkSigningKey
 }));
+
+// Notification service for email
+if (!string.IsNullOrEmpty(sendGridApiKey))
+{
+    builder.Services.AddSingleton<INotificationService>(new NotificationService(new NotificationOptions
+    {
+        UseSendGrid = true,
+        SendGridApiKey = sendGridApiKey,
+        FromEmail = emailFromAddress,
+        FromName = "FleetClaim"
+    }));
+}
+else
+{
+    // No-op notification service if SendGrid not configured
+    builder.Services.AddSingleton<INotificationService>(new NotificationService(new NotificationOptions()));
+}
 
 // Rate limiting
 builder.Services.AddRateLimiter(options =>
@@ -237,7 +262,73 @@ app.MapGet("/api/reports/{token}/pdf", async (
     }
 }).RequireRateLimiting("pdf");
 
+// Send report via email - requires signed token
+app.MapPost("/r/{token}/email", async (
+    string token,
+    [FromBody] SendEmailRequest request,
+    [FromServices] IShareLinkService shareLinkService,
+    [FromServices] IGeotabClientFactory clientFactory,
+    [FromServices] IAddInDataRepository repository,
+    [FromServices] INotificationService notificationService,
+    [FromServices] IMemoryCache cache,
+    CancellationToken ct) =>
+{
+    // Validate email
+    if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+    {
+        return Results.BadRequest(new { error = "Valid email address required" });
+    }
+    
+    // Validate signed token
+    var parsed = shareLinkService.ParseShareToken(token);
+    if (parsed == null)
+    {
+        return Results.Unauthorized();
+    }
+    
+    var (reportId, database) = parsed.Value;
+    
+    try
+    {
+        // Get report
+        var cacheKey = $"report:{reportId}";
+        IncidentReport? report;
+        
+        if (!cache.TryGetValue<IncidentReport>(cacheKey, out report) || report == null)
+        {
+            var api = await clientFactory.CreateClientAsync(database, ct);
+            var reports = await repository.GetReportsAsync(api, ct: ct);
+            report = reports.FirstOrDefault(r => r.Id == reportId);
+        }
+        
+        if (report == null)
+        {
+            return Results.NotFound(new { error = "Report not found" });
+        }
+        
+        // Send email
+        var config = new CustomerConfig
+        {
+            NotifyEmails = [request.Email]
+        };
+        
+        await notificationService.SendNotificationsAsync(report, config, ct);
+        
+        return Results.Ok(new { success = true, message = $"Email sent to {request.Email}" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: "Error sending email: " + ex.Message,
+            statusCode: 500,
+            title: "Error");
+    }
+}).RequireRateLimiting("pdf"); // Use same rate limit as PDF
+
 app.Run();
+
+// Request model for email endpoint
+public record SendEmailRequest(string Email, string? Message = null);
 
 static string RenderReportPage(IncidentReport report)
 {

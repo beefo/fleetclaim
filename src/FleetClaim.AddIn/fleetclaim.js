@@ -201,6 +201,26 @@ async function loadRequests() {
     }
 }
 
+function renderReportsStats(filtered, total) {
+    const statsEl = document.getElementById('reports-stats');
+    if (!statsEl) return;
+    
+    const critical = filtered.filter(r => r.severity?.toLowerCase() === 'critical').length;
+    const high = filtered.filter(r => r.severity?.toLowerCase() === 'high').length;
+    const withNotes = filtered.filter(r => r.notes?.trim()).length;
+    const recent = filtered.filter(r => r.generatedAt && (Date.now() - new Date(r.generatedAt).getTime()) < 24 * 60 * 60 * 1000).length;
+    
+    statsEl.innerHTML = `
+        <div class="stats-bar">
+            <span class="stat">📊 <strong>${filtered.length}</strong> reports${filtered.length !== total ? ` (${total} total)` : ''}</span>
+            ${critical > 0 ? `<span class="stat stat-critical">🔴 ${critical} critical</span>` : ''}
+            ${high > 0 ? `<span class="stat stat-high">🟠 ${high} high</span>` : ''}
+            ${recent > 0 ? `<span class="stat stat-new">✨ ${recent} new today</span>` : ''}
+            ${withNotes > 0 ? `<span class="stat">📝 ${withNotes} with notes</span>` : ''}
+        </div>
+    `;
+}
+
 function renderReports(reportsToRender) {
     const listEl = document.getElementById('reports-list');
     
@@ -1144,6 +1164,7 @@ function filterAndSortReports() {
     });
     
     renderReports(filtered);
+    renderReportsStats(filtered, reports.length);
 }
 
 // Apply same sorting to requests

@@ -833,3 +833,37 @@ select.input-full {
         grid-template-columns: 1fr;
     }
 }
+
+/* Reports Stats Bar */
+.reports-stats {
+    margin-bottom: 12px;
+}
+
+.stats-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat-critical {
+    color: #dc2626;
+}
+
+.stat-high {
+    color: #ea580c;
+}
+
+.stat-new {
+    color: #2563eb;
+}

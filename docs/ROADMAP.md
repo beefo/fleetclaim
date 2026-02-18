@@ -105,9 +105,10 @@ Sub-agents should:
   - Toast + tab switch when report is ready
   - Stops polling after 5 minutes or completion
 
-- [ ] **Add "Regenerate PDF" for old reports**
-  - Button to request fresh PDF for reports without shareUrl
-  - Worker endpoint to regenerate PDF for existing report
+- [x] **Add "Regenerate PDF" for old reports** (v23)
+  - Button shows "🔄 Regenerate Report" for old reports
+  - Pre-fills request modal with report's vehicle and time range
+  - User submits to generate fresh report with PDF support
 
 ### P2 - Medium Priority (Next Sprint)
 

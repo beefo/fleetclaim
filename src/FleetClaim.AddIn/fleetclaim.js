@@ -86,9 +86,14 @@ function initializeUI() {
         loadRequests();
     });
     
-    // Search
-    document.getElementById('search').addEventListener('input', filterReports);
-    document.getElementById('severity-filter').addEventListener('change', filterReports);
+    // Search and filters
+    document.getElementById('search').addEventListener('input', filterAndSortReports);
+    document.getElementById('severity-filter').addEventListener('change', filterAndSortReports);
+    document.getElementById('date-filter').addEventListener('change', filterAndSortReports);
+    document.getElementById('sort-by').addEventListener('change', filterAndSortReports);
+    
+    // Load saved preferences from localStorage
+    loadFilterPreferences();
     
     // Modal close
     document.querySelector('.modal-close').addEventListener('click', closeModal);
@@ -136,10 +141,10 @@ async function loadReports() {
                 } catch (e) { console.warn('Error parsing report:', e); }
                 return null;
             })
-            .filter(r => r !== null)
-            .sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt));
+            .filter(r => r !== null);
         
-        renderReports(reports);
+        // Apply filters and sorting (respects user preferences)
+        filterAndSortReports();
     } catch (err) {
         console.error('Error loading reports:', err);
         listEl.innerHTML = `<div class="empty-state"><h3>Error loading reports</h3><p>${err.message}</p></div>`;
@@ -178,11 +183,13 @@ async function loadRequests() {
                 } catch (e) { console.warn('FleetClaim: Error parsing request:', e); }
                 return null;
             })
-            .filter(r => r !== null)
-            .sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt));
+            .filter(r => r !== null);
         
         console.log('FleetClaim: Found', requests.length, 'requests');
-        renderRequests(requests);
+        
+        // Apply same sorting as reports
+        const sortedRequests = sortRequests(requests);
+        renderRequests(sortedRequests);
     } catch (err) {
         console.error('Error loading requests:', err);
         listEl.innerHTML = `<div class="empty-state"><h3>Error loading requests</h3><p>${err.message}</p></div>`;
@@ -644,11 +651,47 @@ async function submitReportRequest() {
     }
 }
 
-function filterReports() {
+// Load filter preferences from localStorage
+function loadFilterPreferences() {
+    const savedSort = localStorage.getItem('fleetclaim-sort');
+    const savedDateFilter = localStorage.getItem('fleetclaim-date-filter');
+    
+    if (savedSort) {
+        document.getElementById('sort-by').value = savedSort;
+    }
+    if (savedDateFilter) {
+        document.getElementById('date-filter').value = savedDateFilter;
+    }
+}
+
+// Save filter preferences to localStorage
+function saveFilterPreferences() {
+    localStorage.setItem('fleetclaim-sort', document.getElementById('sort-by').value);
+    localStorage.setItem('fleetclaim-date-filter', document.getElementById('date-filter').value);
+}
+
+// Severity order for sorting
+const severityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
+
+function filterAndSortReports() {
     const search = document.getElementById('search').value.toLowerCase();
     const severity = document.getElementById('severity-filter').value;
+    const dateFilter = document.getElementById('date-filter').value;
+    const sortBy = document.getElementById('sort-by').value;
     
-    const filtered = reports.filter(r => {
+    // Save preferences
+    saveFilterPreferences();
+    
+    // Calculate date cutoff
+    let dateCutoff = null;
+    if (dateFilter !== 'all') {
+        const days = parseInt(dateFilter, 10);
+        dateCutoff = new Date();
+        dateCutoff.setDate(dateCutoff.getDate() - days);
+    }
+    
+    // Filter
+    let filtered = reports.filter(r => {
         const matchesSearch = !search || 
             (r.summary || '').toLowerCase().includes(search) ||
             (r.vehicleName || '').toLowerCase().includes(search) ||
@@ -657,10 +700,70 @@ function filterReports() {
         const matchesSeverity = !severity || 
             (r.severity || '').toLowerCase() === severity.toLowerCase();
         
-        return matchesSearch && matchesSeverity;
+        const reportDate = new Date(r.occurredAt);
+        const matchesDate = !dateCutoff || reportDate >= dateCutoff;
+        
+        return matchesSearch && matchesSeverity && matchesDate;
+    });
+    
+    // Sort
+    filtered.sort((a, b) => {
+        switch (sortBy) {
+            case 'date-desc':
+                return new Date(b.occurredAt) - new Date(a.occurredAt);
+            case 'date-asc':
+                return new Date(a.occurredAt) - new Date(b.occurredAt);
+            case 'severity':
+                const sevA = severityOrder[a.severity] ?? 99;
+                const sevB = severityOrder[b.severity] ?? 99;
+                return sevA - sevB || new Date(b.occurredAt) - new Date(a.occurredAt);
+            case 'vehicle':
+                return (a.vehicleName || '').localeCompare(b.vehicleName || '');
+            default:
+                return 0;
+        }
     });
     
     renderReports(filtered);
+}
+
+// Apply same sorting to requests
+function sortRequests(requestsToSort) {
+    const sortBy = document.getElementById('sort-by').value;
+    const dateFilter = document.getElementById('date-filter').value;
+    
+    // Calculate date cutoff
+    let dateCutoff = null;
+    if (dateFilter !== 'all') {
+        const days = parseInt(dateFilter, 10);
+        dateCutoff = new Date();
+        dateCutoff.setDate(dateCutoff.getDate() - days);
+    }
+    
+    // Filter by date
+    let filtered = requestsToSort;
+    if (dateCutoff) {
+        filtered = requestsToSort.filter(r => new Date(r.requestedAt) >= dateCutoff);
+    }
+    
+    // Sort
+    return filtered.sort((a, b) => {
+        switch (sortBy) {
+            case 'date-desc':
+                return new Date(b.requestedAt) - new Date(a.requestedAt);
+            case 'date-asc':
+                return new Date(a.requestedAt) - new Date(b.requestedAt);
+            case 'vehicle':
+                return (a.deviceName || '').localeCompare(b.deviceName || '');
+            default:
+                return new Date(b.requestedAt) - new Date(a.requestedAt);
+        }
+    });
+}
+
+// Legacy function for backwards compatibility
+function filterReports() {
+    filterAndSortReports();
 }
 
 // Utilities

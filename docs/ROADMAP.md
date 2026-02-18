@@ -56,16 +56,16 @@ Sub-agents should:
   - Refresh list after delete
   - Added confirmation modal (not browser alert)
 
-- [ ] **Add sorting for reports and requests**
+- [x] **Add sorting for reports and requests** (v22)
   - Sort dropdown: Date (newest/oldest), Severity, Vehicle name
-  - Remember last sort preference
+  - Remember last sort preference in localStorage
   - Apply to both Reports and Requests tabs
 
-- [ ] **Add date filtering with 1-week default**
-  - Date range picker for reports list
+- [x] **Add date filtering with 1-week default** (v22)
+  - Date filter dropdown with presets: 7/30/90 days, All time
   - Default to last 7 days on load
   - "All time" option available
-  - Filter applied before rendering
+  - Filter applied before rendering, saved to localStorage
 
 - [ ] **Insurance claim requirements audit**
   - Research what insurance companies require for fleet accident claims

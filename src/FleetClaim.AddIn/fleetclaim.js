@@ -517,9 +517,16 @@ function showReportDetail(report) {
         </div>
         
         <div class="report-actions">
-            <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">${report.shareUrl ? '📄 Download PDF' : '🔄 Regenerate Report'}</button>
-            ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
-            ${report.shareUrl ? `<button class="btn btn-secondary" onclick="showEmailModal('${report.id}')">📧 Send to Email</button>` : ''}
+            ${report.shareUrl ? `
+                <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">📄 Download PDF</button>
+                <button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>
+                <button class="btn btn-secondary" onclick="showEmailModal('${report.id}')">📧 Send to Email</button>
+            ` : `
+                <div class="legacy-report-notice">
+                    <p>⚠️ This report was generated before PDF support was added.</p>
+                    <button class="btn btn-primary" onclick="regenerateReport('${report.id}')">🔄 Regenerate Report with PDF</button>
+                </div>
+            `}
         </div>
     `;
     
@@ -978,6 +985,49 @@ function showRequestModal() {
 
 function closeRequestModal() {
     document.getElementById('request-modal').classList.add('hidden');
+}
+
+function regenerateReport(reportId) {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) {
+        showToast('Report not found', 'error');
+        return;
+    }
+    
+    // Close detail modal
+    closeModal();
+    
+    // Open request modal
+    document.getElementById('request-modal').classList.remove('hidden');
+    
+    // Prefill with report data
+    const occurredAt = new Date(report.occurredAt);
+    const oneHourBefore = new Date(occurredAt.getTime() - 30 * 60 * 1000);
+    const oneHourAfter = new Date(occurredAt.getTime() + 30 * 60 * 1000);
+    
+    const formatDatetime = (d) => {
+        const pad = (n) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    
+    document.getElementById('from-datetime').value = formatDatetime(oneHourBefore);
+    document.getElementById('to-datetime').value = formatDatetime(oneHourAfter);
+    document.getElementById('force-report').checked = true;
+    
+    // Try to select the device
+    if (report.vehicleId) {
+        const deviceSelect = document.getElementById('device-select');
+        // Load devices first if needed
+        if (devices.length === 0) {
+            loadDevices().then(() => {
+                deviceSelect.value = report.vehicleId;
+            });
+        } else {
+            deviceSelect.value = report.vehicleId;
+        }
+    }
+    
+    showToast('Prefilled request - adjust if needed and submit', 'info', 3000);
 }
 
 async function submitReportRequest() {
@@ -1574,6 +1624,7 @@ function showToast(message, type = 'info', duration = 3500) {
 
 // Expose for onclick handlers
 window.showRequestModal = showRequestModal;
+window.regenerateReport = regenerateReport;
 window.copyShareLink = copyShareLink;
 window.downloadPdf = downloadPdf;
 window.downloadPdfForReport = downloadPdfForReport;

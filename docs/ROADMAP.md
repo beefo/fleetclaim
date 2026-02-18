@@ -171,8 +171,9 @@ Sub-agents should:
 - [ ] **Hardcoded API URL in Add-In**
   - Move to config or auto-detect
 
-- [ ] **Add request timeout handling**
-  - Mark stale requests as Failed after 10 min
+- [x] **Add request timeout handling** (v24)
+  - Worker checks for stale requests (Processing > 10 min)
+  - Marks stale requests as Failed with timeout message
 
 ---
 

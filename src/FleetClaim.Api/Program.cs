@@ -150,7 +150,7 @@ app.MapGet("/r/{token}", async (
     var cacheKey = $"report:{reportId}";
     if (cache.TryGetValue<IncidentReport>(cacheKey, out var cachedReport) && cachedReport != null)
     {
-        return Results.Content(RenderReportPage(cachedReport), "text/html");
+        return Results.Content(RenderReportPage(cachedReport, token), "text/html");
     }
     
     try
@@ -168,7 +168,7 @@ app.MapGet("/r/{token}", async (
         // Cache for 5 minutes
         cache.Set(cacheKey, report, TimeSpan.FromMinutes(5));
         
-        return Results.Content(RenderReportPage(report), "text/html");
+        return Results.Content(RenderReportPage(report, token), "text/html");
     }
     catch (Exception ex)
     {
@@ -353,7 +353,7 @@ app.MapPost("/r/{token}/email", async (
 
 app.Run();
 
-static string RenderReportPage(IncidentReport report)
+static string RenderReportPage(IncidentReport report, string shareToken)
 {
     var severityColor = report.Severity switch
     {
@@ -505,7 +505,7 @@ static string RenderReportPage(IncidentReport report)
                     """ : "")}}
                     
                     <div class="actions">
-                        <a href="/r/{token}/pdf" class="btn" download="incident-report.pdf">📄 Download PDF Report</a>
+                        <a href="/r/{{shareToken}}/pdf" class="btn" download="incident-report.pdf">📄 Download PDF Report</a>
                     </div>
                 </div>
                 

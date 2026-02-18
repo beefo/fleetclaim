@@ -316,12 +316,28 @@ function showReportDetail(report) {
         </div>
         
         <div class="report-actions">
-            ${report.shareUrl ? `<button class="btn btn-primary" onclick="downloadPdf('${report.shareUrl}')">📄 Download PDF</button>` : ''}
+            <button class="btn btn-primary" onclick="downloadPdfForReport('${report.id}')">📄 Download PDF</button>
             ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
         </div>
     `;
     
     document.getElementById('report-modal').classList.remove('hidden');
+}
+
+// Download PDF for a report by ID
+async function downloadPdfForReport(reportId) {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) {
+        alert('Report not found');
+        return;
+    }
+    
+    if (!report.shareUrl) {
+        alert('PDF not available for this report.\n\nThis report was created before PDF support was added. Please generate a new report to get PDF export.');
+        return;
+    }
+    
+    await downloadPdf(report.shareUrl);
 }
 
 // Download PDF from API using signed share URL
@@ -537,12 +553,8 @@ function copyShareLink(url) {
     });
 }
 
-function downloadPdf() {
-    // TODO: Implement PDF download from base64
-    alert('PDF download coming soon!');
-}
-
 // Expose for onclick handlers
 window.showRequestModal = showRequestModal;
 window.copyShareLink = copyShareLink;
 window.downloadPdf = downloadPdf;
+window.downloadPdfForReport = downloadPdfForReport;

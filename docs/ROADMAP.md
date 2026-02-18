@@ -94,15 +94,16 @@ Sub-agents should:
   - Pre-fill with configured notification emails
   - Include PDF attachment
 
-- [ ] **Add report status indicators**
-  - Show "New" badge for reports < 24h old
-  - Show "Has Notes" indicator in list view
-  - Color-code by severity in list
+- [x] **Add report status indicators** (v23)
+  - NEW badge for reports < 24h old (animated pulse)
+  - 📝 indicator when report has notes
+  - Severity already color-coded in list
 
-- [ ] **Improve request feedback**
-  - Show toast notification when request submitted
-  - Auto-refresh when new report detected
-  - Show estimated processing time
+- [x] **Improve request feedback** (v23)
+  - Toast notification on request submission
+  - Auto-refresh polling every 30s after request
+  - Toast + tab switch when report is ready
+  - Stops polling after 5 minutes or completion
 
 - [ ] **Add "Regenerate PDF" for old reports**
   - Button to request fresh PDF for reports without shareUrl

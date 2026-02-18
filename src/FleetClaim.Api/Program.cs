@@ -1,3 +1,4 @@
+using FleetClaim.Api;
 using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using FleetClaim.Core.Services;

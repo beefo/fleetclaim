@@ -36,10 +36,11 @@ Sub-agents should:
   - All services deployed: Add-In, API, Worker
   - v22 includes: toasts, delete, sorting, filtering, insurance model
 
-- [ ] **Email notification integration**
-  - Configure SMTP or SendGrid credentials in worker
-  - Test email delivery when report is generated
-  - Ensure shareUrl is included in email
+- [x] **Email notification integration** (v28)
+  - Gmail API with OAuth2 (free, no third-party service)
+  - On-demand "Send to Email" from report detail
+  - Beautiful HTML email template
+  - Automatic notifications on new incidents (configurable)
 
 ### P1 - High Priority (This Sprint)
 

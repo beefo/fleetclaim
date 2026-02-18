@@ -316,12 +316,55 @@ function showReportDetail(report) {
         </div>
         
         <div class="report-actions">
-            ${report.pdfBase64 ? '<button class="btn btn-primary" onclick="downloadPdf()">📄 Download PDF</button>' : ''}
+            <button class="btn btn-primary" onclick="downloadPdf('${report.id}')">📄 Download PDF</button>
             ${report.shareUrl ? `<button class="btn btn-secondary" onclick="copyShareLink('${report.shareUrl}')">🔗 Copy Share Link</button>` : ''}
         </div>
     `;
     
     document.getElementById('report-modal').classList.remove('hidden');
+}
+
+// Download PDF from API
+async function downloadPdf(reportId) {
+    const database = api.database || 'unknown';
+    const pdfUrl = `https://fleetclaim-api-589116575765.us-central1.run.app/api/reports/${database}/${reportId}/pdf`;
+    
+    try {
+        // Show loading state
+        const btn = document.querySelector('.report-actions .btn-primary');
+        const originalText = btn.textContent;
+        btn.textContent = '⏳ Generating...';
+        btn.disabled = true;
+        
+        const response = await fetch(pdfUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to generate PDF: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        
+        // Download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fleetclaim-report-${reportId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        btn.textContent = originalText;
+        btn.disabled = false;
+    } catch (err) {
+        console.error('Error downloading PDF:', err);
+        alert('Failed to download PDF: ' + err.message);
+        
+        const btn = document.querySelector('.report-actions .btn-primary');
+        if (btn) {
+            btn.textContent = '📄 Download PDF';
+            btn.disabled = false;
+        }
+    }
 }
 
 function closeModal() {

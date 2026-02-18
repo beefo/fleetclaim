@@ -15,11 +15,19 @@ var shareLinkSigningKey = builder.Configuration["SHARE_LINK_SIGNING_KEY"]
     ?? Environment.GetEnvironmentVariable("SHARE_LINK_SIGNING_KEY")
     ?? throw new InvalidOperationException("SHARE_LINK_SIGNING_KEY is required");
 
+// PDF options
+var pdfOptions = new PdfOptions
+{
+    CompanyName = builder.Configuration["PDF_COMPANY_NAME"] ?? "FleetClaim",
+    GoogleMapsApiKey = builder.Configuration["GOOGLE_MAPS_API_KEY"]
+};
+
 // Services
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ICredentialStore>(new GcpCredentialStore(projectId));
 builder.Services.AddSingleton<IGeotabClientFactory, GeotabClientFactory>();
 builder.Services.AddSingleton<IAddInDataRepository, AddInDataRepository>();
+builder.Services.AddSingleton<IPdfRenderer>(new QuestPdfRenderer(pdfOptions));
 builder.Services.AddSingleton<IShareLinkService>(new ShareLinkService(new ShareLinkOptions
 {
     SigningKey = shareLinkSigningKey
@@ -81,12 +89,13 @@ app.MapGet("/r/{token}", async (
     }
 });
 
-// PDF download endpoint
+// PDF download endpoint - generates PDF on-demand
 app.MapGet("/r/{token}/pdf", async (
     string token,
     [FromServices] IShareLinkService shareLinkService,
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
+    [FromServices] IPdfRenderer pdfRenderer,
     [FromServices] IMemoryCache cache,
     CancellationToken ct) =>
 {
@@ -109,13 +118,60 @@ app.MapGet("/r/{token}/pdf", async (
         report = reports.FirstOrDefault(r => r.Id == reportId);
     }
     
-    if (report == null || string.IsNullOrEmpty(report.PdfBase64))
+    if (report == null)
     {
         return Results.NotFound();
     }
     
-    var pdfBytes = Convert.FromBase64String(report.PdfBase64);
+    // Generate PDF on-demand (not stored in AddInData due to size limits)
+    var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
+    var pdfBytes = Convert.FromBase64String(pdfBase64);
     return Results.File(pdfBytes, "application/pdf", $"incident-report-{report.Id}.pdf");
+});
+
+// Direct PDF endpoint for Add-In use (takes database and report ID)
+app.MapGet("/api/reports/{database}/{reportId}/pdf", async (
+    string database,
+    string reportId,
+    [FromServices] IGeotabClientFactory clientFactory,
+    [FromServices] IAddInDataRepository repository,
+    [FromServices] IPdfRenderer pdfRenderer,
+    [FromServices] IMemoryCache cache,
+    CancellationToken ct) =>
+{
+    try
+    {
+        // Check cache
+        var cacheKey = $"report:{reportId}";
+        IncidentReport? report;
+        
+        if (!cache.TryGetValue<IncidentReport>(cacheKey, out report) || report == null)
+        {
+            var api = await clientFactory.CreateClientAsync(database, ct);
+            var reports = await repository.GetReportsAsync(api, ct: ct);
+            report = reports.FirstOrDefault(r => r.Id == reportId);
+        }
+        
+        if (report == null)
+        {
+            return Results.NotFound(new { error = "Report not found" });
+        }
+        
+        // Cache for 5 minutes
+        cache.Set(cacheKey, report, TimeSpan.FromMinutes(5));
+        
+        // Generate PDF on-demand
+        var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
+        var pdfBytes = Convert.FromBase64String(pdfBase64);
+        return Results.File(pdfBytes, "application/pdf", $"fleetclaim-report-{report.Id}.pdf");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            statusCode: 500,
+            title: "Error generating PDF");
+    }
 });
 
 app.Run();

@@ -19,6 +19,7 @@ public class IncidentPollerWorker : BackgroundService
     private readonly IGeotabClientFactory _clientFactory;
     private readonly IAddInDataRepository _repository;
     private readonly IReportGenerator _reportGenerator;
+    private readonly IPdfRenderer _pdfRenderer;
     private readonly INotificationService _notificationService;
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ILogger<IncidentPollerWorker> _logger;
@@ -31,6 +32,7 @@ public class IncidentPollerWorker : BackgroundService
         IGeotabClientFactory clientFactory,
         IAddInDataRepository repository,
         IReportGenerator reportGenerator,
+        IPdfRenderer pdfRenderer,
         INotificationService notificationService,
         IHostApplicationLifetime hostLifetime,
         ILogger<IncidentPollerWorker> logger)
@@ -39,6 +41,7 @@ public class IncidentPollerWorker : BackgroundService
         _clientFactory = clientFactory;
         _repository = repository;
         _reportGenerator = reportGenerator;
+        _pdfRenderer = pdfRenderer;
         _notificationService = notificationService;
         _hostLifetime = hostLifetime;
         _logger = logger;
@@ -332,6 +335,9 @@ public class IncidentPollerWorker : BackgroundService
                 _logger.LogWarning(ex, "Failed to fetch weather for baseline report");
             }
         }
+        
+        // Note: PDF is NOT stored in AddInData due to 10KB size limit
+        // PDFs are generated on-demand via the API /reports/{id}/pdf endpoint
         
         return report;
     }

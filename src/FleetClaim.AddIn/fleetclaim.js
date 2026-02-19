@@ -838,17 +838,47 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
     // Step 2: Upload the binary file via UploadMediaFile
     // Per Geotab docs: Content-Type "multipart/form-data", NOT "application/json"
     try {
-        // Get credentials from the api object
-        const credentials = await new Promise((resolve, reject) => {
-            api.getSession((session) => {
-                console.log('Session for upload:', { 
-                    server: session.server, 
-                    database: session.database,
-                    userName: session.userName 
+        // Get credentials from the page state or API
+        // In MyGeotab Add-Ins, 'state' contains credentials passed from parent frame
+        console.log('Page state keys:', state ? Object.keys(state) : 'state is null');
+        console.log('Page state:', JSON.stringify(state, null, 2));
+        
+        let credentials;
+        
+        // Method 1: Check if state has credentials directly
+        if (state && state.credentials) {
+            credentials = state.credentials;
+            console.log('Using credentials from state.credentials');
+        } 
+        // Method 2: Check if state has the session info
+        else if (state && state.sessionId) {
+            credentials = {
+                server: state.server || window.location.hostname,
+                database: state.database,
+                userName: state.userName,
+                sessionId: state.sessionId
+            };
+            console.log('Using credentials from state fields');
+        }
+        // Method 3: Try api.getSession (may fail in some contexts)
+        else {
+            try {
+                credentials = await new Promise((resolve, reject) => {
+                    api.getSession((session) => {
+                        console.log('Session from api.getSession:', session);
+                        resolve(session);
+                    }, reject);
                 });
-                resolve(session);
-            }, reject);
-        });
+            } catch (e) {
+                console.error('api.getSession failed:', e);
+                throw new Error('Photo upload requires session credentials which are not available in this Add-In context. ' +
+                    'This feature may require additional configuration.');
+            }
+        }
+        
+        if (!credentials || !credentials.sessionId) {
+            throw new Error('No valid session credentials available for upload');
+        }
         
         // Build the upload URL with database path
         // Format: https://my.geotab.com/apiv1/UploadMediaFile

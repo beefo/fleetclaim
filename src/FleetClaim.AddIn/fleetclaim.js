@@ -14,6 +14,10 @@ let state = null;
 let reports = [];
 let requests = [];
 
+// Stored credentials for MediaFile upload (captured from api.getSession)
+let storedCredentials = null;
+let geotabHost = null;
+
 // Store AddInData records for delete operations
 let reportRecords = {};  // Map of report.id -> AddInData record id
 let requestRecords = {}; // Map of request.id -> AddInData record id
@@ -59,9 +63,42 @@ geotab.addin.fleetclaim.focus = function(geotabApi, pageState) {
     console.log('FleetClaim focused');
     api = geotabApi;
     state = pageState;
+    
+    // Capture credentials for MediaFile upload (following Geotab's mg-media-files example)
+    captureCredentials();
+    
     loadReports();
     loadRequests();
 };
+
+// Capture session credentials for MediaFile upload
+function captureCredentials() {
+    if (!api || !api.getSession) {
+        console.warn('api.getSession not available');
+        return;
+    }
+    
+    api.getSession(function(session) {
+        console.log('Session captured for uploads:', {
+            server: session.server,
+            database: session.credentials?.database || session.database,
+            userName: session.credentials?.userName || session.userName
+        });
+        
+        // Extract host from server URL
+        const getHost = (s) => {
+            if (s && s.startsWith('http')) {
+                return new URL(s).hostname;
+            }
+            return s || document.location.hostname;
+        };
+        
+        geotabHost = getHost(session.server);
+        storedCredentials = session.credentials || session;
+    }, function(err) {
+        console.warn('Failed to capture session:', err);
+    });
+}
 
 // Blur handler - called when user navigates away
 geotab.addin.fleetclaim.blur = function() {
@@ -836,87 +873,93 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
     }
     
     // Step 2: Upload the binary file via UploadMediaFile
-    // Per Geotab docs: Content-Type "multipart/form-data", NOT "application/json"
-    try {
-        // Get credentials from the page state or API
-        // In MyGeotab Add-Ins, 'state' contains credentials passed from parent frame
-        console.log('Page state keys:', state ? Object.keys(state) : 'state is null');
-        console.log('Page state:', JSON.stringify(state, null, 2));
-        
-        let credentials;
-        
-        // Method 1: Check if state has credentials directly
-        if (state && state.credentials) {
-            credentials = state.credentials;
-            console.log('Using credentials from state.credentials');
-        } 
-        // Method 2: Check if state has the session info
-        else if (state && state.sessionId) {
-            credentials = {
-                server: state.server || window.location.hostname,
-                database: state.database,
-                userName: state.userName,
-                sessionId: state.sessionId
-            };
-            console.log('Using credentials from state fields');
-        }
-        // Method 3: Try api.getSession (may fail in some contexts)
-        else {
-            try {
-                credentials = await new Promise((resolve, reject) => {
-                    api.getSession((session) => {
-                        console.log('Session from api.getSession:', session);
-                        resolve(session);
-                    }, reject);
-                });
-            } catch (e) {
-                console.error('api.getSession failed:', e);
-                throw new Error('Photo upload requires session credentials which are not available in this Add-In context. ' +
-                    'This feature may require additional configuration.');
+    // Following Geotab's official mg-media-files example exactly
+    // Uses XMLHttpRequest with JSON-RPC format in multipart form data
+    
+    // Check if we have stored credentials (captured during focus)
+    if (!storedCredentials || !geotabHost) {
+        console.error('No stored credentials. Attempting to capture now...');
+        // Try to capture credentials synchronously
+        await new Promise((resolve, reject) => {
+            if (!api || !api.getSession) {
+                reject(new Error('api.getSession not available'));
+                return;
             }
-        }
-        
-        if (!credentials || !credentials.sessionId) {
-            throw new Error('No valid session credentials available for upload');
-        }
-        
-        // Build the upload URL with database path
-        // Format: https://my.geotab.com/apiv1/UploadMediaFile
-        const server = credentials.server || 'my.geotab.com';
-        const uploadUrl = `https://${server}/apiv1/UploadMediaFile`;
-        
-        // Create form data with all required fields
-        const formData = new FormData();
-        formData.append('database', credentials.database);
-        formData.append('userName', credentials.userName);
-        formData.append('sessionId', credentials.sessionId);
-        formData.append('mediaFile', JSON.stringify({ id: mediaFileId }));
-        formData.append('file', file, file.name.toLowerCase());
-        
-        console.log('Uploading to:', uploadUrl, 'mediaFileId:', mediaFileId);
-        
-        const response = await fetch(uploadUrl, {
-            method: 'POST',
-            body: formData
+            api.getSession(function(session) {
+                const getHost = (s) => {
+                    if (s && s.startsWith('http')) {
+                        return new URL(s).hostname;
+                    }
+                    return s || document.location.hostname;
+                };
+                geotabHost = getHost(session.server);
+                storedCredentials = session.credentials || session;
+                console.log('Credentials captured:', { host: geotabHost, database: storedCredentials.database });
+                resolve();
+            }, reject);
         });
-        
-        const responseText = await response.text();
-        console.log('Upload response:', response.status, responseText);
-        
-        if (!response.ok) {
-            throw new Error(`Upload failed: ${response.status} ${responseText}`);
-        }
-        
-        // Check for JSON-RPC error in response
-        try {
-            const jsonResponse = JSON.parse(responseText);
-            if (jsonResponse.error) {
-                throw new Error(jsonResponse.error.message || JSON.stringify(jsonResponse.error));
-            }
-        } catch (e) {
-            if (e.message.includes('Upload failed')) throw e;
-            // Not JSON or parse error, might be OK for binary upload
-        }
+    }
+    
+    if (!storedCredentials || !storedCredentials.sessionId) {
+        throw new Error('No valid session credentials available for upload');
+    }
+    
+    // Upload using XMLHttpRequest (matching Geotab's example exactly)
+    try {
+        await new Promise((resolve, reject) => {
+            const fd = new FormData();
+            const fileName = file.name.toLowerCase();
+            
+            // JSON-RPC parameters (MUST be URL encoded per Geotab example)
+            const parameters = {
+                method: 'UploadMediaFile',
+                params: {
+                    credentials: storedCredentials,
+                    mediaFile: { id: mediaFileId }
+                }
+            };
+            
+            fd.append('JSON-RPC', encodeURIComponent(JSON.stringify(parameters)));
+            fd.append(fileName, file, fileName);  // File key is the filename
+            
+            const xhr = new XMLHttpRequest();
+            
+            xhr.addEventListener('load', function(e) {
+                e.preventDefault();
+                if (e.target && e.target.responseText && e.target.responseText.length > 0) {
+                    try {
+                        const jsonResponse = JSON.parse(e.target.responseText);
+                        if (jsonResponse.error) {
+                            console.error('Upload error response:', jsonResponse.error);
+                            reject(new Error(jsonResponse.error.message || JSON.stringify(jsonResponse.error)));
+                        } else {
+                            console.log('Upload success:', jsonResponse);
+                            resolve(jsonResponse);
+                        }
+                    } catch (parseErr) {
+                        console.log('Upload response (non-JSON):', e.target.responseText);
+                        resolve(e.target.responseText);
+                    }
+                } else {
+                    reject(new Error('Empty response from upload'));
+                }
+            }, false);
+            
+            xhr.addEventListener('error', function(e) {
+                if (e.target || (e instanceof XMLHttpRequest && e.status === 0)) {
+                    reject(new Error('Network Error: Could not connect to server'));
+                } else {
+                    reject(e);
+                }
+            }, false);
+            
+            const uploadUrl = `https://${geotabHost}/apiv1/`;
+            console.log('Uploading to:', uploadUrl, 'mediaFileId:', mediaFileId);
+            
+            xhr.open('POST', uploadUrl);
+            xhr.setRequestHeader('Accept', 'application/json, */*;q=0.8');
+            xhr.send(fd);
+        });
         
         console.log('Photo uploaded successfully:', mediaFileId);
         return mediaFileId;
@@ -930,7 +973,9 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
                     entity: { id: mediaFileId }
                 }, resolve, reject);
             });
-        } catch (e) {}
+        } catch (e) {
+            console.warn('Failed to clean up MediaFile:', e);
+        }
         throw err;
     }
 }

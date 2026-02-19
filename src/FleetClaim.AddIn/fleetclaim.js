@@ -8,6 +8,9 @@
 // Add-In ID for MyGeotab AddInData
 const ADDIN_ID = 'aji_jHQGE8k2TDodR8tZrpw';
 
+// Backend API URL for fallback operations (photo upload, etc.)
+const API_BASE_URL = 'https://fleetclaim-api-589116575765.us-central1.run.app';
+
 // Geotab API instance (injected by MyGeotab)
 let api = null;
 let state = null;

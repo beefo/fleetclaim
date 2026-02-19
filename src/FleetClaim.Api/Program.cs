@@ -173,7 +173,7 @@ app.MapGet("/r/{token}", async (
     var parsed = shareLinkService.ParseShareToken(token);
     if (parsed == null)
     {
-        return Results.NotFound(RenderErrorPage("Invalid or expired link"));
+        return Results.Content(RenderErrorPage("Invalid or expired link"), "text/html", statusCode: 404);
     }
     
     var (reportId, database) = parsed.Value;
@@ -194,7 +194,7 @@ app.MapGet("/r/{token}", async (
         
         if (report == null)
         {
-            return Results.NotFound(RenderErrorPage("Report not found"));
+            return Results.Content(RenderErrorPage("Report not found"), "text/html", statusCode: 404);
         }
         
         // Cache for 5 minutes

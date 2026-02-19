@@ -72,17 +72,13 @@ geotab.addin.fleetclaim.focus = function(geotabApi, pageState) {
 };
 
 // Capture session credentials for MediaFile upload
-// The Add-In api object doesn't support getSession() directly,
-// so we need to extract credentials from the parent window or use alternative methods
+// Following the exact pattern from Geotab's mg-media-files example:
+// They call api.getSession() AFTER making API calls, in a .then() chain
 function captureCredentials() {
     console.log('Attempting to capture credentials for MediaFile upload...');
     
-    // Method 1: Try to get database from URL
-    const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/]+)/);
-    const database = urlMatch ? urlMatch[1] : null;
-    console.log('Database from URL:', database);
-    
-    // Method 2: Try api.getSession if available
+    // The getSession must be called after API is "warmed up" with calls
+    // We'll capture it here and it should work since loadReports() was just called
     if (api && typeof api.getSession === 'function') {
         api.getSession(function(session) {
             console.log('Session captured via api.getSession:', {
@@ -96,33 +92,23 @@ function captureCredentials() {
                 if (s && s.startsWith('http')) {
                     return new URL(s).hostname;
                 }
-                return s || 'my.geotab.com';
+                return s || document.location.hostname;
             };
             
             geotabHost = getHost(session.server);
             storedCredentials = session.credentials || session;
+            
+            console.log('Credentials stored for uploads:', {
+                host: geotabHost,
+                database: storedCredentials?.database,
+                hasSessionId: !!storedCredentials?.sessionId
+            });
         }, function(err) {
             console.warn('api.getSession failed:', err);
-            // Fallback: try to get credentials via API call
-            tryGetSessionViaApi(database);
+            console.warn('Photo uploads may not work without session credentials');
         });
     } else {
-        console.warn('api.getSession not available, trying fallback...');
-        tryGetSessionViaApi(database);
-    }
-}
-
-// Fallback method to get session info
-function tryGetSessionViaApi(database) {
-    // We can't directly get sessionId via API, but we can verify we're authenticated
-    // by making a simple call. The real solution is to have the backend handle uploads.
-    console.log('MediaFile upload may not work - session credentials unavailable');
-    console.log('Consider using backend API for photo uploads instead of direct Geotab API');
-    
-    // Set what we know
-    geotabHost = 'my.geotab.com';
-    if (database) {
-        storedCredentials = { database: database };
+        console.warn('api.getSession not available');
     }
 }
 
@@ -848,12 +834,135 @@ async function handlePhotoUpload(reportId, deviceId) {
     }
 }
 
-// Upload a single photo via FleetClaim backend API
-// The backend handles MediaFile creation and binary upload using stored credentials
+// Upload a single photo to Geotab MediaFile API
+// First tries direct upload (like Geotab's example), falls back to backend API
 async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
-    console.log('Uploading photo via FleetClaim API:', file.name);
+    console.log('Uploading photo:', file.name);
     
-    // Get database from URL
+    // Step 1: Create MediaFile entity via Geotab API
+    const fileName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+    
+    const mediaFile = {
+        name: fileName,
+        solutionId: FLEETCLAIM_SOLUTION_ID,
+        fromDate: new Date().toISOString(),
+        toDate: new Date().toISOString(),
+        mediaType: 'Image',
+        metaData: JSON.stringify({
+            reportId: reportId,
+            category: category,
+            uploadedAt: new Date().toISOString(),
+            originalName: file.name,
+            size: file.size
+        })
+    };
+    
+    console.log('Creating MediaFile entity:', mediaFile);
+    
+    let mediaFileId;
+    try {
+        mediaFileId = await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'MediaFile',
+                entity: mediaFile
+            }, resolve, reject);
+        });
+        console.log('MediaFile created:', mediaFileId);
+    } catch (err) {
+        console.error('Failed to create MediaFile:', err);
+        throw new Error('Failed to create media file: ' + (err?.message || JSON.stringify(err)));
+    }
+    
+    // Step 2: Upload binary file
+    // Check if we have stored credentials from getSession
+    if (storedCredentials && storedCredentials.sessionId && geotabHost) {
+        console.log('Uploading binary via direct Geotab API...');
+        try {
+            await uploadBinaryToGeotab(file, mediaFileId, fileName);
+            return mediaFileId;
+        } catch (uploadErr) {
+            console.error('Direct upload failed:', uploadErr);
+            // Don't fallback to backend, just report the error
+            // Clean up the MediaFile entity
+            try {
+                await new Promise((resolve, reject) => {
+                    api.call('Remove', { typeName: 'MediaFile', entity: { id: mediaFileId } }, resolve, reject);
+                });
+            } catch (e) {}
+            throw uploadErr;
+        }
+    } else {
+        // No session credentials - try backend API
+        console.log('No session credentials, using backend API...');
+        try {
+            await uploadViaBackendApi(file, mediaFileId, reportId, category);
+            return mediaFileId;
+        } catch (backendErr) {
+            console.error('Backend upload failed:', backendErr);
+            // Clean up
+            try {
+                await new Promise((resolve, reject) => {
+                    api.call('Remove', { typeName: 'MediaFile', entity: { id: mediaFileId } }, resolve, reject);
+                });
+            } catch (e) {}
+            throw backendErr;
+        }
+    }
+}
+
+// Upload binary to Geotab using XMLHttpRequest (matching Geotab's official example exactly)
+async function uploadBinaryToGeotab(file, mediaFileId, fileName) {
+    return new Promise((resolve, reject) => {
+        const fd = new FormData();
+        
+        // JSON-RPC parameters (MUST be URL encoded per Geotab example)
+        const parameters = {
+            method: 'UploadMediaFile',
+            params: {
+                credentials: storedCredentials,
+                mediaFile: { id: mediaFileId }
+            }
+        };
+        
+        fd.append('JSON-RPC', encodeURIComponent(JSON.stringify(parameters)));
+        fd.append(fileName, file, fileName);
+        
+        const xhr = new XMLHttpRequest();
+        
+        xhr.addEventListener('load', function(e) {
+            if (e.target && e.target.responseText) {
+                try {
+                    const jsonResponse = JSON.parse(e.target.responseText);
+                    if (jsonResponse.error) {
+                        reject(new Error(jsonResponse.error.message || JSON.stringify(jsonResponse.error)));
+                    } else {
+                        console.log('Upload success:', jsonResponse);
+                        resolve(jsonResponse);
+                    }
+                } catch (parseErr) {
+                    // Non-JSON response might be OK
+                    resolve(e.target.responseText);
+                }
+            } else {
+                reject(new Error('Empty response from upload'));
+            }
+        });
+        
+        xhr.addEventListener('error', function(e) {
+            reject(new Error('Network error during upload'));
+        });
+        
+        const uploadUrl = `https://${geotabHost}/apiv1/`;
+        console.log('Uploading to:', uploadUrl);
+        
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Accept', 'application/json, */*;q=0.8');
+        xhr.send(fd);
+    });
+}
+
+// Fallback: Upload via FleetClaim backend API
+async function uploadViaBackendApi(file, mediaFileId, reportId, category) {
     const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
     const database = urlMatch ? urlMatch[1] : null;
     
@@ -861,33 +970,26 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
         throw new Error('Could not determine database from URL');
     }
     
-    // Create form data for upload
     const formData = new FormData();
     formData.append('file', file, file.name);
     formData.append('database', database);
     formData.append('reportId', reportId);
     formData.append('category', category);
-    if (deviceId) {
-        formData.append('deviceId', deviceId);
-    }
+    formData.append('mediaFileId', mediaFileId); // Pass the already-created ID
     
-    // Upload to FleetClaim API
     const response = await fetch(`${API_BASE_URL}/api/photos/upload`, {
         method: 'POST',
-        headers: {
-            'X-Database': database
-        },
+        headers: { 'X-Database': database },
         body: formData
     });
     
     const result = await response.json();
     
     if (!response.ok) {
-        throw new Error(result.error || result.detail || 'Upload failed');
+        throw new Error(result.error || result.detail || 'Backend upload failed');
     }
     
-    console.log('Photo uploaded successfully:', result);
-    return result.mediaFileId;
+    return result;
 }
 
 // Save photo references to the report's AddInData

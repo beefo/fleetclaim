@@ -8,7 +8,7 @@ if (apiKey) {
 // Modal close function - called from backdrop click
 function closeModal(e) {
     if (e && e.target && e.target.id === 'onboard-modal') {
-        document.getElementById('onboard-modal').style.display = 'none';
+        document.getElementById('onboard-modal').classList.add('hidden');
     }
 }
 
@@ -16,7 +16,7 @@ function closeModal(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         var modal = document.getElementById('onboard-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.classList.add('hidden');
     }
 });
 

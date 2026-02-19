@@ -267,13 +267,8 @@ app.MapPost("/api/photos/upload", async (
         
         // Get HTTP client for upload
         var httpClient = new HttpClient();
-        var uploadUrl = $"https://my.geotab.com/apiv1/";
-        
-        // Build multipart form data matching Geotab's expected format
-        using var uploadContent = new MultipartFormDataContent();
         
         // Get session credentials from the authenticated API object
-        // The API object has Credentials property after authentication
         var sessionDb = api.LoginResult?.Credentials?.Database ?? database;
         var sessionUser = api.LoginResult?.Credentials?.UserName ?? "";
         var sessionId = api.LoginResult?.Credentials?.SessionId ?? "";
@@ -283,23 +278,18 @@ app.MapPost("/api/photos/upload", async (
             return Results.Problem("Could not get session credentials for upload", statusCode: 500);
         }
         
-        var jsonRpcParams = new
-        {
-            method = "UploadMediaFile",
-            @params = new
-            {
-                credentials = new
-                {
-                    database = sessionDb,
-                    userName = sessionUser,
-                    sessionId = sessionId
-                },
-                mediaFile = new { id = mediaFileId }
-            }
-        };
+        // Use the same format as MediaFileService.cs which works
+        var uploadUrl = $"https://my.geotab.com/apiv1/UploadMediaFile";
         
-        uploadContent.Add(new StringContent(Uri.EscapeDataString(System.Text.Json.JsonSerializer.Serialize(jsonRpcParams))), "JSON-RPC");
-        uploadContent.Add(new ByteArrayContent(fileBytes), fileName, fileName);
+        using var uploadContent = new MultipartFormDataContent();
+        uploadContent.Add(new StringContent(mediaFileId!), "id");
+        uploadContent.Add(new StringContent(sessionDb), "database");
+        uploadContent.Add(new StringContent(sessionUser), "userName");
+        uploadContent.Add(new StringContent(sessionId), "sessionId");
+        
+        var fileContent = new ByteArrayContent(fileBytes);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+        uploadContent.Add(fileContent, "file", fileName);
         
         var uploadResponse = await httpClient.PostAsync(uploadUrl, uploadContent, ct);
         var uploadResponseText = await uploadResponse.Content.ReadAsStringAsync(ct);

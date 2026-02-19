@@ -836,35 +836,56 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
     }
     
     // Step 2: Upload the binary file via UploadMediaFile
-    // This requires a multipart form submission
+    // Per Geotab docs: Content-Type "multipart/form-data", NOT "application/json"
     try {
-        const formData = new FormData();
-        formData.append('id', mediaFileId);
-        formData.append('file', file, file.name);
-        
         // Get credentials from the api object
         const credentials = await new Promise((resolve, reject) => {
             api.getSession((session) => {
+                console.log('Session for upload:', { 
+                    server: session.server, 
+                    database: session.database,
+                    userName: session.userName 
+                });
                 resolve(session);
             }, reject);
         });
         
-        // Build the upload URL
-        const uploadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/UploadMediaFile`;
+        // Build the upload URL with database path
+        // Format: https://my.geotab.com/apiv1/UploadMediaFile
+        const server = credentials.server || 'my.geotab.com';
+        const uploadUrl = `https://${server}/apiv1/UploadMediaFile`;
         
-        // Add credentials to form data
+        // Create form data with all required fields
+        const formData = new FormData();
         formData.append('database', credentials.database);
         formData.append('userName', credentials.userName);
         formData.append('sessionId', credentials.sessionId);
+        formData.append('mediaFile', JSON.stringify({ id: mediaFileId }));
+        formData.append('file', file, file.name.toLowerCase());
+        
+        console.log('Uploading to:', uploadUrl, 'mediaFileId:', mediaFileId);
         
         const response = await fetch(uploadUrl, {
             method: 'POST',
             body: formData
         });
         
+        const responseText = await response.text();
+        console.log('Upload response:', response.status, responseText);
+        
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Upload failed: ${response.status} ${errorText}`);
+            throw new Error(`Upload failed: ${response.status} ${responseText}`);
+        }
+        
+        // Check for JSON-RPC error in response
+        try {
+            const jsonResponse = JSON.parse(responseText);
+            if (jsonResponse.error) {
+                throw new Error(jsonResponse.error.message || JSON.stringify(jsonResponse.error));
+            }
+        } catch (e) {
+            if (e.message.includes('Upload failed')) throw e;
+            // Not JSON or parse error, might be OK for binary upload
         }
         
         console.log('Photo uploaded successfully:', mediaFileId);

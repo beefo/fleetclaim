@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "puppeteer": "^24.37.3"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
   }
 }

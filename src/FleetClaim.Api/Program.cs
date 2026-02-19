@@ -160,6 +160,174 @@ app.UseRateLimiter();
 // Health check
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
+// Photo upload endpoint - proxies upload to Geotab MediaFile API
+// This is needed because Add-Ins can't access session credentials for direct uploads
+app.MapPost("/api/photos/upload", async (
+    HttpRequest request,
+    [FromServices] IGeotabClientFactory clientFactory,
+    [FromServices] IAddInDataRepository repository,
+    CancellationToken ct) =>
+{
+    try
+    {
+        // Get database from header or form
+        var database = request.Headers["X-Database"].FirstOrDefault() 
+            ?? request.Form["database"].FirstOrDefault();
+        var reportId = request.Form["reportId"].FirstOrDefault();
+        var category = request.Form["category"].FirstOrDefault() ?? "Other";
+        
+        if (string.IsNullOrEmpty(database))
+        {
+            return Results.BadRequest(new { error = "Database is required (X-Database header or form field)" });
+        }
+        
+        if (string.IsNullOrEmpty(reportId))
+        {
+            return Results.BadRequest(new { error = "reportId is required" });
+        }
+        
+        // Get the uploaded file
+        var file = request.Form.Files.FirstOrDefault();
+        if (file == null || file.Length == 0)
+        {
+            return Results.BadRequest(new { error = "No file uploaded" });
+        }
+        
+        // Validate file type
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+        if (!allowedTypes.Contains(file.ContentType.ToLower()))
+        {
+            return Results.BadRequest(new { error = "Invalid file type. Allowed: jpeg, png, gif, webp" });
+        }
+        
+        // Validate file size (10MB max)
+        if (file.Length > 10 * 1024 * 1024)
+        {
+            return Results.BadRequest(new { error = "File too large. Maximum 10MB" });
+        }
+        
+        // Get Geotab API client
+        var api = await clientFactory.CreateClientAsync(database, ct);
+        
+        // Create MediaFile entity using dynamic object (SDK doesn't expose MediaFile type directly)
+        var fileName = file.FileName.ToLower().Replace(" ", "_");
+        if (!fileName.Contains('.'))
+        {
+            fileName += file.ContentType switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/png" => ".png",
+                "image/gif" => ".gif",
+                "image/webp" => ".webp",
+                _ => ".jpg"
+            };
+        }
+        
+        // Sanitize filename
+        fileName = Regex.Replace(fileName, @"[^a-z0-9._-]", "_");
+        
+        var mediaFileEntity = new Dictionary<string, object?>
+        {
+            ["name"] = fileName,
+            ["solutionId"] = "aji_jHQGE8k2TDodR8tZrpw", // ADDIN_ID
+            ["fromDate"] = DateTime.UtcNow,
+            ["toDate"] = DateTime.UtcNow,
+            ["mediaType"] = "Image",
+            ["metaData"] = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                reportId = reportId,
+                category = category,
+                uploadedAt = DateTime.UtcNow.ToString("o"),
+                originalName = file.FileName,
+                size = file.Length
+            })
+        };
+        
+        // Add the MediaFile entity
+        var addResult = await api.CallAsync<string>("Add", typeof(object), new { 
+            typeName = "MediaFile",
+            entity = mediaFileEntity 
+        }, ct);
+        
+        var mediaFileId = addResult;
+        
+        // Now upload the binary file using direct HTTP POST to Geotab
+        // Get the server and credentials from the api
+        using var fileStream = file.OpenReadStream();
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream, ct);
+        var fileBytes = memoryStream.ToArray();
+        
+        // Get HTTP client for upload
+        var httpClient = new HttpClient();
+        var uploadUrl = $"https://my.geotab.com/apiv1/";
+        
+        // Build multipart form data matching Geotab's expected format
+        using var uploadContent = new MultipartFormDataContent();
+        
+        // Get session credentials from the authenticated API object
+        // The API object has Credentials property after authentication
+        var sessionDb = api.LoginResult?.Credentials?.Database ?? database;
+        var sessionUser = api.LoginResult?.Credentials?.UserName ?? "";
+        var sessionId = api.LoginResult?.Credentials?.SessionId ?? "";
+        
+        if (string.IsNullOrEmpty(sessionId))
+        {
+            return Results.Problem("Could not get session credentials for upload", statusCode: 500);
+        }
+        
+        var jsonRpcParams = new
+        {
+            method = "UploadMediaFile",
+            @params = new
+            {
+                credentials = new
+                {
+                    database = sessionDb,
+                    userName = sessionUser,
+                    sessionId = sessionId
+                },
+                mediaFile = new { id = mediaFileId }
+            }
+        };
+        
+        uploadContent.Add(new StringContent(Uri.EscapeDataString(System.Text.Json.JsonSerializer.Serialize(jsonRpcParams))), "JSON-RPC");
+        uploadContent.Add(new ByteArrayContent(fileBytes), fileName, fileName);
+        
+        var uploadResponse = await httpClient.PostAsync(uploadUrl, uploadContent, ct);
+        var uploadResponseText = await uploadResponse.Content.ReadAsStringAsync(ct);
+        
+        if (!uploadResponse.IsSuccessStatusCode)
+        {
+            // Clean up the MediaFile entity on failure
+            try { await api.CallAsync<object>("Remove", typeof(object), new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct); } catch { }
+            return Results.Problem($"Upload failed: {uploadResponseText}", statusCode: 500);
+        }
+        
+        // Check for JSON-RPC error
+        if (uploadResponseText.Contains("\"error\""))
+        {
+            try { await api.CallAsync<object>("Remove", typeof(object), new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct); } catch { }
+            return Results.Problem($"Upload error: {uploadResponseText}", statusCode: 500);
+        }
+        
+        // Return success with the MediaFile ID
+        return Results.Ok(new { 
+            success = true, 
+            mediaFileId = mediaFileId,
+            fileName = fileName,
+            message = "Photo uploaded successfully"
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: "Error uploading photo: " + ex.Message,
+            statusCode: 500,
+            title: "Upload Error");
+    }
+}).DisableAntiforgery();
+
 // Share link endpoint
 app.MapGet("/r/{token}", async (
     string token,

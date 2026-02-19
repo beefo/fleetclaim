@@ -254,10 +254,12 @@ app.MapPost("/api/photos/upload", async (
         else
         {
             // Create new MediaFile entity
-            var addResult = await api.CallAsync<string>("Add", typeof(object), new { 
-                typeName = "MediaFile",
-                entity = mediaFileEntity 
-            }, ct);
+            var addParams = new Dictionary<string, object>
+            {
+                { "typeName", "MediaFile" },
+                { "entity", mediaFileEntity }
+            };
+            var addResult = await api.CallAsync<string>("Add", typeof(object), addParams, ct);
             mediaFileId = addResult;
         }
         
@@ -310,14 +312,20 @@ app.MapPost("/api/photos/upload", async (
         if (!uploadResponse.IsSuccessStatusCode)
         {
             // Clean up the MediaFile entity on failure
-            try { await api.CallAsync<object>("Remove", typeof(object), new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct); } catch { }
+            try { 
+                var removeParams = new Dictionary<string, object> { { "typeName", "MediaFile" }, { "entity", new Dictionary<string, object> { { "id", mediaFileId } } } };
+                await api.CallAsync<object>("Remove", typeof(object), removeParams, ct); 
+            } catch { }
             return Results.Problem($"Upload failed: {uploadResponseText}", statusCode: 500);
         }
         
         // Check for JSON-RPC error
         if (uploadResponseText.Contains("\"error\""))
         {
-            try { await api.CallAsync<object>("Remove", typeof(object), new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct); } catch { }
+            try { 
+                var removeParams = new Dictionary<string, object> { { "typeName", "MediaFile" }, { "entity", new Dictionary<string, object> { { "id", mediaFileId } } } };
+                await api.CallAsync<object>("Remove", typeof(object), removeParams, ct); 
+            } catch { }
             return Results.Problem($"Upload error: {uploadResponseText}", statusCode: 500);
         }
         

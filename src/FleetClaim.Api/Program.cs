@@ -175,6 +175,7 @@ app.MapPost("/api/photos/upload", async (
             ?? request.Form["database"].FirstOrDefault();
         var reportId = request.Form["reportId"].FirstOrDefault();
         var category = request.Form["category"].FirstOrDefault() ?? "Other";
+        var existingMediaFileId = request.Form["mediaFileId"].FirstOrDefault();
         
         if (string.IsNullOrEmpty(database))
         {
@@ -243,13 +244,22 @@ app.MapPost("/api/photos/upload", async (
             })
         };
         
-        // Add the MediaFile entity
-        var addResult = await api.CallAsync<string>("Add", typeof(object), new { 
-            typeName = "MediaFile",
-            entity = mediaFileEntity 
-        }, ct);
-        
-        var mediaFileId = addResult;
+        // Use existing MediaFile ID if provided, otherwise create new one
+        string? mediaFileId;
+        if (!string.IsNullOrEmpty(existingMediaFileId))
+        {
+            // Add-In already created the MediaFile, just use that ID
+            mediaFileId = existingMediaFileId;
+        }
+        else
+        {
+            // Create new MediaFile entity
+            var addResult = await api.CallAsync<string>("Add", typeof(object), new { 
+                typeName = "MediaFile",
+                entity = mediaFileEntity 
+            }, ct);
+            mediaFileId = addResult;
+        }
         
         // Now upload the binary file using direct HTTP POST to Geotab
         // Get the server and credentials from the api

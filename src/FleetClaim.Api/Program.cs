@@ -253,13 +253,8 @@ app.MapPost("/api/photos/upload", async (
         }
         else
         {
-            // Create new MediaFile entity
-            var addParams = new Dictionary<string, object>
-            {
-                { "typeName", "MediaFile" },
-                { "entity", mediaFileEntity }
-            };
-            var addResult = await api.CallAsync<string>("Add", typeof(object), addParams, ct);
+            // Create new MediaFile entity (using 3-parameter CallAsync like MediaFileService)
+            var addResult = await api.CallAsync<string>("Add", new { typeName = "MediaFile", entity = mediaFileEntity }, ct);
             mediaFileId = addResult;
         }
         
@@ -312,20 +307,14 @@ app.MapPost("/api/photos/upload", async (
         if (!uploadResponse.IsSuccessStatusCode)
         {
             // Clean up the MediaFile entity on failure
-            try { 
-                var removeParams = new Dictionary<string, object> { { "typeName", "MediaFile" }, { "entity", new Dictionary<string, object> { { "id", mediaFileId } } } };
-                await api.CallAsync<object>("Remove", typeof(object), removeParams, ct); 
-            } catch { }
+            try { await api.CallAsync<object>("Remove", new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct); } catch { }
             return Results.Problem($"Upload failed: {uploadResponseText}", statusCode: 500);
         }
         
         // Check for JSON-RPC error
         if (uploadResponseText.Contains("\"error\""))
         {
-            try { 
-                var removeParams = new Dictionary<string, object> { { "typeName", "MediaFile" }, { "entity", new Dictionary<string, object> { { "id", mediaFileId } } } };
-                await api.CallAsync<object>("Remove", typeof(object), removeParams, ct); 
-            } catch { }
+            try { await api.CallAsync<object>("Remove", new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct); } catch { }
             return Results.Problem($"Upload error: {uploadResponseText}", statusCode: 500);
         }
         

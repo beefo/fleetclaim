@@ -19,17 +19,20 @@ public class ReportGenerator : IReportGenerator
     private readonly IIncidentCollector _collector;
     private readonly IPdfRenderer _pdfRenderer;
     private readonly IShareLinkService? _shareLinkService;
+    private readonly IMediaFileService? _mediaFileService;
     private readonly TimeSpan _windowBefore = TimeSpan.FromMinutes(5);
     private readonly TimeSpan _windowAfter = TimeSpan.FromMinutes(5);
     
     public ReportGenerator(
         IIncidentCollector collector, 
         IPdfRenderer pdfRenderer,
-        IShareLinkService? shareLinkService = null)
+        IShareLinkService? shareLinkService = null,
+        IMediaFileService? mediaFileService = null)
     {
         _collector = collector;
         _pdfRenderer = pdfRenderer;
         _shareLinkService = shareLinkService;
+        _mediaFileService = mediaFileService;
     }
     
     public async Task<IncidentReport> GenerateReportAsync(
@@ -85,8 +88,36 @@ public class ReportGenerator : IReportGenerator
             report.ShareUrl = _shareLinkService.GenerateShareUrl(report.Id, database);
         }
         
-        // Generate PDF
-        report.PdfBase64 = await _pdfRenderer.RenderPdfAsync(report, ct);
+        // Generate PDF and upload to MediaFile storage (bypasses 10KB AddInData limit)
+        var pdfBase64 = await _pdfRenderer.RenderPdfAsync(report, ct);
+        
+        if (_mediaFileService != null && !string.IsNullOrEmpty(pdfBase64))
+        {
+            try
+            {
+                var pdfBytes = Convert.FromBase64String(pdfBase64);
+                var mediaFileId = await _mediaFileService.UploadPdfAsync(
+                    api, 
+                    report.Id, 
+                    report.VehicleId, 
+                    pdfBytes, 
+                    ct);
+                report.PdfMediaFileId = mediaFileId;
+                // Don't store base64 in report - too large for AddInData
+                report.PdfBase64 = null;
+            }
+            catch
+            {
+                // Fallback: If MediaFile upload fails, don't store PDF
+                // It can still be generated on-demand via the API
+                report.PdfBase64 = null;
+            }
+        }
+        else
+        {
+            // No MediaFile service - PDF will be generated on demand
+            report.PdfBase64 = null;
+        }
         
         return report;
     }

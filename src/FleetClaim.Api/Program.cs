@@ -39,6 +39,7 @@ var pdfOptions = new PdfOptions
 
 // Services
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ICredentialStore>(new GcpCredentialStore(projectId));
 builder.Services.AddSingleton<IGeotabClientFactory, GeotabClientFactory>();
 builder.Services.AddSingleton<IAddInDataRepository, AddInDataRepository>();
@@ -47,6 +48,8 @@ builder.Services.AddSingleton<IShareLinkService>(new ShareLinkService(new ShareL
 {
     SigningKey = shareLinkSigningKey
 }));
+builder.Services.AddSingleton<IMediaFileService>(sp =>
+    new MediaFileService(sp.GetService<IHttpClientFactory>()?.CreateClient()));
 
 // Gmail email service
 if (!string.IsNullOrEmpty(gmailRefreshToken) && !string.IsNullOrEmpty(gmailClientId))
@@ -208,13 +211,14 @@ app.MapGet("/r/{token}", async (
     }
 }).RequireRateLimiting("shareLink");
 
-// PDF download endpoint - generates PDF on-demand
+// PDF download endpoint - tries MediaFile first, then generates on-demand
 app.MapGet("/r/{token}/pdf", async (
     string token,
     [FromServices] IShareLinkService shareLinkService,
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
+    [FromServices] IMediaFileService mediaFileService,
     [FromServices] IMemoryCache cache,
     CancellationToken ct) =>
 {
@@ -230,9 +234,10 @@ app.MapGet("/r/{token}/pdf", async (
     var cacheKey = $"report:{reportId}";
     IncidentReport? report;
     
+    var api = await clientFactory.CreateClientAsync(database, ct);
+    
     if (!cache.TryGetValue<IncidentReport>(cacheKey, out report) || report == null)
     {
-        var api = await clientFactory.CreateClientAsync(database, ct);
         var reports = await repository.GetReportsAsync(api, ct: ct);
         report = reports.FirstOrDefault(r => r.Id == reportId);
     }
@@ -242,9 +247,28 @@ app.MapGet("/r/{token}/pdf", async (
         return Results.NotFound();
     }
     
-    // Generate PDF on-demand (not stored in AddInData due to size limits)
-    var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
-    var pdfBytes = Convert.FromBase64String(pdfBase64);
+    byte[]? pdfBytes = null;
+    
+    // Try to download pre-generated PDF from MediaFile
+    if (!string.IsNullOrEmpty(report.PdfMediaFileId))
+    {
+        try
+        {
+            pdfBytes = await mediaFileService.DownloadFileAsync(api, report.PdfMediaFileId, ct);
+        }
+        catch
+        {
+            // MediaFile download failed, will regenerate
+        }
+    }
+    
+    // Fallback: Generate PDF on-demand
+    if (pdfBytes == null || pdfBytes.Length == 0)
+    {
+        var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
+        pdfBytes = Convert.FromBase64String(pdfBase64);
+    }
+    
     return Results.File(pdfBytes, "application/pdf", $"incident-report-{report.Id}.pdf");
 }).RequireRateLimiting("pdf");
 
@@ -256,6 +280,7 @@ app.MapGet("/api/reports/{token}/pdf", async (
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
+    [FromServices] IMediaFileService mediaFileService,
     [FromServices] IMemoryCache cache,
     CancellationToken ct) =>
 {
@@ -284,9 +309,10 @@ app.MapGet("/api/reports/{token}/pdf", async (
         var cacheKey = $"report:{reportId}";
         IncidentReport? report;
         
+        var api = await clientFactory.CreateClientAsync(database, ct);
+        
         if (!cache.TryGetValue<IncidentReport>(cacheKey, out report) || report == null)
         {
-            var api = await clientFactory.CreateClientAsync(database, ct);
             var reports = await repository.GetReportsAsync(api, ct: ct);
             report = reports.FirstOrDefault(r => r.Id == reportId);
         }
@@ -299,9 +325,28 @@ app.MapGet("/api/reports/{token}/pdf", async (
         // Cache for 5 minutes
         cache.Set(cacheKey, report, TimeSpan.FromMinutes(5));
         
-        // Generate PDF on-demand
-        var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
-        var pdfBytes = Convert.FromBase64String(pdfBase64);
+        byte[]? pdfBytes = null;
+        
+        // Try to download pre-generated PDF from MediaFile
+        if (!string.IsNullOrEmpty(report.PdfMediaFileId))
+        {
+            try
+            {
+                pdfBytes = await mediaFileService.DownloadFileAsync(api, report.PdfMediaFileId, ct);
+            }
+            catch
+            {
+                // MediaFile download failed, will regenerate
+            }
+        }
+        
+        // Fallback: Generate PDF on-demand
+        if (pdfBytes == null || pdfBytes.Length == 0)
+        {
+            var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
+            pdfBytes = Convert.FromBase64String(pdfBase64);
+        }
+        
         return Results.File(pdfBytes, "application/pdf", $"fleetclaim-report-{report.Id}.pdf");
     }
     catch (Exception ex)

@@ -58,7 +58,18 @@ public class IncidentReport
     
     // Evidence & Telematics
     public EvidencePackage Evidence { get; set; } = new();
+    
+    /// <summary>
+    /// Legacy: Base64 PDF (deprecated - use PdfMediaFileId instead)
+    /// </summary>
     public string? PdfBase64 { get; set; }
+    
+    /// <summary>
+    /// Geotab MediaFile ID for the pre-generated PDF.
+    /// PDF is stored in Geotab's MediaFile storage for persistence.
+    /// </summary>
+    public string? PdfMediaFileId { get; set; }
+    
     public string? ShareUrl { get; set; }
     
     /// <summary>

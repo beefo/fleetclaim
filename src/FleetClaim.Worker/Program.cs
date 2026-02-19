@@ -49,9 +49,17 @@ builder.Services.AddHttpClient<IWeatherService, OpenMeteoWeatherService>();
 builder.Services.AddSingleton<IIncidentCollector, IncidentCollector>();
 builder.Services.AddSingleton<IPdfRenderer>(new QuestPdfRenderer(pdfOptions));
 builder.Services.AddSingleton<IShareLinkService>(new ShareLinkService(shareLinkOptions));
+builder.Services.AddSingleton<IMediaFileService>(sp => 
+    new MediaFileService(sp.GetService<IHttpClientFactory>()?.CreateClient()));
 builder.Services.AddSingleton<INotificationService>(sp => 
     new NotificationService(notificationOptions, sp.GetService<IHttpClientFactory>()?.CreateClient()));
-builder.Services.AddSingleton<IReportGenerator, ReportGenerator>();
+builder.Services.AddSingleton<IReportGenerator>(sp =>
+    new ReportGenerator(
+        sp.GetRequiredService<IIncidentCollector>(),
+        sp.GetRequiredService<IPdfRenderer>(),
+        sp.GetRequiredService<IShareLinkService>(),
+        sp.GetRequiredService<IMediaFileService>()
+    ));
 builder.Services.AddHttpClient();
 
 // Worker

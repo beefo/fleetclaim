@@ -195,7 +195,11 @@ public class EvidencePackage
     public List<MaintenanceItem> OverdueMaintenanceItems { get; set; } = [];
     public DateTime? LastMaintenanceDate { get; set; }
     
-    // Photo URLs/references (for future photo upload feature)
+    // Photo references - MediaFile IDs from Geotab's MediaFile API
+    // Photos are uploaded via UploadMediaFile and referenced by ID
+    public List<PhotoAttachment> Photos { get; set; } = [];
+    
+    // Legacy: Photo URLs (deprecated, use Photos instead)
     public List<string> PhotoUrls { get; set; } = [];
 }
 
@@ -261,4 +265,68 @@ public class HosStatus
     public string? Status { get; set; } // Driving, OnDuty, OffDuty, Sleeper
     public TimeSpan? DriveTimeRemaining { get; set; }
     public TimeSpan? DutyTimeRemaining { get; set; }
+}
+
+/// <summary>
+/// Photo attachment reference using Geotab's MediaFile API.
+/// Photos are stored in Geotab and referenced by MediaFile ID.
+/// </summary>
+public class PhotoAttachment
+{
+    /// <summary>
+    /// Geotab MediaFile ID (e.g., "b1234567-...")
+    /// </summary>
+    public string MediaFileId { get; set; } = "";
+    
+    /// <summary>
+    /// Original filename
+    /// </summary>
+    public string FileName { get; set; } = "";
+    
+    /// <summary>
+    /// MIME type (image/jpeg, image/png, etc.)
+    /// </summary>
+    public string ContentType { get; set; } = "image/jpeg";
+    
+    /// <summary>
+    /// User-provided caption/description
+    /// </summary>
+    public string? Caption { get; set; }
+    
+    /// <summary>
+    /// Photo category for organization
+    /// </summary>
+    public PhotoCategory Category { get; set; } = PhotoCategory.General;
+    
+    /// <summary>
+    /// When the photo was uploaded
+    /// </summary>
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    
+    /// <summary>
+    /// Who uploaded the photo
+    /// </summary>
+    public string? UploadedBy { get; set; }
+    
+    /// <summary>
+    /// Thumbnail MediaFile ID (if available)
+    /// </summary>
+    public string? ThumbnailMediaFileId { get; set; }
+}
+
+/// <summary>
+/// Categories for organizing incident photos
+/// </summary>
+public enum PhotoCategory
+{
+    General,
+    VehicleDamage,
+    SceneOverview,
+    OtherVehicle,
+    RoadCondition,
+    WeatherCondition,
+    DriverInjury,
+    WitnessInfo,
+    PoliceReport,
+    InsuranceDocument
 }

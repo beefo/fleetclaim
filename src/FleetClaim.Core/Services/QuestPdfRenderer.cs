@@ -42,29 +42,62 @@ public class QuestPdfRenderer : IPdfRenderer
         
         try
         {
-            // Get center point (closest to incident time)
-            var centerPoint = report.Evidence.GpsTrail
+            var gpsTrail = report.Evidence.GpsTrail;
+            var start = gpsTrail.First();
+            var end = gpsTrail.Last();
+            
+            // Find the incident point (closest to occurred time)
+            var incidentPoint = gpsTrail
                 .OrderBy(p => Math.Abs((p.Timestamp - report.OccurredAt).TotalSeconds))
                 .First();
             
-            // Build polyline path for the route
-            var pathPoints = report.Evidence.GpsTrail
-                .Where((_, i) => i % Math.Max(1, report.Evidence.GpsTrail.Count / 30) == 0)
-                .Take(30)
-                .Select(p => $"{p.Longitude:F5},{p.Latitude:F5}");
-            var polyline = string.Join(",", pathPoints);
+            // Calculate bounds for auto-zoom
+            var lats = gpsTrail.Select(p => p.Latitude).ToList();
+            var lngs = gpsTrail.Select(p => p.Longitude).ToList();
+            var centerLat = (lats.Min() + lats.Max()) / 2;
+            var centerLng = (lngs.Min() + lngs.Max()) / 2;
             
-            // Use geoapify free tier (3000 req/day) - no API key needed for basic usage
+            // Sample points for polyline (max ~50 points for URL length)
+            var sampleRate = Math.Max(1, gpsTrail.Count / 50);
+            var sampledPoints = gpsTrail
+                .Where((_, i) => i % sampleRate == 0 || i == gpsTrail.Count - 1)
+                .Take(50)
+                .ToList();
+            
+            // Build polyline string for Geoapify: lon,lat;lon,lat;...
+            var polylineCoords = string.Join(";", sampledPoints.Select(p => $"{p.Longitude:F5},{p.Latitude:F5}"));
+            
+            // Use geoapify free tier (3000 req/day) with polyline and markers
+            // Markers: green start, red incident, blue end
             var mapUrl = $"https://maps.geoapify.com/v1/staticmap?" +
-                $"style=osm-bright&width=600&height=250" +
-                $"&center=lonlat:{centerPoint.Longitude:F5},{centerPoint.Latitude:F5}&zoom=13" +
-                $"&marker=lonlat:{centerPoint.Longitude:F5},{centerPoint.Latitude:F5};color:%23ff0000;size:medium;type:awesome";
+                $"style=osm-bright&width=600&height=300" +
+                $"&center=lonlat:{centerLng:F5},{centerLat:F5}" +
+                // Auto-fit to bounds
+                $"&geometry=polyline:{polylineCoords};lineColor:%232563eb;lineWidth:4" +
+                // Start marker (green)
+                $"&marker=lonlat:{start.Longitude:F5},{start.Latitude:F5};color:%2322c55e;size:medium;text:START" +
+                // Incident marker (red, prominent)
+                $"&marker=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5};color:%23ef4444;size:large;text:INCIDENT" +
+                // End marker (blue)
+                $"&marker=lonlat:{end.Longitude:F5},{end.Latitude:F5};color:%233b82f6;size:medium;text:END";
             
             using var httpClient = new HttpClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(15);
+            httpClient.Timeout = TimeSpan.FromSeconds(20);
             httpClient.DefaultRequestHeaders.Add("User-Agent", "FleetClaim/1.0");
             
             var response = await httpClient.GetAsync(mapUrl);
+            if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+            {
+                return await response.Content.ReadAsByteArrayAsync();
+            }
+            
+            // Fallback: try simpler map without geometry (some free tiers limit features)
+            var fallbackUrl = $"https://maps.geoapify.com/v1/staticmap?" +
+                $"style=osm-bright&width=600&height=300" +
+                $"&center=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5}&zoom=14" +
+                $"&marker=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5};color:%23ef4444;size:large";
+            
+            response = await httpClient.GetAsync(fallbackUrl);
             if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
             {
                 return await response.Content.ReadAsByteArrayAsync();
@@ -90,6 +123,7 @@ internal class IncidentReportDocument : IDocument
     private readonly IncidentReport _report;
     private readonly PdfOptions _options;
     private readonly byte[]? _mapImage;
+    private readonly Dictionary<string, byte[]> _photoData;
     
     private static readonly string PrimaryColor = "#1a365d";
     private static readonly string AccentColor = "#2b6cb0";
@@ -97,11 +131,12 @@ internal class IncidentReportDocument : IDocument
     private static readonly string BorderColor = "#e2e8f0";
     private static readonly string WarningColor = "#c53030";
     
-    public IncidentReportDocument(IncidentReport report, PdfOptions options, byte[]? mapImage = null)
+    public IncidentReportDocument(IncidentReport report, PdfOptions options, byte[]? mapImage = null, Dictionary<string, byte[]>? photoData = null)
     {
         _report = report;
         _options = options;
         _mapImage = mapImage;
+        _photoData = photoData ?? new Dictionary<string, byte[]>();
     }
     
     public DocumentMetadata GetMetadata() => new()
@@ -225,10 +260,16 @@ internal class IncidentReportDocument : IDocument
                 col.Item().Element(ComposeNotesSection);
             }
             
-            // 15. EVIDENCE SUMMARY
+            // 15. PHOTOS (if any attached)
+            if (_report.Evidence.Photos?.Count > 0 && _photoData.Count > 0)
+            {
+                col.Item().Element(ComposePhotosSection);
+            }
+            
+            // 16. EVIDENCE SUMMARY
             col.Item().Element(ComposeEvidenceSummary);
             
-            // 16. CERTIFICATION BLOCK
+            // 17. CERTIFICATION BLOCK
             col.Item().Element(ComposeCertificationBlock);
         });
     }
@@ -902,6 +943,94 @@ internal class IncidentReportDocument : IDocument
         });
     }
     
+    private void ComposePhotosSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("PHOTO EVIDENCE").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().PaddingTop(4).Text($"{_report.Evidence.Photos.Count} photo(s) attached to this report")
+                .FontSize(9).FontColor(Colors.Grey.Darken1);
+            
+            // Group photos by category
+            var photosByCategory = _report.Evidence.Photos
+                .GroupBy(p => p.Category)
+                .OrderBy(g => g.Key);
+            
+            foreach (var categoryGroup in photosByCategory)
+            {
+                col.Item().PaddingTop(10).Text(FormatPhotoCategory(categoryGroup.Key))
+                    .Bold().FontSize(10).FontColor(AccentColor);
+                
+                // Create a grid of photos (3 per row)
+                var photosInCategory = categoryGroup.ToList();
+                for (int i = 0; i < photosInCategory.Count; i += 3)
+                {
+                    col.Item().PaddingTop(8).Row(row =>
+                    {
+                        for (int j = i; j < Math.Min(i + 3, photosInCategory.Count); j++)
+                        {
+                            var photo = photosInCategory[j];
+                            row.RelativeItem().Padding(4).Element(c => ComposePhotoThumbnail(c, photo));
+                        }
+                        // Fill empty slots
+                        for (int k = photosInCategory.Count; k < i + 3; k++)
+                        {
+                            row.RelativeItem();
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
+    private void ComposePhotoThumbnail(IContainer container, PhotoAttachment photo)
+    {
+        container.Border(1).BorderColor(BorderColor).Column(col =>
+        {
+            // Photo image (if we have the data)
+            if (_photoData.TryGetValue(photo.MediaFileId, out var imageBytes) && imageBytes.Length > 0)
+            {
+                col.Item().Height(120).Image(imageBytes).FitArea();
+            }
+            else if (_photoData.TryGetValue(photo.ThumbnailMediaFileId ?? "", out var thumbBytes) && thumbBytes.Length > 0)
+            {
+                col.Item().Height(120).Image(thumbBytes).FitArea();
+            }
+            else
+            {
+                // Placeholder if no image data available
+                col.Item().Height(120).Background(LightGray).AlignCenter().AlignMiddle()
+                    .Text("📷").FontSize(32).FontColor(Colors.Grey.Medium);
+            }
+            
+            // Caption
+            col.Item().Background(LightGray).Padding(4).Column(meta =>
+            {
+                meta.Item().Text(photo.FileName).FontSize(7).FontColor(Colors.Grey.Darken1);
+                if (!string.IsNullOrEmpty(photo.Caption))
+                {
+                    meta.Item().Text(photo.Caption).FontSize(8);
+                }
+                meta.Item().Text(photo.UploadedAt.ToString("MMM dd, HH:mm"))
+                    .FontSize(6).FontColor(Colors.Grey.Medium);
+            });
+        });
+    }
+    
+    private static string FormatPhotoCategory(PhotoCategory category) => category switch
+    {
+        PhotoCategory.VehicleDamage => "Vehicle Damage Photos",
+        PhotoCategory.SceneOverview => "Scene Overview",
+        PhotoCategory.OtherVehicle => "Other Vehicle(s)",
+        PhotoCategory.RoadCondition => "Road Conditions",
+        PhotoCategory.WeatherCondition => "Weather Conditions",
+        PhotoCategory.DriverInjury => "Injury Documentation",
+        PhotoCategory.WitnessInfo => "Witness Information",
+        PhotoCategory.PoliceReport => "Police Report",
+        PhotoCategory.InsuranceDocument => "Insurance Documents",
+        _ => "General Photos"
+    };
+    
     private void ComposeEvidenceSummary(IContainer container)
     {
         container.Element(SectionBox).Column(col =>
@@ -917,7 +1046,7 @@ internal class IncidentReportDocument : IDocument
                 row.RelativeItem().Element(c => SummaryItem(c, "Witnesses", 
                     _report.Witnesses.Count.ToString()));
                 row.RelativeItem().Element(c => SummaryItem(c, "Photos", 
-                    _report.Evidence.PhotoUrls.Count.ToString()));
+                    (_report.Evidence.Photos?.Count ?? 0).ToString()));
             });
             
             col.Item().PaddingTop(10).Text("Data Source: Geotab GO Device Telematics")

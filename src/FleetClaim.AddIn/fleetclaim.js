@@ -474,6 +474,41 @@ function showReportDetail(report) {
         </div>
         
         <div class="report-section collapsible">
+            <h3 onclick="toggleSection(this)">📷 Photo Evidence <span class="toggle-icon">▼</span></h3>
+            <div class="section-content collapsed">
+                <p class="section-hint">Attach photos of vehicle damage, scene, documents, etc. Photos are stored in Geotab.</p>
+                
+                <div class="photo-upload-area">
+                    <input type="file" id="photo-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="display:none">
+                    <button class="btn btn-secondary" onclick="document.getElementById('photo-input').click()">
+                        📷 Add Photos
+                    </button>
+                    <select id="photo-category" class="filter-select" style="margin-left: 10px;">
+                        <option value="VehicleDamage">Vehicle Damage</option>
+                        <option value="SceneOverview">Scene Overview</option>
+                        <option value="OtherVehicle">Other Vehicle</option>
+                        <option value="RoadCondition">Road Condition</option>
+                        <option value="WeatherCondition">Weather</option>
+                        <option value="PoliceReport">Police Report</option>
+                        <option value="InsuranceDocument">Insurance Doc</option>
+                        <option value="General">General</option>
+                    </select>
+                </div>
+                
+                <div id="photo-upload-progress" class="photo-upload-progress" style="display:none;">
+                    <div class="progress-bar"><div class="progress-fill"></div></div>
+                    <span class="progress-text">Uploading...</span>
+                </div>
+                
+                <div id="photos-grid" class="photos-grid">
+                    ${renderPhotosGrid(evidence.photos || [])}
+                </div>
+                
+                <span id="photo-status" class="notes-status"></span>
+            </div>
+        </div>
+        
+        <div class="report-section collapsible">
             <h3 onclick="toggleSection(this)">🚗 Third Party Information <span class="toggle-icon">▼</span></h3>
             <div class="section-content collapsed">
                 <p class="section-hint">Add information about other vehicles/parties involved (for insurance claims).</p>
@@ -535,6 +570,12 @@ function showReportDetail(report) {
     // Render map if GPS data available
     if (evidence.gpsTrail && evidence.gpsTrail.length > 0) {
         setTimeout(() => renderGpsMap(evidence.gpsTrail, report.occurredAt), 100);
+    }
+    
+    // Set up photo upload handler
+    const photoInput = document.getElementById('photo-input');
+    if (photoInput) {
+        photoInput.onchange = () => handlePhotoUpload(report.id, report.vehicleId);
     }
 }
 
@@ -633,6 +674,423 @@ async function saveThirdPartyInfo(reportId) {
         statusEl.className = 'notes-status error';
     }
 }
+
+// ============================================
+// PHOTO UPLOAD FUNCTIONS (MediaFile API)
+// ============================================
+
+// FleetClaim Solution ID for MediaFile API (must be consistent)
+const FLEETCLAIM_SOLUTION_ID = 'aZmxlZXRjbGFpbS1waG90bw';
+
+// Render photos grid
+function renderPhotosGrid(photos) {
+    if (!photos || photos.length === 0) {
+        return '<p class="no-photos">No photos attached yet.</p>';
+    }
+    
+    return photos.map(photo => `
+        <div class="photo-card" data-media-id="${photo.mediaFileId}">
+            <div class="photo-thumbnail" onclick="viewPhoto('${photo.mediaFileId}')">
+                <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>" 
+                     data-media-id="${photo.mediaFileId}" 
+                     alt="${escapeHtml(photo.fileName)}"
+                     class="photo-img">
+                <div class="photo-loading">Loading...</div>
+            </div>
+            <div class="photo-meta">
+                <span class="photo-category-badge">${formatPhotoCategory(photo.category)}</span>
+                <span class="photo-filename">${escapeHtml(photo.fileName)}</span>
+                ${photo.caption ? `<span class="photo-caption">${escapeHtml(photo.caption)}</span>` : ''}
+            </div>
+            <button class="photo-delete" onclick="deletePhoto('${photo.mediaFileId}')" title="Delete photo">×</button>
+        </div>
+    `).join('');
+}
+
+function formatPhotoCategory(category) {
+    const labels = {
+        'VehicleDamage': '🚗 Damage',
+        'SceneOverview': '📸 Scene',
+        'OtherVehicle': '🚙 Other Vehicle',
+        'RoadCondition': '🛣️ Road',
+        'WeatherCondition': '🌧️ Weather',
+        'PoliceReport': '👮 Police',
+        'InsuranceDocument': '📄 Insurance',
+        'General': '📷 Photo'
+    };
+    return labels[category] || labels['General'];
+}
+
+// Handle photo file selection and upload
+async function handlePhotoUpload(reportId, deviceId) {
+    const input = document.getElementById('photo-input');
+    const progressEl = document.getElementById('photo-upload-progress');
+    const statusEl = document.getElementById('photo-status');
+    const category = document.getElementById('photo-category').value;
+    
+    if (!input.files || input.files.length === 0) return;
+    
+    progressEl.style.display = 'block';
+    statusEl.textContent = '';
+    
+    const uploadedPhotos = [];
+    
+    for (let i = 0; i < input.files.length; i++) {
+        const file = input.files[i];
+        const progressText = progressEl.querySelector('.progress-text');
+        const progressFill = progressEl.querySelector('.progress-fill');
+        
+        progressText.textContent = `Uploading ${i + 1}/${input.files.length}: ${file.name}`;
+        progressFill.style.width = `${((i + 1) / input.files.length) * 100}%`;
+        
+        try {
+            const mediaFileId = await uploadPhotoToGeotab(file, deviceId, reportId, category);
+            if (mediaFileId) {
+                uploadedPhotos.push({
+                    mediaFileId: mediaFileId,
+                    fileName: file.name,
+                    contentType: file.type || 'image/jpeg',
+                    category: category,
+                    uploadedAt: new Date().toISOString()
+                });
+            }
+        } catch (err) {
+            console.error('Error uploading photo:', err);
+            statusEl.textContent = `Failed to upload ${file.name}: ${err.message}`;
+            statusEl.className = 'notes-status error';
+        }
+    }
+    
+    progressEl.style.display = 'none';
+    input.value = ''; // Reset file input
+    
+    if (uploadedPhotos.length > 0) {
+        // Save photo references to report
+        await savePhotosToReport(reportId, uploadedPhotos);
+        
+        // Refresh the photos grid
+        const photosGrid = document.getElementById('photos-grid');
+        const report = reports.find(r => r.id === reportId);
+        if (report && photosGrid) {
+            const photos = report.evidence?.photos || [];
+            photosGrid.innerHTML = renderPhotosGrid(photos);
+            loadPhotoThumbnails(photos);
+        }
+        
+        statusEl.textContent = `✓ Uploaded ${uploadedPhotos.length} photo(s)`;
+        statusEl.className = 'notes-status';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    }
+}
+
+// Upload a single photo to Geotab MediaFile API
+async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
+    // Step 1: Create MediaFile entity
+    const mediaFile = {
+        name: file.name.toLowerCase(),
+        solutionId: FLEETCLAIM_SOLUTION_ID,
+        device: deviceId ? { id: deviceId } : null,
+        fromDate: new Date().toISOString(),
+        toDate: new Date().toISOString(),
+        mediaType: 'Image',
+        metaData: JSON.stringify({
+            reportId: reportId,
+            category: category,
+            uploadedAt: new Date().toISOString(),
+            originalName: file.name,
+            size: file.size
+        }),
+        tags: [{ id: 'fleetclaim-photo' }]
+    };
+    
+    let mediaFileId;
+    try {
+        const result = await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'MediaFile',
+                entity: mediaFile
+            }, resolve, reject);
+        });
+        mediaFileId = result;
+    } catch (err) {
+        console.error('Error creating MediaFile entity:', err);
+        throw new Error('Failed to create media file record');
+    }
+    
+    // Step 2: Upload the binary file via UploadMediaFile
+    // This requires a multipart form submission
+    try {
+        const formData = new FormData();
+        formData.append('id', mediaFileId);
+        formData.append('file', file, file.name);
+        
+        // Get credentials from the api object
+        const credentials = await new Promise((resolve, reject) => {
+            api.getSession((session) => {
+                resolve(session);
+            }, reject);
+        });
+        
+        // Build the upload URL
+        const uploadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/UploadMediaFile`;
+        
+        // Add credentials to form data
+        formData.append('database', credentials.database);
+        formData.append('userName', credentials.userName);
+        formData.append('sessionId', credentials.sessionId);
+        
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Upload failed: ${response.status} ${errorText}`);
+        }
+        
+        console.log('Photo uploaded successfully:', mediaFileId);
+        return mediaFileId;
+    } catch (err) {
+        console.error('Error uploading file:', err);
+        // Try to clean up the MediaFile entity
+        try {
+            await new Promise((resolve, reject) => {
+                api.call('Remove', {
+                    typeName: 'MediaFile',
+                    entity: { id: mediaFileId }
+                }, resolve, reject);
+            });
+        } catch (e) {}
+        throw err;
+    }
+}
+
+// Save photo references to the report's AddInData
+async function savePhotosToReport(reportId, newPhotos) {
+    try {
+        const results = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        let reportRecord = null;
+        let reportWrapper = null;
+        
+        for (const item of results) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'report' && wrapper.payload.id === reportId) {
+                    reportRecord = item;
+                    reportWrapper = wrapper;
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        if (!reportRecord || !reportWrapper) {
+            throw new Error('Report not found');
+        }
+        
+        // Initialize photos array if needed
+        if (!reportWrapper.payload.evidence) {
+            reportWrapper.payload.evidence = {};
+        }
+        if (!reportWrapper.payload.evidence.photos) {
+            reportWrapper.payload.evidence.photos = [];
+        }
+        
+        // Add new photos
+        reportWrapper.payload.evidence.photos.push(...newPhotos);
+        
+        // Update AddInData
+        await new Promise((resolve, reject) => {
+            api.call('Remove', {
+                typeName: 'AddInData',
+                entity: { id: reportRecord.id }
+            }, resolve, reject);
+        });
+        
+        await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'AddInData',
+                entity: {
+                    addInId: ADDIN_ID,
+                    details: reportWrapper
+                }
+            }, resolve, reject);
+        });
+        
+        // Update local state
+        const localReport = reports.find(r => r.id === reportId);
+        if (localReport) {
+            if (!localReport.evidence) localReport.evidence = {};
+            if (!localReport.evidence.photos) localReport.evidence.photos = [];
+            localReport.evidence.photos.push(...newPhotos);
+        }
+        
+    } catch (err) {
+        console.error('Error saving photos to report:', err);
+        throw err;
+    }
+}
+
+// Load photo thumbnails from Geotab MediaFile API
+async function loadPhotoThumbnails(photos) {
+    if (!photos || photos.length === 0) return;
+    
+    for (const photo of photos) {
+        try {
+            const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
+            if (!imgEl) continue;
+            
+            const credentials = await new Promise((resolve, reject) => {
+                api.getSession((session) => resolve(session), reject);
+            });
+            
+            // Build download URL
+            const downloadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/DownloadMediaFile?` +
+                `database=${encodeURIComponent(credentials.database)}` +
+                `&userName=${encodeURIComponent(credentials.userName)}` +
+                `&sessionId=${encodeURIComponent(credentials.sessionId)}` +
+                `&id=${encodeURIComponent(photo.mediaFileId)}`;
+            
+            // Fetch and convert to data URL for display
+            const response = await fetch(downloadUrl);
+            if (response.ok) {
+                const blob = await response.blob();
+                const dataUrl = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+                imgEl.src = dataUrl;
+                imgEl.parentElement.querySelector('.photo-loading').style.display = 'none';
+            }
+        } catch (err) {
+            console.error('Error loading photo thumbnail:', err);
+        }
+    }
+}
+
+// View full-size photo
+function viewPhoto(mediaFileId) {
+    // Open in new window/tab
+    api.getSession(async (credentials) => {
+        const downloadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/DownloadMediaFile?` +
+            `database=${encodeURIComponent(credentials.database)}` +
+            `&userName=${encodeURIComponent(credentials.userName)}` +
+            `&sessionId=${encodeURIComponent(credentials.sessionId)}` +
+            `&id=${encodeURIComponent(mediaFileId)}`;
+        window.open(downloadUrl, '_blank');
+    });
+}
+
+// Delete photo from report and Geotab
+async function deletePhoto(mediaFileId) {
+    if (!confirm('Delete this photo?')) return;
+    
+    const statusEl = document.getElementById('photo-status');
+    statusEl.textContent = 'Deleting...';
+    
+    try {
+        // Find which report has this photo
+        let targetReport = null;
+        let photoIndex = -1;
+        
+        for (const report of reports) {
+            const photos = report.evidence?.photos || [];
+            const idx = photos.findIndex(p => p.mediaFileId === mediaFileId);
+            if (idx >= 0) {
+                targetReport = report;
+                photoIndex = idx;
+                break;
+            }
+        }
+        
+        if (!targetReport || photoIndex < 0) {
+            throw new Error('Photo not found in any report');
+        }
+        
+        // Remove from MediaFile API
+        try {
+            await new Promise((resolve, reject) => {
+                api.call('Remove', {
+                    typeName: 'MediaFile',
+                    entity: { id: mediaFileId }
+                }, resolve, reject);
+            });
+        } catch (err) {
+            console.warn('Could not delete MediaFile (may already be deleted):', err);
+        }
+        
+        // Remove from report's photo list
+        targetReport.evidence.photos.splice(photoIndex, 1);
+        
+        // Update AddInData
+        const results = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        for (const item of results) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'report' && wrapper.payload.id === targetReport.id) {
+                    wrapper.payload.evidence.photos = targetReport.evidence.photos;
+                    
+                    await new Promise((resolve, reject) => {
+                        api.call('Remove', {
+                            typeName: 'AddInData',
+                            entity: { id: item.id }
+                        }, resolve, reject);
+                    });
+                    
+                    await new Promise((resolve, reject) => {
+                        api.call('Add', {
+                            typeName: 'AddInData',
+                            entity: {
+                                addInId: ADDIN_ID,
+                                details: wrapper
+                            }
+                        }, resolve, reject);
+                    });
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        // Remove from UI
+        const photoCard = document.querySelector(`.photo-card[data-media-id="${mediaFileId}"]`);
+        if (photoCard) photoCard.remove();
+        
+        // Check if grid is now empty
+        const photosGrid = document.getElementById('photos-grid');
+        if (photosGrid && photosGrid.children.length === 0) {
+            photosGrid.innerHTML = '<p class="no-photos">No photos attached yet.</p>';
+        }
+        
+        statusEl.textContent = '✓ Photo deleted';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        
+    } catch (err) {
+        console.error('Error deleting photo:', err);
+        statusEl.textContent = '✗ Failed to delete';
+        statusEl.className = 'notes-status error';
+    }
+}
+
+// ============================================
 
 // Render GPS trail on a Leaflet map
 function renderGpsMap(gpsTrail, occurredAt) {

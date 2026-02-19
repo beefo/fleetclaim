@@ -85,8 +85,181 @@ public class AddInDataRepository : IAddInDataRepository
     
     public async Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default)
     {
-        var wrapper = AddInDataWrapper.ForReport(report);
+        // Compact the report to fit within AddInData 10KB limit
+        var compactedReport = CompactReportForStorage(report);
+        var wrapper = AddInDataWrapper.ForReport(compactedReport);
         await AddNewRecordAsync(api, wrapper, ct);
+    }
+    
+    /// <summary>
+    /// Compacts a report to fit within AddInData's 10KB limit.
+    /// Full data is available via on-demand PDF generation.
+    /// </summary>
+    private static IncidentReport CompactReportForStorage(IncidentReport report)
+    {
+        // Create a shallow copy to avoid modifying the original
+        var compact = new IncidentReport
+        {
+            Id = report.Id,
+            IncidentId = report.IncidentId,
+            VehicleId = report.VehicleId,
+            VehicleName = report.VehicleName,
+            VehicleVin = report.VehicleVin,
+            VehiclePlate = report.VehiclePlate,
+            VehicleYear = report.VehicleYear,
+            VehicleMake = report.VehicleMake,
+            VehicleModel = report.VehicleModel,
+            OdometerKm = report.OdometerKm,
+            DriverId = report.DriverId,
+            DriverName = report.DriverName,
+            DriverLicenseNumber = report.DriverLicenseNumber,
+            DriverLicenseState = report.DriverLicenseState,
+            DriverPhone = report.DriverPhone,
+            DriverEmail = report.DriverEmail,
+            OccurredAt = report.OccurredAt,
+            GeneratedAt = report.GeneratedAt,
+            Severity = report.Severity,
+            Summary = report.Summary,
+            IncidentAddress = report.IncidentAddress,
+            IncidentCity = report.IncidentCity,
+            IncidentState = report.IncidentState,
+            IncidentCountry = report.IncidentCountry,
+            PoliceReportNumber = report.PoliceReportNumber,
+            PoliceAgency = report.PoliceAgency,
+            PoliceReportDate = report.PoliceReportDate,
+            DamageDescription = report.DamageDescription,
+            DamageLevel = report.DamageLevel,
+            VehicleDriveable = report.VehicleDriveable,
+            AirbagDeployed = report.AirbagDeployed,
+            Witnesses = report.Witnesses,
+            ThirdParties = report.ThirdParties,
+            InjuriesReported = report.InjuriesReported,
+            InjuryDescription = report.InjuryDescription,
+            ShareUrl = report.ShareUrl,
+            IsBaselineReport = report.IsBaselineReport,
+            Notes = report.Notes,
+            NotesUpdatedAt = report.NotesUpdatedAt,
+            NotesUpdatedBy = report.NotesUpdatedBy,
+            // Don't store PdfBase64 in AddInData - it's generated on demand
+            PdfBase64 = null
+        };
+        
+        // Compact the evidence package
+        if (report.Evidence != null)
+        {
+            compact.Evidence = new EvidencePackage
+            {
+                // Keep speed metrics (small)
+                MaxSpeedKmh = report.Evidence.MaxSpeedKmh,
+                SpeedAtEventKmh = report.Evidence.SpeedAtEventKmh,
+                AvgSpeedKmh = report.Evidence.AvgSpeedKmh,
+                SpeedLimitKmh = report.Evidence.SpeedLimitKmh,
+                ExceedingSpeedLimit = report.Evidence.ExceedingSpeedLimit,
+                
+                // Keep G-force summary (small)
+                DecelerationMps2 = report.Evidence.DecelerationMps2,
+                MaxGForce = report.Evidence.MaxGForce,
+                ImpactGForce = report.Evidence.ImpactGForce,
+                ImpactDirection = report.Evidence.ImpactDirection,
+                
+                // Keep weather/conditions (small)
+                WeatherCondition = report.Evidence.WeatherCondition,
+                TemperatureCelsius = report.Evidence.TemperatureCelsius,
+                RoadCondition = report.Evidence.RoadCondition,
+                LightCondition = report.Evidence.LightCondition,
+                VisibilityKm = report.Evidence.VisibilityKm,
+                WindSpeedKmh = report.Evidence.WindSpeedKmh,
+                PrecipitationMm = report.Evidence.PrecipitationMm,
+                
+                // Keep vehicle status flags (small)
+                SeatbeltFastened = report.Evidence.SeatbeltFastened,
+                HeadlightsOn = report.Evidence.HeadlightsOn,
+                FuelLevelPercent = report.Evidence.FuelLevelPercent,
+                BatteryVoltage = report.Evidence.BatteryVoltage,
+                EngineRpm = report.Evidence.EngineRpm,
+                TransmissionGear = report.Evidence.TransmissionGear,
+                AbsActivated = report.Evidence.AbsActivated,
+                TractionControlActivated = report.Evidence.TractionControlActivated,
+                StabilityControlActivated = report.Evidence.StabilityControlActivated,
+                
+                // Keep driver status (small)
+                DriverHosStatus = report.Evidence.DriverHosStatus,
+                DriverSafetyScore = report.Evidence.DriverSafetyScore,
+                DriverIncidentCountLast30Days = report.Evidence.DriverIncidentCountLast30Days,
+                TimeDrivingBeforeIncident = report.Evidence.TimeDrivingBeforeIncident,
+                
+                // Keep maintenance flags (small)
+                MaintenanceOverdue = report.Evidence.MaintenanceOverdue,
+                LastMaintenanceDate = report.Evidence.LastMaintenanceDate,
+                
+                // Photo references only (IDs, not data)
+                Photos = report.Evidence.Photos,
+                PhotoUrls = report.Evidence.PhotoUrls,
+                
+                // LIMIT GPS trail to 20 points (covers key moments)
+                GpsTrail = report.Evidence.GpsTrail?.Count > 0 
+                    ? SampleGpsTrail(report.Evidence.GpsTrail, 20, report.OccurredAt)
+                    : [],
+                
+                // LIMIT hard events to 5 most recent before incident
+                HardEventsBeforeIncident = report.Evidence.HardEventsBeforeIncident?
+                    .OrderByDescending(e => e.Timestamp)
+                    .Take(5)
+                    .ToList() ?? [],
+                
+                // LIMIT accelerometer events to 5 around incident
+                AccelerometerEvents = report.Evidence.AccelerometerEvents?
+                    .OrderBy(e => Math.Abs((e.Timestamp - report.OccurredAt).TotalSeconds))
+                    .Take(5)
+                    .ToList() ?? [],
+                
+                // LIMIT diagnostics to 10 most relevant
+                Diagnostics = report.Evidence.Diagnostics?.Take(10).ToList() ?? [],
+                
+                // LIMIT overdue maintenance to 3 items
+                OverdueMaintenanceItems = report.Evidence.OverdueMaintenanceItems?.Take(3).ToList() ?? []
+            };
+        }
+        
+        return compact;
+    }
+    
+    /// <summary>
+    /// Samples GPS trail to include start, end, incident point, and evenly distributed points.
+    /// </summary>
+    private static List<GpsPoint> SampleGpsTrail(List<GpsPoint> trail, int maxPoints, DateTime occurredAt)
+    {
+        if (trail.Count <= maxPoints) return trail;
+        
+        var result = new List<GpsPoint>();
+        
+        // Always include first and last
+        result.Add(trail[0]);
+        
+        // Find and include incident point
+        var incidentPoint = trail
+            .OrderBy(p => Math.Abs((p.Timestamp - occurredAt).TotalSeconds))
+            .First();
+        
+        // Sample evenly distributed points
+        var step = trail.Count / (maxPoints - 3); // -3 for first, last, incident
+        for (int i = step; i < trail.Count - 1; i += step)
+        {
+            if (result.Count >= maxPoints - 2) break;
+            var point = trail[i];
+            if (point != incidentPoint) // Don't duplicate incident point
+                result.Add(point);
+        }
+        
+        // Add incident point if not already included
+        if (!result.Contains(incidentPoint))
+            result.Add(incidentPoint);
+        
+        // Add last point
+        result.Add(trail[^1]);
+        
+        // Sort by timestamp
+        return result.OrderBy(p => p.Timestamp).ToList();
     }
     
     public async Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default)

@@ -895,19 +895,23 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
             throw uploadErr;
         }
     } else {
-        // No session credentials - try backend API
-        console.log('No session credentials, using backend API...');
+        // No session credentials - backend will create AND upload
+        // Clean up our MediaFile since backend will create its own
+        console.log('No session credentials, deleting our MediaFile and using backend API...');
         try {
-            await uploadViaBackendApi(file, mediaFileId, reportId, category);
-            return mediaFileId;
+            await new Promise((resolve, reject) => {
+                api.call('Remove', { typeName: 'MediaFile', entity: { id: mediaFileId } }, resolve, reject);
+            });
+        } catch (e) {
+            console.warn('Could not delete MediaFile:', e);
+        }
+        
+        try {
+            // Pass null mediaFileId so backend creates its own
+            const result = await uploadViaBackendApi(file, null, reportId, category);
+            return result.mediaFileId;
         } catch (backendErr) {
             console.error('Backend upload failed:', backendErr);
-            // Clean up
-            try {
-                await new Promise((resolve, reject) => {
-                    api.call('Remove', { typeName: 'MediaFile', entity: { id: mediaFileId } }, resolve, reject);
-                });
-            } catch (e) {}
             throw backendErr;
         }
     }

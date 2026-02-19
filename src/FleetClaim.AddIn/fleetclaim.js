@@ -679,8 +679,10 @@ async function saveThirdPartyInfo(reportId) {
 // PHOTO UPLOAD FUNCTIONS (MediaFile API)
 // ============================================
 
-// FleetClaim Solution ID for MediaFile API (must be consistent)
-const FLEETCLAIM_SOLUTION_ID = 'aZmxlZXRjbGFpbS1waG90bw';
+// FleetClaim Solution ID for MediaFile API 
+// Generated using Geotab's recommended method (base64 encoded GUID with 'a' prefix)
+// This must match the ADDIN_ID or be a valid SolutionId
+const FLEETCLAIM_SOLUTION_ID = ADDIN_ID; // Use same ID as AddInData for simplicity
 
 // Render photos grid
 function renderPhotosGrid(photos) {
@@ -786,10 +788,11 @@ async function handlePhotoUpload(reportId, deviceId) {
 // Upload a single photo to Geotab MediaFile API
 async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
     // Step 1: Create MediaFile entity
+    // Note: solutionId must be a valid format (use same as AddInId)
+    // Note: name must be lowercase with extension
     const mediaFile = {
-        name: file.name.toLowerCase(),
+        name: file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '_'), // Sanitize filename
         solutionId: FLEETCLAIM_SOLUTION_ID,
-        device: deviceId ? { id: deviceId } : null,
         fromDate: new Date().toISOString(),
         toDate: new Date().toISOString(),
         mediaType: 'Image',
@@ -799,9 +802,16 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
             uploadedAt: new Date().toISOString(),
             originalName: file.name,
             size: file.size
-        }),
-        tags: [{ id: 'fleetclaim-photo' }]
+        })
+        // Note: Don't include device or tags - they can cause issues if IDs are invalid
     };
+    
+    // Optionally link to device if valid
+    if (deviceId && deviceId.length > 0 && deviceId !== 'undefined') {
+        mediaFile.device = { id: deviceId };
+    }
+    
+    console.log('Creating MediaFile entity:', mediaFile);
     
     let mediaFileId;
     try {
@@ -809,12 +819,20 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
             api.call('Add', {
                 typeName: 'MediaFile',
                 entity: mediaFile
-            }, resolve, reject);
+            }, (r) => {
+                console.log('MediaFile Add result:', r);
+                resolve(r);
+            }, (err) => {
+                console.error('MediaFile Add error:', err);
+                reject(err);
+            });
         });
         mediaFileId = result;
     } catch (err) {
         console.error('Error creating MediaFile entity:', err);
-        throw new Error('Failed to create media file record');
+        // Include the actual error message from Geotab
+        const errMsg = err?.message || err?.errors?.[0]?.message || JSON.stringify(err);
+        throw new Error('Failed to create media file record: ' + errMsg);
     }
     
     // Step 2: Upload the binary file via UploadMediaFile

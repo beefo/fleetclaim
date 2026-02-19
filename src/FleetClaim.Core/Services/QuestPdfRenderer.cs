@@ -198,13 +198,22 @@ internal class IncidentReportDocument : IDocument
             // 10. SPEED ANALYSIS
             col.Item().Element(ComposeSpeedSection);
             
-            // 11. CONDITIONS (Weather, Road, Light)
+            // 11. DRIVER BEHAVIOR (Hard Events before incident)
+            if (_report.Evidence.HardEventsBeforeIncident?.Count > 0)
+            {
+                col.Item().Element(ComposeDriverBehaviorSection);
+            }
+            
+            // 12. VEHICLE STATUS AT INCIDENT
+            col.Item().Element(ComposeVehicleStatusSection);
+            
+            // 13. CONDITIONS (Weather, Road, Light)
             col.Item().Element(ComposeConditionsSection);
             
-            // 12. DIAGNOSTIC DATA
+            // 14. DIAGNOSTIC DATA
             col.Item().Element(ComposeDiagnosticsSection);
             
-            // 13. DRIVER HOS STATUS
+            // 15. DRIVER HOS STATUS
             if (_report.Evidence.DriverHosStatus != null)
             {
                 col.Item().Element(ComposeHosSection);
@@ -537,17 +546,43 @@ internal class IncidentReportDocument : IDocument
     {
         container.Element(SectionBox).Column(col =>
         {
-            col.Item().Text("SPEED & DECELERATION ANALYSIS").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().Text("SPEED & IMPACT ANALYSIS").Bold().FontSize(12).FontColor(PrimaryColor);
             
+            // Main speed metrics
             col.Item().PaddingTop(10).Row(row =>
             {
                 row.RelativeItem().Element(c => SpeedMetric(c, "Speed at Event", 
                     _report.Evidence.SpeedAtEventKmh?.ToString("F0") ?? "-", "km/h"));
-                row.RelativeItem().Element(c => SpeedMetric(c, "Max Speed (Window)", 
+                row.RelativeItem().Element(c => SpeedMetric(c, "Max Speed", 
                     _report.Evidence.MaxSpeedKmh?.ToString("F0") ?? "-", "km/h"));
-                row.RelativeItem().Element(c => SpeedMetric(c, "Deceleration", 
-                    _report.Evidence.DecelerationMps2?.ToString("F1") ?? "-", "m/s²"));
+                row.RelativeItem().Element(c => SpeedMetric(c, "Avg Speed", 
+                    _report.Evidence.AvgSpeedKmh?.ToString("F0") ?? "-", "km/h"));
             });
+            
+            // G-Force / Impact metrics
+            if (_report.Evidence.MaxGForce.HasValue || _report.Evidence.ImpactGForce.HasValue || 
+                _report.Evidence.DecelerationMps2.HasValue)
+            {
+                col.Item().PaddingTop(10).Row(row =>
+                {
+                    row.RelativeItem().Element(c => SpeedMetric(c, "Impact G-Force", 
+                        _report.Evidence.ImpactGForce?.ToString("F2") ?? "-", "G"));
+                    row.RelativeItem().Element(c => SpeedMetric(c, "Max G-Force", 
+                        _report.Evidence.MaxGForce?.ToString("F2") ?? "-", "G"));
+                    row.RelativeItem().Element(c => SpeedMetric(c, "Deceleration", 
+                        _report.Evidence.DecelerationMps2?.ToString("F1") ?? "-", "m/s²"));
+                });
+                
+                // Impact direction if available
+                if (!string.IsNullOrEmpty(_report.Evidence.ImpactDirection))
+                {
+                    col.Item().PaddingTop(8).Background(WarningColor).Padding(8).Row(row =>
+                    {
+                        row.AutoItem().Text("⚠️ Impact Direction: ").Bold().FontColor(Colors.White).FontSize(10);
+                        row.AutoItem().Text(_report.Evidence.ImpactDirection).FontColor(Colors.White).FontSize(10);
+                    });
+                }
+            }
             
             // Speed over time table
             if (_report.Evidence.GpsTrail.Count > 0)
@@ -631,6 +666,147 @@ internal class IncidentReportDocument : IDocument
         {
             col.Item().Text(label).FontSize(8).FontColor(Colors.Grey.Darken1);
             col.Item().Text(value).Bold().FontSize(11);
+        });
+    }
+    
+    private void ComposeDriverBehaviorSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("DRIVER BEHAVIOR BEFORE INCIDENT").Bold().FontSize(12).FontColor(PrimaryColor);
+            col.Item().PaddingTop(4).Text("Hard driving events detected in the 30 minutes before the incident:")
+                .FontSize(9).FontColor(Colors.Grey.Darken1);
+            
+            // Summary metrics
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                var hardBrakes = _report.Evidence.HardEventsBeforeIncident?.Count(e => e.EventType.Contains("Brak", StringComparison.OrdinalIgnoreCase)) ?? 0;
+                var hardAccels = _report.Evidence.HardEventsBeforeIncident?.Count(e => e.EventType.Contains("Accel", StringComparison.OrdinalIgnoreCase)) ?? 0;
+                var hardCorners = _report.Evidence.HardEventsBeforeIncident?.Count(e => e.EventType.Contains("Corner", StringComparison.OrdinalIgnoreCase) || e.EventType.Contains("Harsh", StringComparison.OrdinalIgnoreCase)) ?? 0;
+                
+                row.RelativeItem().Element(c => SpeedMetric(c, "Hard Brakes", hardBrakes.ToString(), "events"));
+                row.RelativeItem().Element(c => SpeedMetric(c, "Hard Accels", hardAccels.ToString(), "events"));
+                row.RelativeItem().Element(c => SpeedMetric(c, "Hard Corners", hardCorners.ToString(), "events"));
+            });
+            
+            // Driver stats if available
+            if (_report.Evidence.DriverSafetyScore.HasValue || _report.Evidence.DriverIncidentCountLast30Days.HasValue ||
+                _report.Evidence.TimeDrivingBeforeIncident.HasValue)
+            {
+                col.Item().PaddingTop(10).Row(row =>
+                {
+                    if (_report.Evidence.DriverSafetyScore.HasValue)
+                        row.RelativeItem().Element(c => SpeedMetric(c, "Driver Safety Score", 
+                            _report.Evidence.DriverSafetyScore.Value.ToString("F0"), "/100"));
+                    if (_report.Evidence.DriverIncidentCountLast30Days.HasValue)
+                        row.RelativeItem().Element(c => SpeedMetric(c, "Incidents (30 days)", 
+                            _report.Evidence.DriverIncidentCountLast30Days.Value.ToString(), "total"));
+                    if (_report.Evidence.TimeDrivingBeforeIncident.HasValue)
+                        row.RelativeItem().Element(c => SpeedMetric(c, "Time Driving", 
+                            _report.Evidence.TimeDrivingBeforeIncident.Value.TotalMinutes.ToString("F0"), "min"));
+                });
+            }
+            
+            // Event list
+            if (_report.Evidence.HardEventsBeforeIncident?.Count > 0)
+            {
+                col.Item().PaddingTop(10).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(3);
+                        columns.RelativeColumn(1);
+                    });
+                    
+                    table.Header(header =>
+                    {
+                        header.Cell().Background(LightGray).Padding(4).Text("Time").Bold().FontSize(8);
+                        header.Cell().Background(LightGray).Padding(4).Text("Event Type").Bold().FontSize(8);
+                        header.Cell().Background(LightGray).Padding(4).Text("G-Force").Bold().FontSize(8);
+                    });
+                    
+                    foreach (var evt in _report.Evidence.HardEventsBeforeIncident.Take(10))
+                    {
+                        table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                            .Text(evt.Timestamp.ToString("HH:mm:ss")).FontSize(8);
+                        table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                            .Text(evt.EventType).FontSize(8);
+                        table.Cell().BorderBottom(1).BorderColor(BorderColor).Padding(3)
+                            .Text(evt.GForce?.ToString("F2") ?? "-").FontSize(8);
+                    }
+                });
+            }
+        });
+    }
+    
+    private void ComposeVehicleStatusSection(IContainer container)
+    {
+        container.Element(SectionBox).Column(col =>
+        {
+            col.Item().Text("VEHICLE STATUS AT INCIDENT").Bold().FontSize(12).FontColor(PrimaryColor);
+            
+            // Safety systems row
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                row.RelativeItem().Column(c =>
+                {
+                    c.Item().Text("Seatbelt").FontSize(8).FontColor(Colors.Grey.Darken1);
+                    c.Item().Text(_report.Evidence.SeatbeltFastened.HasValue 
+                        ? (_report.Evidence.SeatbeltFastened.Value ? "✅ Fastened" : "❌ Not Fastened")
+                        : "Unknown").Bold().FontSize(10);
+                });
+                row.RelativeItem().Column(c =>
+                {
+                    c.Item().Text("Headlights").FontSize(8).FontColor(Colors.Grey.Darken1);
+                    c.Item().Text(_report.Evidence.HeadlightsOn.HasValue 
+                        ? (_report.Evidence.HeadlightsOn.Value ? "✅ On" : "Off")
+                        : "Unknown").Bold().FontSize(10);
+                });
+                row.RelativeItem().Column(c =>
+                {
+                    c.Item().Text("ABS Activated").FontSize(8).FontColor(Colors.Grey.Darken1);
+                    c.Item().Text(_report.Evidence.AbsActivated.HasValue 
+                        ? (_report.Evidence.AbsActivated.Value ? "⚠️ Yes" : "No")
+                        : "Unknown").Bold().FontSize(10);
+                });
+                row.RelativeItem().Column(c =>
+                {
+                    c.Item().Text("Stability Control").FontSize(8).FontColor(Colors.Grey.Darken1);
+                    c.Item().Text(_report.Evidence.StabilityControlActivated.HasValue 
+                        ? (_report.Evidence.StabilityControlActivated.Value ? "⚠️ Activated" : "Normal")
+                        : "Unknown").Bold().FontSize(10);
+                });
+            });
+            
+            // Engine/Fuel row
+            col.Item().PaddingTop(10).Row(row =>
+            {
+                if (_report.Evidence.EngineRpm.HasValue)
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Engine RPM").FontSize(8).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text($"{_report.Evidence.EngineRpm:N0}").Bold().FontSize(10);
+                    });
+                }
+                if (_report.Evidence.FuelLevelPercent.HasValue)
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Fuel Level").FontSize(8).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text($"{_report.Evidence.FuelLevelPercent:F0}%").Bold().FontSize(10);
+                    });
+                }
+                if (_report.Evidence.TractionControlActivated.HasValue)
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Traction Control").FontSize(8).FontColor(Colors.Grey.Darken1);
+                        c.Item().Text(_report.Evidence.TractionControlActivated.Value ? "⚠️ Activated" : "Normal").Bold().FontSize(10);
+                    });
+                }
+            });
         });
     }
     

@@ -143,19 +143,101 @@ public class ThirdPartyInfo
 
 public class EvidencePackage
 {
+    // GPS & Location
     public List<GpsPoint> GpsTrail { get; set; } = [];
+    
+    // Speed Analysis (Insurance-critical)
     public double? MaxSpeedKmh { get; set; }
     public double? SpeedAtEventKmh { get; set; }
+    public double? AvgSpeedKmh { get; set; }
+    public double? SpeedLimitKmh { get; set; }
+    public bool? ExceedingSpeedLimit { get; set; }
+    
+    // G-Force / Accelerometer Data (Insurance-critical for impact analysis)
     public double? DecelerationMps2 { get; set; }
+    public double? MaxGForce { get; set; }
+    public double? ImpactGForce { get; set; }
+    public string? ImpactDirection { get; set; }  // Front, Rear, Left, Right, Rollover
+    public List<AccelerometerEvent> AccelerometerEvents { get; set; } = [];
+    
+    // Hard Events Leading Up To Incident (shows driver behavior)
+    public List<HardEvent> HardEventsBeforeIncident { get; set; } = [];
+    
+    // Environmental Conditions
     public string? WeatherCondition { get; set; }
     public double? TemperatureCelsius { get; set; }
     public string? RoadCondition { get; set; }
-    public string? LightCondition { get; set; }  // Daylight, Dusk, Night, etc.
+    public string? LightCondition { get; set; }  // Daylight, Dusk, Dawn, Night
+    public double? VisibilityKm { get; set; }
+    public double? WindSpeedKmh { get; set; }
+    public double? PrecipitationMm { get; set; }
+    
+    // Vehicle Status at Time of Incident
     public List<DiagnosticSnapshot> Diagnostics { get; set; } = [];
+    public bool? SeatbeltFastened { get; set; }
+    public bool? HeadlightsOn { get; set; }
+    public double? FuelLevelPercent { get; set; }
+    public double? BatteryVoltage { get; set; }
+    public int? EngineRpm { get; set; }
+    public string? TransmissionGear { get; set; }
+    public bool? AbsActivated { get; set; }
+    public bool? TractionControlActivated { get; set; }
+    public bool? StabilityControlActivated { get; set; }
+    
+    // Driver Status
     public HosStatus? DriverHosStatus { get; set; }
+    public double? DriverSafetyScore { get; set; }  // 0-100 score from Geotab
+    public int? DriverIncidentCountLast30Days { get; set; }
+    public TimeSpan? TimeDrivingBeforeIncident { get; set; }
+    
+    // Vehicle Maintenance Status
+    public bool? MaintenanceOverdue { get; set; }
+    public List<MaintenanceItem> OverdueMaintenanceItems { get; set; } = [];
+    public DateTime? LastMaintenanceDate { get; set; }
     
     // Photo URLs/references (for future photo upload feature)
     public List<string> PhotoUrls { get; set; } = [];
+}
+
+/// <summary>
+/// Accelerometer reading at a point in time (g-force data).
+/// Used for impact analysis and accident reconstruction.
+/// </summary>
+public class AccelerometerEvent
+{
+    public DateTime Timestamp { get; set; }
+    public double GForceX { get; set; }  // Lateral (left/right)
+    public double GForceY { get; set; }  // Longitudinal (accel/brake)
+    public double GForceZ { get; set; }  // Vertical
+    public double TotalGForce { get; set; }
+    public string? EventType { get; set; }  // HardBrake, HardAccel, HardCornering, Impact
+}
+
+/// <summary>
+/// Hard driving events detected before the incident.
+/// Useful for showing driver behavior leading up to the collision.
+/// </summary>
+public class HardEvent
+{
+    public DateTime Timestamp { get; set; }
+    public string EventType { get; set; } = "";  // HardBrake, HardAcceleration, HardCorneringLeft, HardCorneringRight
+    public double? GForce { get; set; }
+    public double? SpeedKmh { get; set; }
+    public double? DurationSeconds { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+}
+
+/// <summary>
+/// Vehicle maintenance item status.
+/// </summary>
+public class MaintenanceItem
+{
+    public string Name { get; set; } = "";  // Oil Change, Brake Inspection, Tire Rotation
+    public DateTime? DueDate { get; set; }
+    public int? DueOdometerKm { get; set; }
+    public int? OverdueByKm { get; set; }
+    public int? OverdueByDays { get; set; }
 }
 
 public class GpsPoint

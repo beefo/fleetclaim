@@ -120,20 +120,43 @@ public class MediaFileService : IMediaFileService
         var userName = credentials?.UserName ?? "";
         var sessionId = credentials?.SessionId ?? "";
         
-        var downloadUrl = $"https://{server}/apiv1/DownloadMediaFile?" +
-            $"database={Uri.EscapeDataString(database)}" +
-            $"&userName={Uri.EscapeDataString(userName)}" +
-            $"&sessionId={Uri.EscapeDataString(sessionId)}" +
-            $"&id={Uri.EscapeDataString(mediaFileId)}";
+        // Use JSON-RPC POST format for download (same as upload)
+        var downloadUrl = $"https://{server}/apiv1/";
         
-        var response = await _httpClient.GetAsync(downloadUrl, ct);
+        var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            method = "DownloadMediaFile",
+            @params = new
+            {
+                credentials = new
+                {
+                    database = database,
+                    userName = userName,
+                    sessionId = sessionId
+                },
+                mediaFile = new { id = mediaFileId }
+            }
+        });
+        
+        using var formContent = new MultipartFormDataContent();
+        formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
+        
+        var response = await _httpClient.PostAsync(downloadUrl, formContent, ct);
         
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
         
-        return await response.Content.ReadAsByteArrayAsync(ct);
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        
+        // Check if we got a valid file (not JSON error response)
+        if (bytes.Length < 100)
+        {
+            return null;
+        }
+        
+        return bytes;
     }
     
     public async Task DeleteFileAsync(API api, string mediaFileId, CancellationToken ct = default)

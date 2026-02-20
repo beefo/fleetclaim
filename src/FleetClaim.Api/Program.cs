@@ -381,15 +381,29 @@ app.MapGet("/api/photos/{mediaFileId}", async (
             return Results.Problem("Could not authenticate with Geotab", statusCode: 500);
         }
         
-        // Download the file from Geotab
-        var downloadUrl = $"https://my.geotab.com/apiv1/DownloadMediaFile?" +
-            $"database={Uri.EscapeDataString(credentials.Database)}" +
-            $"&userName={Uri.EscapeDataString(credentials.UserName)}" +
-            $"&sessionId={Uri.EscapeDataString(credentials.SessionId)}" +
-            $"&id={Uri.EscapeDataString(mediaFileId)}";
+        // Download the file from Geotab using JSON-RPC POST format
+        var downloadUrl = $"https://my.geotab.com/apiv1/";
+        
+        var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            method = "DownloadMediaFile",
+            @params = new
+            {
+                credentials = new
+                {
+                    database = credentials.Database,
+                    userName = credentials.UserName,
+                    sessionId = credentials.SessionId
+                },
+                mediaFile = new { id = mediaFileId }
+            }
+        });
         
         using var httpClient = new HttpClient();
-        var response = await httpClient.GetAsync(downloadUrl, ct);
+        using var formContent = new MultipartFormDataContent();
+        formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
+        
+        var response = await httpClient.PostAsync(downloadUrl, formContent, ct);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -398,6 +412,12 @@ app.MapGet("/api/photos/{mediaFileId}", async (
         
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
         var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        
+        // Check if we got JSON error instead of image
+        if (contentType.Contains("json") || bytes.Length < 100)
+        {
+            return Results.Problem("Photo not found or access denied", statusCode: 404);
+        }
         
         return Results.File(bytes, contentType);
     }
@@ -939,6 +959,7 @@ static async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
         return photoData;
     
     using var httpClient = new HttpClient();
+    var downloadUrl = "https://my.geotab.com/apiv1/";
     
     foreach (var photo in report.Evidence.Photos)
     {
@@ -947,24 +968,33 @@ static async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
             
         try
         {
-            var downloadUrl = $"https://my.geotab.com/apiv1/DownloadMediaFile?" +
-                $"database={Uri.EscapeDataString(credentials.Database)}" +
-                $"&userName={Uri.EscapeDataString(credentials.UserName)}" +
-                $"&sessionId={Uri.EscapeDataString(credentials.SessionId)}" +
-                $"&id={Uri.EscapeDataString(photo.MediaFileId)}";
+            // Use JSON-RPC POST format for download (same as upload)
+            var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                method = "DownloadMediaFile",
+                @params = new
+                {
+                    credentials = new
+                    {
+                        database = credentials.Database,
+                        userName = credentials.UserName,
+                        sessionId = credentials.SessionId
+                    },
+                    mediaFile = new { id = photo.MediaFileId }
+                }
+            });
             
-            var response = await httpClient.GetAsync(downloadUrl, ct);
+            using var formContent = new MultipartFormDataContent();
+            formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
+            
+            var response = await httpClient.PostAsync(downloadUrl, formContent, ct);
             if (response.IsSuccessStatusCode)
             {
-                var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                // Only store if it's actually an image (not JSON error response)
-                if (contentType.StartsWith("image/"))
+                var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+                // Only store if it's actually an image (> 100 bytes, not JSON error)
+                if (bytes.Length > 100)
                 {
-                    var bytes = await response.Content.ReadAsByteArrayAsync(ct);
-                    if (bytes.Length > 100) // Sanity check - real images are > 100 bytes
-                    {
-                        photoData[photo.MediaFileId] = bytes;
-                    }
+                    photoData[photo.MediaFileId] = bytes;
                 }
             }
         }

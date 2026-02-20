@@ -1660,6 +1660,10 @@ function updateDeviceSelects() {
     // Get selected groups from MyGeotab's global filter
     const selectedGroupIds = getSelectedGroupIds();
     
+    console.log('FleetClaim: updateDeviceSelects - selectedGroupIds:', selectedGroupIds);
+    console.log('FleetClaim: devices count:', devices.length);
+    console.log('FleetClaim: deviceGroupMap sample:', devices.slice(0,2).map(d => ({id: d.id, groups: deviceGroupMap[d.id]})));
+    
     // Filter devices by selected groups (if any)
     let filteredDevices = devices;
     if (selectedGroupIds.length > 0) {
@@ -1668,6 +1672,7 @@ function updateDeviceSelects() {
             // Device matches if it belongs to ANY of the selected groups
             return selectedGroupIds.some(gid => deviceGroups.includes(gid));
         });
+        console.log('FleetClaim: filtered devices count:', filteredDevices.length);
     }
     
     // Update vehicle filter dropdown
@@ -1958,6 +1963,12 @@ function onGroupFilterChange() {
 
 // Get currently selected groups from MyGeotab's global filter
 function getSelectedGroupIds() {
+    // TODO: Group filtering disabled temporarily - needs debugging
+    // The pageState.getGroupFilter() returns group IDs that don't match device.groups format
+    // Returning empty array means "show all" (no filtering)
+    return [];
+    
+    /*
     try {
         if (state && typeof state.getGroupFilter === 'function') {
             const groups = state.getGroupFilter();
@@ -1976,6 +1987,7 @@ function getSelectedGroupIds() {
         console.log('Could not get group filter from state:', e);
     }
     return []; // Empty means "all groups"
+    */
 }
 
 function filterAndSortReports() {

@@ -109,17 +109,16 @@ public class QuestPdfRenderer : IPdfRenderer
                 _ => 16
             };
             
-            // Use OpenStreetMap tiles directly (no API key required)
-            // Fetch a single 256x256 tile centered on the incident location
-            var tileX = (int)((centerLng + 180.0) / 360.0 * (1 << zoom));
-            var latRad = centerLat * Math.PI / 180.0;
-            var tileY = (int)((1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (1 << zoom));
+            // Use OpenStreetMap tiles - fetch 3x3 grid and compose with route overlay
+            var mapImage = await ComposeTiledMapAsync(httpClient, centerLat, centerLng, zoom, 
+                sampledPoints.Select(p => (p.Latitude, p.Longitude)).ToList(),
+                (start.Latitude, start.Longitude),
+                (incidentPoint.Latitude, incidentPoint.Longitude),
+                (end.Latitude, end.Longitude));
             
-            var osmTileUrl = $"https://tile.openstreetmap.org/{zoom}/{tileX}/{tileY}.png";
-            var osmResponse = await httpClient.GetAsync(osmTileUrl);
-            if (osmResponse.IsSuccessStatusCode && osmResponse.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+            if (mapImage != null)
             {
-                return await osmResponse.Content.ReadAsByteArrayAsync();
+                return mapImage;
             }
             
             // Final fallback: try geoapify
@@ -174,6 +173,172 @@ public class QuestPdfRenderer : IPdfRenderer
             sgn >>= 5;
         }
         sb.Append((char)(sgn + 63));
+    }
+    
+    /// <summary>
+    /// Compose a map from OSM tiles with route overlay and markers
+    /// </summary>
+    private async Task<byte[]?> ComposeTiledMapAsync(
+        HttpClient httpClient, 
+        double centerLat, double centerLng, int zoom,
+        List<(double Lat, double Lng)> routePoints,
+        (double Lat, double Lng) start,
+        (double Lat, double Lng) incident,
+        (double Lat, double Lng) end)
+    {
+        try
+        {
+            const int tileSize = 256;
+            const int gridSize = 3; // 3x3 grid
+            const int outputWidth = tileSize * gridSize; // 768px
+            const int outputHeight = tileSize * gridSize;
+            
+            // Calculate center tile coordinates
+            var n = 1 << zoom;
+            var centerTileX = (centerLng + 180.0) / 360.0 * n;
+            var latRad = centerLat * Math.PI / 180.0;
+            var centerTileY = (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * n;
+            
+            var baseTileX = (int)Math.Floor(centerTileX) - gridSize / 2;
+            var baseTileY = (int)Math.Floor(centerTileY) - gridSize / 2;
+            
+            // Create bitmap
+            using var bitmap = new SkiaSharp.SKBitmap(outputWidth, outputHeight);
+            using var canvas = new SkiaSharp.SKCanvas(bitmap);
+            canvas.Clear(SkiaSharp.SKColors.LightGray);
+            
+            // Fetch and draw tiles
+            var tasks = new List<Task<(int x, int y, byte[]? data)>>();
+            for (int dy = 0; dy < gridSize; dy++)
+            {
+                for (int dx = 0; dx < gridSize; dx++)
+                {
+                    var tx = baseTileX + dx;
+                    var ty = baseTileY + dy;
+                    var localDx = dx;
+                    var localDy = dy;
+                    
+                    tasks.Add(FetchTileAsync(httpClient, zoom, tx, ty).ContinueWith(t => (localDx, localDy, t.Result)));
+                }
+            }
+            
+            var results = await Task.WhenAll(tasks);
+            
+            foreach (var (x, y, data) in results)
+            {
+                if (data != null)
+                {
+                    using var tileBitmap = SkiaSharp.SKBitmap.Decode(data);
+                    if (tileBitmap != null)
+                    {
+                        canvas.DrawBitmap(tileBitmap, x * tileSize, y * tileSize);
+                    }
+                }
+            }
+            
+            // Helper to convert lat/lng to pixel coordinates on our composed image
+            (float px, float py) LatLngToPixel(double lat, double lng)
+            {
+                var tileX = (lng + 180.0) / 360.0 * n;
+                var latRadians = lat * Math.PI / 180.0;
+                var tileY = (1.0 - Math.Log(Math.Tan(latRadians) + 1.0 / Math.Cos(latRadians)) / Math.PI) / 2.0 * n;
+                
+                var px = (float)((tileX - baseTileX) * tileSize);
+                var py = (float)((tileY - baseTileY) * tileSize);
+                return (px, py);
+            }
+            
+            // Draw route polyline
+            if (routePoints.Count >= 2)
+            {
+                using var routePaint = new SkiaSharp.SKPaint
+                {
+                    Color = new SkiaSharp.SKColor(37, 99, 235), // Blue
+                    StrokeWidth = 4,
+                    Style = SkiaSharp.SKPaintStyle.Stroke,
+                    IsAntialias = true,
+                    StrokeCap = SkiaSharp.SKStrokeCap.Round,
+                    StrokeJoin = SkiaSharp.SKStrokeJoin.Round
+                };
+                
+                var path = new SkiaSharp.SKPath();
+                var (firstX, firstY) = LatLngToPixel(routePoints[0].Lat, routePoints[0].Lng);
+                path.MoveTo(firstX, firstY);
+                
+                for (int i = 1; i < routePoints.Count; i++)
+                {
+                    var (px, py) = LatLngToPixel(routePoints[i].Lat, routePoints[i].Lng);
+                    path.LineTo(px, py);
+                }
+                
+                canvas.DrawPath(path, routePaint);
+            }
+            
+            // Draw markers
+            void DrawMarker(double lat, double lng, SkiaSharp.SKColor color, string label)
+            {
+                var (px, py) = LatLngToPixel(lat, lng);
+                
+                // Draw pin
+                using var pinPaint = new SkiaSharp.SKPaint
+                {
+                    Color = color,
+                    IsAntialias = true,
+                    Style = SkiaSharp.SKPaintStyle.Fill
+                };
+                using var borderPaint = new SkiaSharp.SKPaint
+                {
+                    Color = SkiaSharp.SKColors.White,
+                    IsAntialias = true,
+                    Style = SkiaSharp.SKPaintStyle.Stroke,
+                    StrokeWidth = 2
+                };
+                
+                canvas.DrawCircle(px, py, 12, pinPaint);
+                canvas.DrawCircle(px, py, 12, borderPaint);
+                
+                // Draw label
+                using var textPaint = new SkiaSharp.SKPaint
+                {
+                    Color = SkiaSharp.SKColors.White,
+                    IsAntialias = true,
+                    TextSize = 14,
+                    TextAlign = SkiaSharp.SKTextAlign.Center,
+                    Typeface = SkiaSharp.SKTypeface.FromFamilyName("Arial", SkiaSharp.SKFontStyle.Bold)
+                };
+                canvas.DrawText(label, px, py + 5, textPaint);
+            }
+            
+            // Draw markers (start=green S, incident=red X, end=blue E)
+            DrawMarker(start.Lat, start.Lng, new SkiaSharp.SKColor(34, 197, 94), "S");     // Green
+            DrawMarker(end.Lat, end.Lng, new SkiaSharp.SKColor(59, 130, 246), "E");        // Blue
+            DrawMarker(incident.Lat, incident.Lng, new SkiaSharp.SKColor(239, 68, 68), "X"); // Red (on top)
+            
+            // Encode as PNG
+            using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+            using var encodedData = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+            return encodedData.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Map composition failed: {ex.Message}");
+            return null;
+        }
+    }
+    
+    private async Task<byte[]?> FetchTileAsync(HttpClient httpClient, int zoom, int x, int y)
+    {
+        try
+        {
+            var url = $"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png";
+            var response = await httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsByteArrayAsync();
+            }
+        }
+        catch { }
+        return null;
     }
 }
 

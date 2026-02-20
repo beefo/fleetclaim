@@ -1699,12 +1699,21 @@ async function submitReportRequest() {
     const selectedDevice = devices.find(d => d.id === deviceId);
     
     try {
-        // Get current user
-        const users = await apiCall('Get', {
-            typeName: 'User',
-            search: { name: api.userName }
-        });
-        const userEmail = users[0]?.name || 'unknown';
+        // Get current user from stored credentials or API
+        let userEmail = storedCredentials?.userName || 'unknown';
+        
+        // If we don't have stored credentials, try getting from API
+        if (userEmail === 'unknown') {
+            try {
+                const users = await apiCall('Get', {
+                    typeName: 'User',
+                    search: { name: api.userName }
+                });
+                userEmail = users[0]?.name || 'unknown';
+            } catch (e) {
+                console.warn('Could not get user name:', e);
+            }
+        }
         
         // Create request record
         const request = {

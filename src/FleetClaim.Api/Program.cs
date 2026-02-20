@@ -627,6 +627,86 @@ app.MapGet("/api/reports/{token}/pdf", async (
     }
 }).RequireRateLimiting("pdf");
 
+// Serve photos via share token
+app.MapGet("/r/{token}/photos/{mediaFileId}", async (
+    string token,
+    string mediaFileId,
+    [FromServices] IShareLinkService shareLinkService,
+    [FromServices] IGeotabClientFactory clientFactory,
+    [FromServices] IAddInDataRepository repository,
+    CancellationToken ct) =>
+{
+    var parsed = shareLinkService.ParseShareToken(token);
+    if (parsed == null)
+    {
+        return Results.Problem(
+            detail: "Invalid or expired share link",
+            statusCode: 403,
+            title: "Access Denied");
+    }
+    
+    try
+    {
+        var api = await clientFactory.CreateClientAsync(parsed.Database, ct);
+        var credentials = api.LoginResult?.Credentials;
+        
+        if (credentials == null)
+        {
+            return Results.Problem("Could not authenticate with Geotab", statusCode: 500);
+        }
+        
+        // Download the file from Geotab using JSON-RPC POST format
+        var downloadUrl = $"https://my.geotab.com/apiv1/";
+        
+        var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            method = "DownloadMediaFile",
+            @params = new
+            {
+                credentials = new
+                {
+                    database = credentials.Database,
+                    userName = credentials.UserName,
+                    sessionId = credentials.SessionId
+                },
+                mediaFile = new { id = mediaFileId }
+            }
+        });
+        
+        using var httpClient = new HttpClient();
+        using var formContent = new MultipartFormDataContent();
+        formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
+        
+        var response = await httpClient.PostAsync(downloadUrl, formContent, ct);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            return Results.Problem($"Failed to download photo: {response.StatusCode}", statusCode: 404);
+        }
+        
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        
+        // Check if we got a valid file (not JSON error response)
+        if (bytes.Length < 100)
+        {
+            return Results.Problem("Photo not found", statusCode: 404);
+        }
+        
+        // Detect content type from bytes
+        var contentType = "image/jpeg";
+        if (bytes.Length > 8 && bytes[0] == 0x89 && bytes[1] == 0x50) contentType = "image/png";
+        else if (bytes.Length > 6 && bytes[0] == 0x47 && bytes[1] == 0x49) contentType = "image/gif";
+        
+        return Results.File(bytes, contentType);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: $"Error loading photo: {ex.Message}",
+            statusCode: 500);
+    }
+}).RequireRateLimiting("shareLink");
+
 // Send report via email - requires signed token
 app.MapPost("/r/{token}/email", async (
     string token,
@@ -751,6 +831,11 @@ static string RenderReportPage(IncidentReport report, string shareToken)
                 .btn:hover { background: #1a365d; }
                 .actions { text-align: center; padding: 24px; }
                 .footer { text-align: center; padding: 20px; font-size: 12px; color: #718096; }
+                .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
+                .photo-card { border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; cursor: pointer; transition: box-shadow 0.2s; }
+                .photo-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+                .photo-card img { width: 100%; height: 150px; object-fit: cover; display: block; }
+                .photo-label { padding: 8px 12px; font-size: 12px; color: #4a5568; background: #f7fafc; }
             </style>
         </head>
         <body>
@@ -847,6 +932,20 @@ static string RenderReportPage(IncidentReport report, string shareToken)
                                 """))}
                             </tbody>
                         </table>
+                    </div>
+                    """ : "")}}
+                    
+                    {{(report.Evidence.Photos.Count > 0 ? $"""
+                    <div class="section">
+                        <div class="section-title">Photo Evidence ({report.Evidence.Photos.Count} photos)</div>
+                        <div class="photos-grid">
+                            {string.Join("", report.Evidence.Photos.Select(p => $"""
+                            <div class="photo-card" onclick="window.open('/r/{shareToken}/photos/{p.MediaFileId}', '_blank')">
+                                <img src="/r/{shareToken}/photos/{p.MediaFileId}" alt="{System.Web.HttpUtility.HtmlEncode(p.FileName)}" loading="lazy">
+                                <div class="photo-label">{FormatPhotoCategory(p.Category)}</div>
+                            </div>
+                            """))}
+                        </div>
                     </div>
                     """ : "")}}
                     
@@ -1005,4 +1104,19 @@ static async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
     }
     
     return photoData;
+}
+
+static string FormatPhotoCategory(FleetClaim.Core.Models.PhotoCategory category)
+{
+    return category switch
+    {
+        FleetClaim.Core.Models.PhotoCategory.VehicleDamage => "🚗 Damage",
+        FleetClaim.Core.Models.PhotoCategory.SceneOverview => "📸 Scene",
+        FleetClaim.Core.Models.PhotoCategory.OtherVehicle => "🚙 Other Vehicle",
+        FleetClaim.Core.Models.PhotoCategory.RoadCondition => "🛣️ Road",
+        FleetClaim.Core.Models.PhotoCategory.WeatherCondition => "🌧️ Weather",
+        FleetClaim.Core.Models.PhotoCategory.PoliceReport => "👮 Police",
+        FleetClaim.Core.Models.PhotoCategory.InsuranceDocument => "📄 Insurance",
+        _ => "📷 Photo"
+    };
 }

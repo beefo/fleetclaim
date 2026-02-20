@@ -1084,7 +1084,7 @@ async function savePhotosToReport(reportId, newPhotos) {
 async function loadPhotoThumbnails(photos) {
     if (!photos || photos.length === 0) return;
     
-    // Get database from URL for backend API
+    // Get database from URL
     const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
     const database = urlMatch ? urlMatch[1] : null;
     
@@ -1093,23 +1093,24 @@ async function loadPhotoThumbnails(photos) {
             const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
             if (!imgEl) continue;
             
-            // Use backend API to download photo (bypasses session credential issues)
-            const downloadUrl = `${API_BASE_URL}/api/photos/${encodeURIComponent(photo.mediaFileId)}`;
+            // Use Geotab's DownloadMediaFile directly in img src
+            // The browser will use the user's existing MyGeotab session cookies
+            const downloadUrl = `https://my.geotab.com/apiv1/DownloadMediaFile?` +
+                `database=${encodeURIComponent(database)}` +
+                `&id=${encodeURIComponent(photo.mediaFileId)}`;
             
-            // Fetch and convert to data URL for display
-            const response = await fetch(downloadUrl, {
-                headers: { 'X-Database': database }
-            });
-            if (response.ok) {
-                const blob = await response.blob();
-                const dataUrl = await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.readAsDataURL(blob);
-                });
-                imgEl.src = dataUrl;
-                imgEl.parentElement.querySelector('.photo-loading').style.display = 'none';
-            }
+            // Set src directly - browser handles auth via cookies
+            imgEl.src = downloadUrl;
+            imgEl.onload = () => {
+                const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
+                if (loadingEl) loadingEl.style.display = 'none';
+            };
+            imgEl.onerror = () => {
+                console.log('Direct download failed, trying with placeholder');
+                imgEl.alt = '📷 Photo';
+                const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
+                if (loadingEl) loadingEl.textContent = '📷';
+            };
         } catch (err) {
             console.error('Error loading photo thumbnail:', err);
         }

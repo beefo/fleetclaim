@@ -986,7 +986,10 @@ async function uploadViaBackendApi(file, mediaFileId, reportId, category) {
     formData.append('database', database);
     formData.append('reportId', reportId);
     formData.append('category', category);
-    formData.append('mediaFileId', mediaFileId); // Pass the already-created ID
+    // Only append mediaFileId if it's a valid ID (not null)
+    if (mediaFileId) {
+        formData.append('mediaFileId', mediaFileId);
+    }
     
     const response = await fetch(`${API_BASE_URL}/api/photos/upload`, {
         method: 'POST',

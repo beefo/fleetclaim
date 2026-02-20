@@ -248,8 +248,10 @@ app.MapPost("/api/photos/upload", async (
         };
         
         // Use existing MediaFile ID if provided, otherwise create new one
+        // Note: "null" string should be treated as empty
         string? mediaFileId;
-        if (!string.IsNullOrEmpty(existingMediaFileId))
+        Console.WriteLine($"[Photo Upload] existingMediaFileId='{existingMediaFileId}'");
+        if (!string.IsNullOrEmpty(existingMediaFileId) && existingMediaFileId != "null")
         {
             // Add-In already created the MediaFile, just use that ID
             mediaFileId = existingMediaFileId;

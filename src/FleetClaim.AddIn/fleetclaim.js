@@ -158,6 +158,15 @@ function initializeUI() {
     document.getElementById('cancel-request').addEventListener('click', closeRequestModal);
     document.getElementById('submit-request').addEventListener('click', submitReportRequest);
     
+    // Toggle state indicator
+    const forceReportCheckbox = document.getElementById('force-report');
+    const forceReportState = document.getElementById('force-report-state');
+    if (forceReportCheckbox && forceReportState) {
+        forceReportCheckbox.addEventListener('change', () => {
+            forceReportState.textContent = forceReportCheckbox.checked ? 'ON' : 'OFF';
+        });
+    }
+    
     // Delete modal
     document.getElementById('cancel-delete').addEventListener('click', closeDeleteModal);
     document.getElementById('confirm-delete').addEventListener('click', confirmDelete);
@@ -1566,6 +1575,7 @@ function prefillRequestModal(report) {
     
     // Enable force report since we're regenerating
     document.getElementById('force-report').checked = true;
+    updateForceReportState();
     
     showToast('Pre-filled with old report data. Submit to generate new PDF.', 'info', 4000);
 }
@@ -1661,6 +1671,14 @@ function closeRequestModal() {
     document.getElementById('request-modal').classList.add('hidden');
 }
 
+function updateForceReportState() {
+    const checkbox = document.getElementById('force-report');
+    const stateEl = document.getElementById('force-report-state');
+    if (checkbox && stateEl) {
+        stateEl.textContent = checkbox.checked ? 'ON' : 'OFF';
+    }
+}
+
 function regenerateReport(reportId) {
     const report = reports.find(r => r.id === reportId);
     if (!report) {
@@ -1687,6 +1705,7 @@ function regenerateReport(reportId) {
     document.getElementById('from-datetime').value = formatDatetime(oneHourBefore);
     document.getElementById('to-datetime').value = formatDatetime(oneHourAfter);
     document.getElementById('force-report').checked = true;
+    updateForceReportState();
     
     // Try to select the device
     if (report.vehicleId) {

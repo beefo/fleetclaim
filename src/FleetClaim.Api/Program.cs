@@ -278,14 +278,27 @@ app.MapPost("/api/photos/upload", async (
             return Results.Problem("Could not get session credentials for upload", statusCode: 500);
         }
         
-        // Use the same format as MediaFileService.cs which works
-        var uploadUrl = $"https://my.geotab.com/apiv1/UploadMediaFile";
+        // Use JSON-RPC format with multipart form data (tested working format)
+        var uploadUrl = $"https://my.geotab.com/apiv1/";
+        
+        // Build JSON-RPC request for UploadMediaFile
+        var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            method = "UploadMediaFile",
+            @params = new
+            {
+                credentials = new
+                {
+                    database = sessionDb,
+                    userName = sessionUser,
+                    sessionId = sessionId
+                },
+                mediaFile = new { id = mediaFileId }
+            }
+        });
         
         using var uploadContent = new MultipartFormDataContent();
-        uploadContent.Add(new StringContent(mediaFileId!), "id");
-        uploadContent.Add(new StringContent(sessionDb), "database");
-        uploadContent.Add(new StringContent(sessionUser), "userName");
-        uploadContent.Add(new StringContent(sessionId), "sessionId");
+        uploadContent.Add(new StringContent(jsonRpc), "JSON-RPC");
         
         var fileContent = new ByteArrayContent(fileBytes);
         fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);

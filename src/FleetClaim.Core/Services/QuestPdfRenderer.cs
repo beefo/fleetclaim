@@ -251,10 +251,21 @@ public class QuestPdfRenderer : IPdfRenderer
             // Draw route polyline
             if (routePoints.Count >= 2)
             {
+                // Draw white outline first for contrast
+                using var outlinePaint = new SkiaSharp.SKPaint
+                {
+                    Color = SkiaSharp.SKColors.White,
+                    StrokeWidth = 8,
+                    Style = SkiaSharp.SKPaintStyle.Stroke,
+                    IsAntialias = true,
+                    StrokeCap = SkiaSharp.SKStrokeCap.Round,
+                    StrokeJoin = SkiaSharp.SKStrokeJoin.Round
+                };
+                
                 using var routePaint = new SkiaSharp.SKPaint
                 {
-                    Color = new SkiaSharp.SKColor(37, 99, 235), // Blue
-                    StrokeWidth = 4,
+                    Color = new SkiaSharp.SKColor(220, 38, 38), // Red for better contrast
+                    StrokeWidth = 5,
                     Style = SkiaSharp.SKPaintStyle.Stroke,
                     IsAntialias = true,
                     StrokeCap = SkiaSharp.SKStrokeCap.Round,
@@ -271,6 +282,8 @@ public class QuestPdfRenderer : IPdfRenderer
                     path.LineTo(px, py);
                 }
                 
+                // Draw white outline first, then colored line on top
+                canvas.DrawPath(path, outlinePaint);
                 canvas.DrawPath(path, routePaint);
             }
             
@@ -294,19 +307,20 @@ public class QuestPdfRenderer : IPdfRenderer
                     StrokeWidth = 2
                 };
                 
-                canvas.DrawCircle(px, py, 12, pinPaint);
-                canvas.DrawCircle(px, py, 12, borderPaint);
+                canvas.DrawCircle(px, py, 16, pinPaint);
+                canvas.DrawCircle(px, py, 16, borderPaint);
                 
                 // Draw label
                 using var textPaint = new SkiaSharp.SKPaint
                 {
                     Color = SkiaSharp.SKColors.White,
                     IsAntialias = true,
-                    TextSize = 14,
+                    TextSize = 18,
                     TextAlign = SkiaSharp.SKTextAlign.Center,
+                    FakeBoldText = true,
                     Typeface = SkiaSharp.SKTypeface.FromFamilyName("Arial", SkiaSharp.SKFontStyle.Bold)
                 };
-                canvas.DrawText(label, px, py + 5, textPaint);
+                canvas.DrawText(label, px, py + 6, textPaint);
             }
             
             // Draw markers (start=green S, incident=red X, end=blue E)

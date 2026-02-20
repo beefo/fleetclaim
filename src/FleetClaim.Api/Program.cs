@@ -268,6 +268,9 @@ app.MapPost("/api/photos/upload", async (
         await fileStream.CopyToAsync(memoryStream, ct);
         var fileBytes = memoryStream.ToArray();
         
+        // Debug: log file info
+        Console.WriteLine($"[Photo Upload] File: {fileName}, Size: {fileBytes.Length} bytes, ContentType: {file.ContentType}");
+        
         // Get HTTP client for upload
         var httpClient = new HttpClient();
         
@@ -307,13 +310,8 @@ app.MapPost("/api/photos/upload", async (
         // Ensure content type is set - default to image/jpeg if missing
         var contentType = string.IsNullOrEmpty(file.ContentType) ? "image/jpeg" : file.ContentType;
         fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-        // Set content disposition header explicitly for proper multipart handling
-        fileContent.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("form-data")
-        {
-            Name = "\"file\"",
-            FileName = $"\"{fileName}\""
-        };
-        uploadContent.Add(fileContent);
+        // Use standard Add() method - it handles content disposition correctly
+        uploadContent.Add(fileContent, "file", fileName);
         
         var uploadResponse = await httpClient.PostAsync(uploadUrl, uploadContent, ct);
         var uploadResponseText = await uploadResponse.Content.ReadAsStringAsync(ct);

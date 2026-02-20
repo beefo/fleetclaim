@@ -1089,9 +1089,20 @@ async function loadPhotoThumbnails(photos) {
             const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
             if (!imgEl) continue;
             
-            const credentials = await new Promise((resolve, reject) => {
-                api.getSession((session) => resolve(session), reject);
-            });
+            // Try to get session credentials - this may not be supported in Add-In API proxy
+            let credentials;
+            try {
+                credentials = await new Promise((resolve, reject) => {
+                    api.getSession((session) => resolve(session), (err) => reject(err));
+                });
+            } catch (e) {
+                // getSession not supported - show placeholder and continue
+                console.log('getSession not supported for thumbnails, showing placeholder');
+                imgEl.alt = 'Photo uploaded (preview unavailable)';
+                const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
+                if (loadingEl) loadingEl.textContent = '📷';
+                continue;
+            }
             
             // Build download URL
             const downloadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/DownloadMediaFile?` +

@@ -1143,14 +1143,25 @@ async function loadPhotoThumbnails(photos) {
 
 // View full-size photo
 function viewPhoto(mediaFileId) {
-    // Open in new window/tab
-    api.getSession(async (credentials) => {
-        const downloadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/DownloadMediaFile?` +
-            `database=${encodeURIComponent(credentials.database)}` +
-            `&userName=${encodeURIComponent(credentials.userName)}` +
-            `&sessionId=${encodeURIComponent(credentials.sessionId)}` +
-            `&id=${encodeURIComponent(mediaFileId)}`;
-        window.open(downloadUrl, '_blank');
+    // Get database from URL
+    const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
+    const database = urlMatch ? urlMatch[1] : null;
+    
+    // Fetch via backend API and open in new tab
+    fetch(`${API_BASE_URL}/api/photos/${encodeURIComponent(mediaFileId)}`, {
+        headers: { 'X-Database': database }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Photo not found');
+        return response.blob();
+    })
+    .then(blob => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+    })
+    .catch(err => {
+        console.error('Error opening photo:', err);
+        alert('Could not load photo');
     });
 }
 

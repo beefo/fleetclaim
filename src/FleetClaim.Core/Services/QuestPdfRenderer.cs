@@ -88,15 +88,44 @@ public class QuestPdfRenderer : IPdfRenderer
                 }
             }
             
-            // Fallback: OpenStreetMap via geoapify (may work without key for limited use)
+            // Calculate bounds and zoom
             var lats = gpsTrail.Select(p => p.Latitude).ToList();
             var lngs = gpsTrail.Select(p => p.Longitude).ToList();
             var centerLat = (lats.Min() + lats.Max()) / 2;
             var centerLng = (lngs.Min() + lngs.Max()) / 2;
             
+            // Calculate appropriate zoom based on bounding box
+            var latSpan = lats.Max() - lats.Min();
+            var lngSpan = lngs.Max() - lngs.Min();
+            var maxSpan = Math.Max(latSpan, lngSpan);
+            var zoom = maxSpan switch
+            {
+                > 0.5 => 10,
+                > 0.2 => 11,
+                > 0.1 => 12,
+                > 0.05 => 13,
+                > 0.02 => 14,
+                > 0.01 => 15,
+                _ => 16
+            };
+            
+            // Use OpenStreetMap tiles directly (no API key required)
+            // Fetch a single 256x256 tile centered on the incident location
+            var tileX = (int)((centerLng + 180.0) / 360.0 * (1 << zoom));
+            var latRad = centerLat * Math.PI / 180.0;
+            var tileY = (int)((1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (1 << zoom));
+            
+            var osmTileUrl = $"https://tile.openstreetmap.org/{zoom}/{tileX}/{tileY}.png";
+            var osmResponse = await httpClient.GetAsync(osmTileUrl);
+            if (osmResponse.IsSuccessStatusCode && osmResponse.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+            {
+                return await osmResponse.Content.ReadAsByteArrayAsync();
+            }
+            
+            // Final fallback: try geoapify
             var geoapifyUrl = $"https://maps.geoapify.com/v1/staticmap?" +
                 $"style=osm-bright&width=600&height=300" +
-                $"&center=lonlat:{centerLng:F5},{centerLat:F5}&zoom=14" +
+                $"&center=lonlat:{centerLng:F5},{centerLat:F5}&zoom={zoom}" +
                 $"&marker=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5};color:%23ef4444;size:large";
             
             var fallbackResponse = await httpClient.GetAsync(geoapifyUrl);

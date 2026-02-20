@@ -56,56 +56,53 @@ public class QuestPdfRenderer : IPdfRenderer
                 .OrderBy(p => Math.Abs((p.Timestamp - report.OccurredAt).TotalSeconds))
                 .First();
             
-            // Calculate bounds for auto-zoom
-            var lats = gpsTrail.Select(p => p.Latitude).ToList();
-            var lngs = gpsTrail.Select(p => p.Longitude).ToList();
-            var centerLat = (lats.Min() + lats.Max()) / 2;
-            var centerLng = (lngs.Min() + lngs.Max()) / 2;
-            
-            // Sample points for polyline (max ~50 points for URL length)
-            var sampleRate = Math.Max(1, gpsTrail.Count / 50);
+            // Sample points for polyline (max ~100 points for URL length)
+            var sampleRate = Math.Max(1, gpsTrail.Count / 100);
             var sampledPoints = gpsTrail
                 .Where((_, i) => i % sampleRate == 0 || i == gpsTrail.Count - 1)
-                .Take(50)
+                .Take(100)
                 .ToList();
-            
-            // Build polyline string for Geoapify: lon,lat;lon,lat;...
-            var polylineCoords = string.Join(";", sampledPoints.Select(p => $"{p.Longitude:F5},{p.Latitude:F5}"));
-            
-            // Use geoapify free tier (3000 req/day) with polyline and markers
-            // Markers: green start, red incident, blue end
-            var mapUrl = $"https://maps.geoapify.com/v1/staticmap?" +
-                $"style=osm-bright&width=600&height=300" +
-                $"&center=lonlat:{centerLng:F5},{centerLat:F5}" +
-                // Auto-fit to bounds
-                $"&geometry=polyline:{polylineCoords};lineColor:%232563eb;lineWidth:4" +
-                // Start marker (green)
-                $"&marker=lonlat:{start.Longitude:F5},{start.Latitude:F5};color:%2322c55e;size:medium;text:START" +
-                // Incident marker (red, prominent)
-                $"&marker=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5};color:%23ef4444;size:large;text:INCIDENT" +
-                // End marker (blue)
-                $"&marker=lonlat:{end.Longitude:F5},{end.Latitude:F5};color:%233b82f6;size:medium;text:END";
             
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromSeconds(20);
             httpClient.DefaultRequestHeaders.Add("User-Agent", "FleetClaim/1.0");
             
-            var response = await httpClient.GetAsync(mapUrl);
-            if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+            // Try Google Maps Static API if key is configured
+            if (!string.IsNullOrEmpty(_options.GoogleMapsApiKey))
             {
-                return await response.Content.ReadAsByteArrayAsync();
+                // Encode polyline using Google's algorithm
+                var encodedPath = EncodeGooglePolyline(sampledPoints.Select(p => (p.Latitude, p.Longitude)).ToList());
+                
+                var googleUrl = $"https://maps.googleapis.com/maps/api/staticmap?" +
+                    $"size=600x300&maptype=roadmap" +
+                    $"&path=color:0x2563ebff|weight:4|enc:{encodedPath}" +
+                    $"&markers=color:green|label:S|{start.Latitude:F6},{start.Longitude:F6}" +
+                    $"&markers=color:red|label:X|{incidentPoint.Latitude:F6},{incidentPoint.Longitude:F6}" +
+                    $"&markers=color:blue|label:E|{end.Latitude:F6},{end.Longitude:F6}" +
+                    $"&key={_options.GoogleMapsApiKey}";
+                
+                var response = await httpClient.GetAsync(googleUrl);
+                if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+                {
+                    return await response.Content.ReadAsByteArrayAsync();
+                }
             }
             
-            // Fallback: try simpler map without geometry (some free tiers limit features)
-            var fallbackUrl = $"https://maps.geoapify.com/v1/staticmap?" +
+            // Fallback: OpenStreetMap via geoapify (may work without key for limited use)
+            var lats = gpsTrail.Select(p => p.Latitude).ToList();
+            var lngs = gpsTrail.Select(p => p.Longitude).ToList();
+            var centerLat = (lats.Min() + lats.Max()) / 2;
+            var centerLng = (lngs.Min() + lngs.Max()) / 2;
+            
+            var geoapifyUrl = $"https://maps.geoapify.com/v1/staticmap?" +
                 $"style=osm-bright&width=600&height=300" +
-                $"&center=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5}&zoom=14" +
+                $"&center=lonlat:{centerLng:F5},{centerLat:F5}&zoom=14" +
                 $"&marker=lonlat:{incidentPoint.Longitude:F5},{incidentPoint.Latitude:F5};color:%23ef4444;size:large";
             
-            response = await httpClient.GetAsync(fallbackUrl);
-            if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
+            var fallbackResponse = await httpClient.GetAsync(geoapifyUrl);
+            if (fallbackResponse.IsSuccessStatusCode && fallbackResponse.Content.Headers.ContentType?.MediaType?.StartsWith("image/") == true)
             {
-                return await response.Content.ReadAsByteArrayAsync();
+                return await fallbackResponse.Content.ReadAsByteArrayAsync();
             }
         }
         catch
@@ -113,6 +110,41 @@ public class QuestPdfRenderer : IPdfRenderer
             // Map fetch failed, continue without map image
         }
         return null;
+    }
+    
+    /// <summary>
+    /// Encode a list of lat/lng points using Google's polyline encoding algorithm.
+    /// </summary>
+    private static string EncodeGooglePolyline(List<(double Lat, double Lng)> points)
+    {
+        var result = new System.Text.StringBuilder();
+        var prevLat = 0;
+        var prevLng = 0;
+        
+        foreach (var (lat, lng) in points)
+        {
+            var latE5 = (int)Math.Round(lat * 1e5);
+            var lngE5 = (int)Math.Round(lng * 1e5);
+            
+            EncodeSignedNumber(result, latE5 - prevLat);
+            EncodeSignedNumber(result, lngE5 - prevLng);
+            
+            prevLat = latE5;
+            prevLng = lngE5;
+        }
+        
+        return result.ToString();
+    }
+    
+    private static void EncodeSignedNumber(System.Text.StringBuilder sb, int num)
+    {
+        var sgn = num < 0 ? ~(num << 1) : (num << 1);
+        while (sgn >= 0x20)
+        {
+            sb.Append((char)((0x20 | (sgn & 0x1f)) + 63));
+            sgn >>= 5;
+        }
+        sb.Append((char)(sgn + 63));
     }
 }
 

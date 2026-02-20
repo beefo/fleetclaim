@@ -624,6 +624,13 @@ function showReportDetail(report) {
         setTimeout(() => renderGpsMap(evidence.gpsTrail, report.occurredAt), 100);
     }
     
+    // Load photo thumbnails
+    const photos = evidence.photos || [];
+    if (photos.length > 0) {
+        // Small delay to let DOM render first
+        setTimeout(() => loadPhotoThumbnails(photos), 100);
+    }
+    
     // Set up photo upload handler
     const photoInput = document.getElementById('photo-input');
     if (photoInput) {
@@ -1084,26 +1091,39 @@ async function savePhotosToReport(reportId, newPhotos) {
 async function loadPhotoThumbnails(photos) {
     if (!photos || photos.length === 0) return;
     
+    console.log(`Loading ${photos.length} photo thumbnails...`);
+    
     // Get database from URL
     const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
     const database = urlMatch ? urlMatch[1] : null;
+    console.log('Database for photo fetch:', database);
     
     for (const photo of photos) {
         try {
             const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
-            if (!imgEl) continue;
+            if (!imgEl) {
+                console.log(`No img element found for mediaFileId: ${photo.mediaFileId}`);
+                continue;
+            }
+            
+            const url = `${API_BASE_URL}/api/photos/${encodeURIComponent(photo.mediaFileId)}`;
+            console.log('Fetching photo:', url);
             
             // Use backend API to fetch photo (handles Geotab auth)
-            const response = await fetch(`${API_BASE_URL}/api/photos/${encodeURIComponent(photo.mediaFileId)}`, {
+            const response = await fetch(url, {
                 headers: { 'X-Database': database }
             });
             
+            console.log(`Photo response: ${response.status} ${response.statusText}`);
+            
             if (response.ok) {
                 const blob = await response.blob();
+                console.log(`Photo blob: ${blob.size} bytes, type: ${blob.type}`);
                 imgEl.src = URL.createObjectURL(blob);
                 const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
                 if (loadingEl) loadingEl.style.display = 'none';
             } else {
+                console.error('Photo fetch failed:', response.status, await response.text());
                 imgEl.alt = '📷 Photo';
                 const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
                 if (loadingEl) loadingEl.textContent = '📷';
@@ -1118,6 +1138,7 @@ async function loadPhotoThumbnails(photos) {
             }
         }
     }
+    console.log('Photo thumbnail loading complete');
 }
 
 // View full-size photo

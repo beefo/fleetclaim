@@ -647,7 +647,7 @@ app.MapGet("/r/{token}/photos/{mediaFileId}", async (
     
     try
     {
-        var api = await clientFactory.CreateClientAsync(parsed.Database, ct);
+        var api = await clientFactory.CreateClientAsync(parsed.Value.Database, ct);
         var credentials = api.LoginResult?.Credentials;
         
         if (credentials == null)

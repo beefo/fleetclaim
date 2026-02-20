@@ -1147,21 +1147,44 @@ function viewPhoto(mediaFileId) {
     const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
     const database = urlMatch ? urlMatch[1] : null;
     
+    console.log('viewPhoto called:', { mediaFileId, database, url: window.location.href });
+    
+    if (!database) {
+        console.error('Could not extract database from URL');
+        alert('Could not load photo - database not found');
+        return;
+    }
+    
+    if (!mediaFileId) {
+        console.error('No mediaFileId provided');
+        alert('Could not load photo - invalid photo ID');
+        return;
+    }
+    
+    const photoUrl = `${API_BASE_URL}/api/photos/${encodeURIComponent(mediaFileId)}`;
+    console.log('Fetching photo:', photoUrl);
+    
     // Fetch via backend API and open in new tab
-    fetch(`${API_BASE_URL}/api/photos/${encodeURIComponent(mediaFileId)}`, {
+    fetch(photoUrl, {
         headers: { 'X-Database': database }
     })
     .then(response => {
-        if (!response.ok) throw new Error('Photo not found');
+        console.log('Photo response:', response.status, response.statusText);
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`${response.status}: ${text}`);
+            });
+        }
         return response.blob();
     })
     .then(blob => {
+        console.log('Photo blob:', blob.size, blob.type);
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
     })
     .catch(err => {
         console.error('Error opening photo:', err);
-        alert('Could not load photo');
+        alert('Could not load photo: ' + err.message);
     });
 }
 

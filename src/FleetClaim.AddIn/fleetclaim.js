@@ -505,9 +505,9 @@ function showReportDetail(report) {
             </div>
         </div>
         
-        ${evidence.gpsTrail && evidence.gpsTrail.length > 0 ? `
+        ${(evidence.gpsTrail && evidence.gpsTrail.length > 0) ? `
         <div class="report-section">
-            <h3>🗺️ GPS Trail</h3>
+            <h3>🗺️ GPS Trail <span style="font-weight:normal;font-size:0.9em">(${evidence.gpsTrail.length} points)</span></h3>
             <div id="map-container" class="map-container">
                 <div class="map-loading">Loading map...</div>
             </div>
@@ -1093,26 +1093,29 @@ async function loadPhotoThumbnails(photos) {
             const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
             if (!imgEl) continue;
             
-            // Use Geotab's DownloadMediaFile directly in img src
-            // The browser will use the user's existing MyGeotab session cookies
-            const downloadUrl = `https://my.geotab.com/apiv1/DownloadMediaFile?` +
-                `database=${encodeURIComponent(database)}` +
-                `&id=${encodeURIComponent(photo.mediaFileId)}`;
+            // Use backend API to fetch photo (handles Geotab auth)
+            const response = await fetch(`${API_BASE_URL}/api/photos/${encodeURIComponent(photo.mediaFileId)}`, {
+                headers: { 'X-Database': database }
+            });
             
-            // Set src directly - browser handles auth via cookies
-            imgEl.src = downloadUrl;
-            imgEl.onload = () => {
+            if (response.ok) {
+                const blob = await response.blob();
+                imgEl.src = URL.createObjectURL(blob);
                 const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
                 if (loadingEl) loadingEl.style.display = 'none';
-            };
-            imgEl.onerror = () => {
-                console.log('Direct download failed, trying with placeholder');
+            } else {
                 imgEl.alt = '📷 Photo';
                 const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
                 if (loadingEl) loadingEl.textContent = '📷';
-            };
+            }
         } catch (err) {
             console.error('Error loading photo thumbnail:', err);
+            const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
+            if (imgEl) {
+                imgEl.alt = '📷';
+                const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
+                if (loadingEl) loadingEl.textContent = '📷';
+            }
         }
     }
 }

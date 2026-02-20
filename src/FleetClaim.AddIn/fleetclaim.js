@@ -843,7 +843,11 @@ async function uploadPhotoToGeotab(file, deviceId, reportId, category) {
     console.log('Uploading photo:', file.name);
     
     // Step 1: Create MediaFile entity via Geotab API
-    const fileName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+    // Add timestamp to filename to avoid DuplicateException
+    const baseName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+    const ext = baseName.includes('.') ? baseName.substring(baseName.lastIndexOf('.')) : '';
+    const nameWithoutExt = baseName.includes('.') ? baseName.substring(0, baseName.lastIndexOf('.')) : baseName;
+    const fileName = `${nameWithoutExt}_${Date.now()}${ext}`;
     
     const mediaFile = {
         name: fileName,

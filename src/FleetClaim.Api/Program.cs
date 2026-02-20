@@ -224,8 +224,11 @@ app.MapPost("/api/photos/upload", async (
             };
         }
         
-        // Sanitize filename
+        // Sanitize filename and add timestamp to avoid DuplicateException
         fileName = Regex.Replace(fileName, @"[^a-z0-9._-]", "_");
+        var ext = fileName.Contains('.') ? fileName.Substring(fileName.LastIndexOf('.')) : "";
+        var nameWithoutExt = fileName.Contains('.') ? fileName.Substring(0, fileName.LastIndexOf('.')) : fileName;
+        fileName = $"{nameWithoutExt}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{ext}";
         
         var mediaFileEntity = new Dictionary<string, object?>
         {

@@ -304,8 +304,16 @@ app.MapPost("/api/photos/upload", async (
         uploadContent.Add(new StringContent(jsonRpc), "JSON-RPC");
         
         var fileContent = new ByteArrayContent(fileBytes);
-        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
-        uploadContent.Add(fileContent, "file", fileName);
+        // Ensure content type is set - default to image/jpeg if missing
+        var contentType = string.IsNullOrEmpty(file.ContentType) ? "image/jpeg" : file.ContentType;
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        // Set content disposition header explicitly for proper multipart handling
+        fileContent.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("form-data")
+        {
+            Name = "\"file\"",
+            FileName = $"\"{fileName}\""
+        };
+        uploadContent.Add(fileContent);
         
         var uploadResponse = await httpClient.PostAsync(uploadUrl, uploadContent, ct);
         var uploadResponseText = await uploadResponse.Content.ReadAsStringAsync(ct);

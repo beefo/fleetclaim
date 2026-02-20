@@ -49,11 +49,15 @@ geotab.addin.fleetclaim = function(geotabApi, pageState) {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             initializeUI();
+            loadGroups();
+            loadDevices();
             loadReports();
             loadRequests();
         });
     } else {
         initializeUI();
+        loadGroups();
+        loadDevices();
         loadReports();
         loadRequests();
     }
@@ -70,6 +74,8 @@ geotab.addin.fleetclaim.focus = function(geotabApi, pageState) {
     // Capture credentials for MediaFile upload (following Geotab's mg-media-files example)
     captureCredentials();
     
+    loadGroups();
+    loadDevices();
     loadReports();
     loadRequests();
 };
@@ -140,6 +146,7 @@ function initializeUI() {
     
     // Search and filters
     document.getElementById('search').addEventListener('input', filterAndSortReports);
+    document.getElementById('group-filter')?.addEventListener('change', onGroupFilterChange);
     document.getElementById('severity-filter').addEventListener('change', filterAndSortReports);
     document.getElementById('date-filter').addEventListener('change', filterAndSortReports);
     document.getElementById('vehicle-filter')?.addEventListener('change', filterAndSortReports);
@@ -1629,19 +1636,79 @@ function closeModal() {
     document.getElementById('report-modal').classList.add('hidden');
 }
 
-// Cache for devices
+// Cache for devices and groups
 let devices = [];
+let groups = [];
+let deviceGroupMap = {}; // deviceId -> [groupIds]
+
+async function loadGroups() {
+    try {
+        groups = await apiCall('Get', { typeName: 'Group' });
+        // Filter to just the user-visible groups (exclude system groups)
+        groups = groups.filter(g => g.id && !g.id.startsWith('Group') || g.name);
+        groups.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        
+        const select = document.getElementById('group-filter');
+        if (select) {
+            select.innerHTML = '<option value="">All Groups</option>' +
+                groups.map(g => `<option value="${g.id}">${escapeHtml(g.name || g.id)}</option>`).join('');
+        }
+    } catch (err) {
+        console.error('Error loading groups:', err);
+    }
+}
 
 async function loadDevices() {
     try {
         devices = await apiCall('Get', { typeName: 'Device' });
         devices.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         
-        const select = document.getElementById('device-select');
-        select.innerHTML = '<option value="">Select a vehicle...</option>' +
-            devices.map(d => `<option value="${d.id}">${escapeHtml(d.name || d.id)}</option>`).join('');
+        // Build device -> groups mapping
+        deviceGroupMap = {};
+        devices.forEach(d => {
+            deviceGroupMap[d.id] = (d.groups || []).map(g => g.id);
+        });
+        
+        updateDeviceSelects();
     } catch (err) {
         console.error('Error loading devices:', err);
+    }
+}
+
+function updateDeviceSelects() {
+    const selectedGroup = document.getElementById('group-filter')?.value || '';
+    
+    // Filter devices by selected group
+    let filteredDevices = devices;
+    if (selectedGroup) {
+        filteredDevices = devices.filter(d => {
+            const deviceGroups = deviceGroupMap[d.id] || [];
+            return deviceGroups.includes(selectedGroup);
+        });
+    }
+    
+    // Update vehicle filter dropdown
+    const vehicleFilter = document.getElementById('vehicle-filter');
+    if (vehicleFilter) {
+        const currentValue = vehicleFilter.value;
+        vehicleFilter.innerHTML = '<option value="">All Vehicles</option>' +
+            filteredDevices.map(d => `<option value="${d.id}">${escapeHtml(d.name || d.id)}</option>`).join('');
+        // Restore selection if still valid
+        if (filteredDevices.some(d => d.id === currentValue)) {
+            vehicleFilter.value = currentValue;
+        }
+    }
+    
+    // Update device select in request modal
+    const deviceSelect = document.getElementById('device-select');
+    if (deviceSelect) {
+        const currentValue = deviceSelect.value;
+        deviceSelect.innerHTML = '<option value="">Select a vehicle...</option>' +
+            filteredDevices.map(d => `<option value="${d.id}">${escapeHtml(d.name || d.id)}</option>`).join('');
+        // Restore selection if still valid
+        if (filteredDevices.some(d => d.id === currentValue)) {
+            deviceSelect.value = currentValue;
+        }
     }
 }
 
@@ -1899,8 +1966,16 @@ function populateVehicleFilter() {
     }
 }
 
+function onGroupFilterChange() {
+    // Update vehicle dropdowns when group changes
+    updateDeviceSelects();
+    // Then filter reports
+    filterAndSortReports();
+}
+
 function filterAndSortReports() {
     const search = document.getElementById('search').value.toLowerCase();
+    const groupFilter = document.getElementById('group-filter')?.value || '';
     const severity = document.getElementById('severity-filter').value;
     const dateFilter = document.getElementById('date-filter').value;
     const vehicleFilter = document.getElementById('vehicle-filter')?.value || '';
@@ -1934,10 +2009,14 @@ function filterAndSortReports() {
             (r.vehicleId === vehicleFilter) ||
             (r.vehicleName === vehicleFilter);
         
+        // Filter by group - check if report's vehicle belongs to selected group
+        const matchesGroup = !groupFilter || 
+            (deviceGroupMap[r.vehicleId] || []).includes(groupFilter);
+        
         const reportDate = new Date(r.occurredAt);
         const matchesDate = !dateCutoff || reportDate >= dateCutoff;
         
-        return matchesSearch && matchesSeverity && matchesVehicle && matchesDate;
+        return matchesSearch && matchesSeverity && matchesVehicle && matchesGroup && matchesDate;
     });
     
     // Sort

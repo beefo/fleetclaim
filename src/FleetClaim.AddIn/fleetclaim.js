@@ -49,14 +49,12 @@ geotab.addin.fleetclaim = function(geotabApi, pageState) {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             initializeUI();
-            loadGroups();
             loadDevices();
             loadReports();
             loadRequests();
         });
     } else {
         initializeUI();
-        loadGroups();
         loadDevices();
         loadReports();
         loadRequests();
@@ -74,7 +72,6 @@ geotab.addin.fleetclaim.focus = function(geotabApi, pageState) {
     // Capture credentials for MediaFile upload (following Geotab's mg-media-files example)
     captureCredentials();
     
-    loadGroups();
     loadDevices();
     loadReports();
     loadRequests();
@@ -146,7 +143,6 @@ function initializeUI() {
     
     // Search and filters
     document.getElementById('search').addEventListener('input', filterAndSortReports);
-    document.getElementById('group-filter')?.addEventListener('change', onGroupFilterChange);
     document.getElementById('severity-filter').addEventListener('change', filterAndSortReports);
     document.getElementById('date-filter').addEventListener('change', filterAndSortReports);
     document.getElementById('vehicle-filter')?.addEventListener('change', filterAndSortReports);
@@ -1636,27 +1632,9 @@ function closeModal() {
     document.getElementById('report-modal').classList.add('hidden');
 }
 
-// Cache for devices and groups
+// Cache for devices
 let devices = [];
-let groups = [];
 let deviceGroupMap = {}; // deviceId -> [groupIds]
-
-async function loadGroups() {
-    try {
-        groups = await apiCall('Get', { typeName: 'Group' });
-        // Filter to just the user-visible groups (exclude system groups)
-        groups = groups.filter(g => g.id && !g.id.startsWith('Group') || g.name);
-        groups.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        
-        const select = document.getElementById('group-filter');
-        if (select) {
-            select.innerHTML = '<option value="">All Groups</option>' +
-                groups.map(g => `<option value="${g.id}">${escapeHtml(g.name || g.id)}</option>`).join('');
-        }
-    } catch (err) {
-        console.error('Error loading groups:', err);
-    }
-}
 
 async function loadDevices() {
     try {
@@ -1676,14 +1654,16 @@ async function loadDevices() {
 }
 
 function updateDeviceSelects() {
-    const selectedGroup = document.getElementById('group-filter')?.value || '';
+    // Get selected groups from MyGeotab's global filter
+    const selectedGroupIds = getSelectedGroupIds();
     
-    // Filter devices by selected group
+    // Filter devices by selected groups (if any)
     let filteredDevices = devices;
-    if (selectedGroup) {
+    if (selectedGroupIds.length > 0) {
         filteredDevices = devices.filter(d => {
             const deviceGroups = deviceGroupMap[d.id] || [];
-            return deviceGroups.includes(selectedGroup);
+            // Device matches if it belongs to ANY of the selected groups
+            return selectedGroupIds.some(gid => deviceGroups.includes(gid));
         });
     }
     
@@ -1973,9 +1953,24 @@ function onGroupFilterChange() {
     filterAndSortReports();
 }
 
+// Get currently selected groups from MyGeotab's global filter
+function getSelectedGroupIds() {
+    try {
+        if (state && typeof state.getGroupFilter === 'function') {
+            const groups = state.getGroupFilter();
+            if (groups && groups.length > 0) {
+                return groups.map(g => g.id);
+            }
+        }
+    } catch (e) {
+        console.log('Could not get group filter from state:', e);
+    }
+    return []; // Empty means "all groups"
+}
+
 function filterAndSortReports() {
     const search = document.getElementById('search').value.toLowerCase();
-    const groupFilter = document.getElementById('group-filter')?.value || '';
+    const selectedGroupIds = getSelectedGroupIds(); // Use MyGeotab's global filter
     const severity = document.getElementById('severity-filter').value;
     const dateFilter = document.getElementById('date-filter').value;
     const vehicleFilter = document.getElementById('vehicle-filter')?.value || '';
@@ -2009,9 +2004,9 @@ function filterAndSortReports() {
             (r.vehicleId === vehicleFilter) ||
             (r.vehicleName === vehicleFilter);
         
-        // Filter by group - check if report's vehicle belongs to selected group
-        const matchesGroup = !groupFilter || 
-            (deviceGroupMap[r.vehicleId] || []).includes(groupFilter);
+        // Filter by group - check if report's vehicle belongs to any selected group
+        const matchesGroup = selectedGroupIds.length === 0 || 
+            selectedGroupIds.some(gid => (deviceGroupMap[r.vehicleId] || []).includes(gid));
         
         const reportDate = new Date(r.occurredAt);
         const matchesDate = !dateCutoff || reportDate >= dateCutoff;

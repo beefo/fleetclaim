@@ -8,6 +8,9 @@ using Microsoft.Extensions.Caching.Memory;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
+// FleetClaim solution ID for MediaFile storage
+const string FLEETCLAIM_SOLUTION_ID = "aji_jHQGE8k2TDodR8tZrpw";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
@@ -290,6 +293,7 @@ app.MapPost("/api/photos/upload", async (
         var uploadUrl = $"https://my.geotab.com/apiv1/";
         
         // Build JSON-RPC request for UploadMediaFile
+        // Include full mediaFile entity info, not just the ID
         var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
         {
             method = "UploadMediaFile",
@@ -301,7 +305,13 @@ app.MapPost("/api/photos/upload", async (
                     userName = sessionUser,
                     sessionId = sessionId
                 },
-                mediaFile = new { id = mediaFileId }
+                mediaFile = new 
+                { 
+                    id = mediaFileId,
+                    name = fileName,
+                    mediaType = "Image",
+                    solutionId = FLEETCLAIM_SOLUTION_ID
+                }
             }
         });
         

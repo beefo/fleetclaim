@@ -396,20 +396,21 @@ select.input-full {
     border-top: 1px solid #eee;
 }
 
-/* Toggle Switch */
+/* Toggle Switch - Clean iOS-style */
 .toggle-group {
     background: #f8fafc;
     padding: 16px;
     border-radius: 8px;
-    border: 1px solid #e5e7eb;
-    margin-top: 8px;
+    border: 1px solid #e2e8f0;
+    margin-top: 12px;
 }
 
 .toggle-label {
     display: flex;
     align-items: center;
     cursor: pointer;
-    gap: 12px;
+    gap: 14px;
+    user-select: none;
 }
 
 .toggle-label input[type="checkbox"] {
@@ -421,63 +422,68 @@ select.input-full {
 }
 
 .toggle-switch {
-    display: inline-block;
-    width: 52px;
-    min-width: 52px;
-    height: 28px;
-    background: #9ca3af;
-    border-radius: 14px;
     position: relative;
-    transition: background 0.2s ease;
+    width: 44px;
+    height: 24px;
+    background: #cbd5e1;
+    border-radius: 12px;
+    transition: background-color 0.2s ease;
     flex-shrink: 0;
+    border: 1px solid #94a3b8;
 }
 
 .toggle-switch::after {
     content: '';
     position: absolute;
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     background: white;
     border-radius: 50%;
-    top: 2px;
-    left: 2px;
+    top: 1px;
+    left: 1px;
     transition: transform 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .toggle-label input:checked + .toggle-switch {
-    background: #22c55e;
+    background: #3b82f6;
+    border-color: #2563eb;
 }
 
 .toggle-label input:checked + .toggle-switch::after {
-    transform: translateX(24px);
+    transform: translateX(20px);
 }
 
 .toggle-text {
+    font-size: 14px;
     font-weight: 500;
-    color: #374151;
-    line-height: 1.4;
+    color: #1f2937;
+    line-height: 1.5;
     flex: 1;
 }
 
 .toggle-hint {
-    margin: 8px 0 0 64px;
-    font-size: 12px;
-    color: #6b7280;
-    line-height: 1.4;
+    margin: 8px 0 0 58px;
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
 }
 
 .toggle-state {
-    font-size: 12px;
-    font-weight: 600;
-    color: #9ca3af;
-    min-width: 30px;
-    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #64748b;
     flex-shrink: 0;
 }
 
 .toggle-label input:checked ~ .toggle-state {
-    color: #22c55e;
+    background: #dcfce7;
+    color: #16a34a;
 }
 
 /* Baseline Report Styling */

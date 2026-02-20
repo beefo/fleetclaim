@@ -509,10 +509,11 @@ app.MapGet("/r/{token}/pdf", async (
         }
     }
     
-    // Fallback: Generate PDF on-demand
+    // Fallback: Generate PDF on-demand with photos
     if (pdfBytes == null || pdfBytes.Length == 0)
     {
-        var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
+        var photoData = await FetchPhotoDataAsync(api, report, ct);
+        var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
         pdfBytes = Convert.FromBase64String(pdfBase64);
     }
     
@@ -587,10 +588,11 @@ app.MapGet("/api/reports/{token}/pdf", async (
             }
         }
         
-        // Fallback: Generate PDF on-demand
+        // Fallback: Generate PDF on-demand with photos
         if (pdfBytes == null || pdfBytes.Length == 0)
         {
-            var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, ct);
+            var photoData = await FetchPhotoDataAsync(api, report, ct);
+            var pdfBase64 = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
             pdfBytes = Convert.FromBase64String(pdfBase64);
         }
         
@@ -919,4 +921,58 @@ static string RenderErrorPage(string message)
         </body>
         </html>
         """;
+}
+
+// Helper function to fetch photo data for PDF generation
+static async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
+    Geotab.Checkmate.API api,
+    IncidentReport report,
+    CancellationToken ct)
+{
+    var photoData = new Dictionary<string, byte[]>();
+    
+    if (report.Evidence?.Photos == null || report.Evidence.Photos.Count == 0)
+        return photoData;
+    
+    var credentials = api.LoginResult?.Credentials;
+    if (credentials == null)
+        return photoData;
+    
+    using var httpClient = new HttpClient();
+    
+    foreach (var photo in report.Evidence.Photos)
+    {
+        if (string.IsNullOrEmpty(photo.MediaFileId))
+            continue;
+            
+        try
+        {
+            var downloadUrl = $"https://my.geotab.com/apiv1/DownloadMediaFile?" +
+                $"database={Uri.EscapeDataString(credentials.Database)}" +
+                $"&userName={Uri.EscapeDataString(credentials.UserName)}" +
+                $"&sessionId={Uri.EscapeDataString(credentials.SessionId)}" +
+                $"&id={Uri.EscapeDataString(photo.MediaFileId)}";
+            
+            var response = await httpClient.GetAsync(downloadUrl, ct);
+            if (response.IsSuccessStatusCode)
+            {
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                // Only store if it's actually an image (not JSON error response)
+                if (contentType.StartsWith("image/"))
+                {
+                    var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+                    if (bytes.Length > 100) // Sanity check - real images are > 100 bytes
+                    {
+                        photoData[photo.MediaFileId] = bytes;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Skip failed downloads
+        }
+    }
+    
+    return photoData;
 }

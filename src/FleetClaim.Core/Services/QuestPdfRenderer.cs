@@ -22,6 +22,11 @@ public class QuestPdfRenderer : IPdfRenderer
     
     public async Task<string> RenderPdfAsync(IncidentReport report, CancellationToken ct = default)
     {
+        return await RenderPdfAsync(report, null, ct);
+    }
+    
+    public async Task<string> RenderPdfAsync(IncidentReport report, Dictionary<string, byte[]>? photoData, CancellationToken ct = default)
+    {
         // Fetch static map image if GPS data available
         byte[]? mapImage = null;
         if (report.Evidence?.GpsTrail?.Count > 0)
@@ -29,7 +34,7 @@ public class QuestPdfRenderer : IPdfRenderer
             mapImage = await FetchStaticMapImageAsync(report);
         }
         
-        var document = new IncidentReportDocument(report, _options, mapImage);
+        var document = new IncidentReportDocument(report, _options, mapImage, photoData);
         var pdfBytes = document.GeneratePdf();
         var base64 = Convert.ToBase64String(pdfBytes);
         return base64;

@@ -205,4 +205,5 @@ public class ReportGenerator : IReportGenerator
 public interface IPdfRenderer
 {
     Task<string> RenderPdfAsync(IncidentReport report, CancellationToken ct = default);
+    Task<string> RenderPdfAsync(IncidentReport report, Dictionary<string, byte[]>? photoData, CancellationToken ct = default);
 }

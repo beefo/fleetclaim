@@ -1084,35 +1084,22 @@ async function savePhotosToReport(reportId, newPhotos) {
 async function loadPhotoThumbnails(photos) {
     if (!photos || photos.length === 0) return;
     
+    // Get database from URL for backend API
+    const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
+    const database = urlMatch ? urlMatch[1] : null;
+    
     for (const photo of photos) {
         try {
             const imgEl = document.querySelector(`img[data-media-id="${photo.mediaFileId}"]`);
             if (!imgEl) continue;
             
-            // Try to get session credentials - this may not be supported in Add-In API proxy
-            let credentials;
-            try {
-                credentials = await new Promise((resolve, reject) => {
-                    api.getSession((session) => resolve(session), (err) => reject(err));
-                });
-            } catch (e) {
-                // getSession not supported - show placeholder and continue
-                console.log('getSession not supported for thumbnails, showing placeholder');
-                imgEl.alt = 'Photo uploaded (preview unavailable)';
-                const loadingEl = imgEl.parentElement?.querySelector('.photo-loading');
-                if (loadingEl) loadingEl.textContent = '📷';
-                continue;
-            }
-            
-            // Build download URL
-            const downloadUrl = `https://${credentials.server || 'my.geotab.com'}/apiv1/DownloadMediaFile?` +
-                `database=${encodeURIComponent(credentials.database)}` +
-                `&userName=${encodeURIComponent(credentials.userName)}` +
-                `&sessionId=${encodeURIComponent(credentials.sessionId)}` +
-                `&id=${encodeURIComponent(photo.mediaFileId)}`;
+            // Use backend API to download photo (bypasses session credential issues)
+            const downloadUrl = `${API_BASE_URL}/api/photos/${encodeURIComponent(photo.mediaFileId)}`;
             
             // Fetch and convert to data URL for display
-            const response = await fetch(downloadUrl);
+            const response = await fetch(downloadUrl, {
+                headers: { 'X-Database': database }
+            });
             if (response.ok) {
                 const blob = await response.blob();
                 const dataUrl = await new Promise((resolve) => {

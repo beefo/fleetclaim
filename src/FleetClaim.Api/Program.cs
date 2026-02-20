@@ -359,6 +359,54 @@ app.MapPost("/api/photos/upload", async (
     }
 }).DisableAntiforgery();
 
+// Photo download endpoint - proxies MediaFile download from Geotab
+app.MapGet("/api/photos/{mediaFileId}", async (
+    string mediaFileId,
+    [FromHeader(Name = "X-Database")] string? database,
+    [FromServices] IGeotabClientFactory clientFactory,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrEmpty(database))
+    {
+        return Results.BadRequest("X-Database header is required");
+    }
+    
+    try
+    {
+        var api = await clientFactory.CreateClientAsync(database, ct);
+        var credentials = api.LoginResult?.Credentials;
+        
+        if (credentials == null)
+        {
+            return Results.Problem("Could not authenticate with Geotab", statusCode: 500);
+        }
+        
+        // Download the file from Geotab
+        var downloadUrl = $"https://my.geotab.com/apiv1/DownloadMediaFile?" +
+            $"database={Uri.EscapeDataString(credentials.Database)}" +
+            $"&userName={Uri.EscapeDataString(credentials.UserName)}" +
+            $"&sessionId={Uri.EscapeDataString(credentials.SessionId)}" +
+            $"&id={Uri.EscapeDataString(mediaFileId)}";
+        
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync(downloadUrl, ct);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            return Results.Problem($"Failed to download photo: {response.StatusCode}", statusCode: 404);
+        }
+        
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        
+        return Results.File(bytes, contentType);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error downloading photo: {ex.Message}", statusCode: 500);
+    }
+});
+
 // Share link endpoint
 app.MapGet("/r/{token}", async (
     string token,

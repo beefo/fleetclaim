@@ -77,6 +77,15 @@ geotab.addin.fleetclaim.focus = function(geotabApi, pageState) {
     loadRequests();
 };
 
+// Group filter changed handler - called when user changes the Groups filter in MyGeotab
+geotab.addin.fleetclaim.groupFilterChanged = function(selectedGroups) {
+    console.log('FleetClaim: groupFilterChanged', selectedGroups);
+    
+    // Re-filter the display based on new group selection
+    updateDeviceSelects();
+    filterAndSortReports();
+};
+
 // Capture session credentials for MediaFile upload
 // Following the exact pattern from Geotab's mg-media-files example:
 // They call api.getSession() AFTER making API calls, in a .then() chain
@@ -1963,31 +1972,34 @@ function onGroupFilterChange() {
 
 // Get currently selected groups from MyGeotab's global filter
 function getSelectedGroupIds() {
-    // TODO: Group filtering disabled temporarily - needs debugging
-    // The pageState.getGroupFilter() returns group IDs that don't match device.groups format
-    // Returning empty array means "show all" (no filtering)
-    return [];
-    
-    /*
     try {
         if (state && typeof state.getGroupFilter === 'function') {
             const groups = state.getGroupFilter();
             console.log('FleetClaim: Group filter from state:', groups);
-            // If groups is empty or contains the root group, treat as "all"
+            
             if (groups && groups.length > 0) {
-                // Check if it's just the root "GroupCompanyId" (all groups)
-                const isAllGroups = groups.length === 1 && 
-                    (groups[0].id === 'GroupCompanyId' || groups[0].id?.startsWith('GroupCompany'));
-                if (!isAllGroups) {
-                    return groups.map(g => g.id);
+                // Check if it's the root "GroupCompanyId" (means "all groups selected")
+                // Root group ID starts with "GroupCompany" or is exactly "GroupCompanyId"
+                const isAllGroups = groups.some(g => 
+                    g.id === 'GroupCompanyId' || 
+                    (g.id && g.id.startsWith('GroupCompany'))
+                );
+                
+                if (isAllGroups) {
+                    console.log('FleetClaim: Root group selected, showing all');
+                    return []; // Show all
                 }
+                
+                // Return the selected group IDs
+                const groupIds = groups.map(g => g.id);
+                console.log('FleetClaim: Filtering by groups:', groupIds);
+                return groupIds;
             }
         }
     } catch (e) {
-        console.log('Could not get group filter from state:', e);
+        console.log('FleetClaim: Could not get group filter from state:', e);
     }
     return []; // Empty means "all groups"
-    */
 }
 
 function filterAndSortReports() {

@@ -1648,6 +1648,9 @@ async function loadDevices() {
         });
         
         updateDeviceSelects();
+        
+        // Re-filter reports now that we have group mappings
+        filterAndSortReports();
     } catch (err) {
         console.error('Error loading devices:', err);
     }
@@ -1958,8 +1961,15 @@ function getSelectedGroupIds() {
     try {
         if (state && typeof state.getGroupFilter === 'function') {
             const groups = state.getGroupFilter();
+            console.log('FleetClaim: Group filter from state:', groups);
+            // If groups is empty or contains the root group, treat as "all"
             if (groups && groups.length > 0) {
-                return groups.map(g => g.id);
+                // Check if it's just the root "GroupCompanyId" (all groups)
+                const isAllGroups = groups.length === 1 && 
+                    (groups[0].id === 'GroupCompanyId' || groups[0].id?.startsWith('GroupCompany'));
+                if (!isAllGroups) {
+                    return groups.map(g => g.id);
+                }
             }
         }
     } catch (e) {

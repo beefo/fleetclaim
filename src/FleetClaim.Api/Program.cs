@@ -120,6 +120,14 @@ builder.Services.AddCors(options =>
     var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() 
         ?? new[] { 
             "https://my.geotab.com",
+            "https://alpha.geotab.com",
+            "https://preview.geotab.com",
+            "https://my3.geotab.com",
+            "https://my4.geotab.com",
+            "https://my5.geotab.com",
+            "https://my6.geotab.com",
+            "https://my7.geotab.com",
+            "https://my.geotab.ca",
             "https://fleetclaim-addin-589116575765.us-central1.run.app",
             "https://fleetclaim-admin-589116575765.us-central1.run.app",
             "https://fleetclaim-api-589116575765.us-central1.run.app"

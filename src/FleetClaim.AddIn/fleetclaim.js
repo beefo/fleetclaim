@@ -1973,19 +1973,25 @@ async function submitReportRequest() {
     const selectedDevice = devices.find(d => d.id === deviceId);
     
     try {
-        // Get current user's display name from API
-        let userName = 'Unknown User';
+        // Get current user's display name
+        let userName = storedCredentials?.userName || 'Unknown User';
         try {
-            // Get the logged-in user's info - use their username from credentials
-            const loginName = storedCredentials?.userName || api?.userName;
+            // Get the logged-in user's info using stored credentials
+            const loginName = storedCredentials?.userName;
+            console.log('FleetClaim: Looking up user:', loginName);
+            
             if (loginName) {
                 const users = await apiCall('Get', {
                     typeName: 'User',
                     search: { name: loginName }
                 });
+                console.log('FleetClaim: User lookup result:', users?.length, 'users found');
+                
                 if (users && users.length > 0) {
                     // Use firstName + lastName if available, otherwise fall back to name
                     const user = users[0];
+                    console.log('FleetClaim: User details:', user.firstName, user.lastName, user.name);
+                    
                     if (user.firstName || user.lastName) {
                         userName = [user.firstName, user.lastName].filter(Boolean).join(' ');
                     } else {
@@ -1994,8 +2000,10 @@ async function submitReportRequest() {
                 }
             }
         } catch (e) {
-            console.warn('Could not get user name:', e);
+            console.warn('FleetClaim: Could not get user name:', e);
         }
+        
+        console.log('FleetClaim: Final userName for request:', userName);
         
         // Create request record
         const request = {

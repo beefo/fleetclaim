@@ -456,13 +456,13 @@ function renderRequests(requestsToRender) {
 }
 
 function showReportDetail(report) {
-    // Navigate to dedicated detail page instead of modal
-    if (state && typeof state.gotoPage === 'function') {
-        state.gotoPage('addin-fleetclaimdetail', { reportId: report.id });
-        return;
-    }
+    // For now, use modal until detail page is properly registered
+    // TODO: Enable page navigation once Add-In config is updated in MyGeotab
+    // if (state && typeof state.gotoPage === 'function') {
+    //     state.gotoPage('addin-fleetclaimdetail', { reportId: report.id });
+    //     return;
+    // }
     
-    // Fallback: show modal if navigation not available
     showReportDetailModal(report);
 }
 

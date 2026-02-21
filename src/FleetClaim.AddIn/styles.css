@@ -1097,11 +1097,12 @@ select.input-full {
 
 /* ================================
    MOBILE RESPONSIVE STYLES
+   Scoped to #fleetclaim to avoid MyGeotab conflicts
    ================================ */
 
 @media (max-width: 768px) {
-    /* Modal improvements for mobile */
-    .modal-content {
+    /* Modal improvements for mobile - now handled by detail page */
+    #fleetclaim .modal-content {
         width: 95%;
         max-width: 100%;
         max-height: 95vh;

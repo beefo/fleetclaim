@@ -7,11 +7,18 @@
       "page": "index.html",
       "scripts": ["fleetclaim.js"],
       "styles": ["styles.css"],
-      "path": "ActivityLink",
+      "path": "AddIns/",
       "menuName": {
-        "en": "Claim Reports"
+        "en": "FleetClaim"
       },
       "icon": "images/icon.svg"
+    },
+    {
+      "page": "detail.html",
+      "scripts": ["detail.js"],
+      "styles": ["detail.css"],
+      "menuId": "fleetclaimdetail",
+      "hideFromMenu": true
     }
   ],
   "isSigned": false

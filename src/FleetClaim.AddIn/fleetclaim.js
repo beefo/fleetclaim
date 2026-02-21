@@ -456,6 +456,17 @@ function renderRequests(requestsToRender) {
 }
 
 function showReportDetail(report) {
+    // Navigate to dedicated detail page instead of modal
+    if (state && typeof state.gotoPage === 'function') {
+        state.gotoPage('addin-fleetclaimdetail', { reportId: report.id });
+        return;
+    }
+    
+    // Fallback: show modal if navigation not available
+    showReportDetailModal(report);
+}
+
+function showReportDetailModal(report) {
     const detailEl = document.getElementById('report-detail');
     const evidence = report.evidence || {};
     

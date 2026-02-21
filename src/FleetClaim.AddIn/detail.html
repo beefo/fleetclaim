@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Details - FleetClaim</title>
+    <link rel="stylesheet" href="detail.css">
+</head>
+<body>
+    <div id="fleetclaim-detail" class="detail-container">
+        <!-- Loading state -->
+        <div id="loading" class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading report...</p>
+        </div>
+        
+        <!-- Error state -->
+        <div id="error" class="error-state hidden">
+            <h2>⚠️ Report Not Found</h2>
+            <p id="error-message">Could not load the report.</p>
+            <button class="btn btn-secondary" onclick="goBack()">← Back to Reports</button>
+        </div>
+        
+        <!-- Report content -->
+        <div id="report-content" class="hidden">
+            <!-- Header -->
+            <div class="detail-header">
+                <div class="header-left">
+                    <button class="btn-back" onclick="goBack()">← Back</button>
+                    <h1 id="report-title">Incident Report</h1>
+                </div>
+                <div class="header-right">
+                    <span id="severity-badge" class="severity-badge">LOW</span>
+                </div>
+            </div>
+            
+            <!-- Meta info bar -->
+            <div class="meta-bar">
+                <span id="meta-vehicle">🚗 Vehicle</span>
+                <span id="meta-driver">👤 Driver</span>
+                <span id="meta-date">📅 Date</span>
+                <span id="meta-requested">📋 Requested by</span>
+            </div>
+            
+            <!-- Map -->
+            <div class="section">
+                <h2>📍 Location</h2>
+                <div id="map-container" class="map-container">
+                    <img id="map-image" src="" alt="Incident location map">
+                </div>
+                <p id="location-address" class="location-address"></p>
+            </div>
+            
+            <!-- Telematics Evidence -->
+            <div class="section">
+                <h2>📊 Telematics Evidence</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Speed at Event</div>
+                        <div class="stat-value" id="stat-speed">-- km/h</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Max Speed</div>
+                        <div class="stat-value" id="stat-max-speed">-- km/h</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Deceleration</div>
+                        <div class="stat-value" id="stat-decel">-- m/s²</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Weather</div>
+                        <div class="stat-value" id="stat-weather">--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Temperature</div>
+                        <div class="stat-value" id="stat-temp">--°C</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">GPS Points</div>
+                        <div class="stat-value" id="stat-gps">--</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- GPS Trail (collapsible) -->
+            <div class="section collapsible">
+                <h2 class="section-toggle" onclick="toggleSection(this)">
+                    🛤️ GPS Trail <span class="toggle-icon">▼</span>
+                </h2>
+                <div class="section-content">
+                    <div id="gps-trail" class="gps-table-container">
+                        <table class="gps-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Speed</th>
+                                    <th>Lat</th>
+                                    <th>Lon</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gps-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Notes -->
+            <div class="section">
+                <h2>📝 Notes & Driver Statement</h2>
+                <p class="notes-hint">Add incident details, driver statements, or context for insurance claims.</p>
+                <textarea id="notes-input" placeholder="Enter notes about this incident..." rows="4"></textarea>
+                <button class="btn btn-secondary" id="save-notes-btn" onclick="saveNotes()">💾 Save Notes</button>
+            </div>
+            
+            <!-- Photos -->
+            <div class="section">
+                <h2>📷 Photo Evidence</h2>
+                <p class="notes-hint">Attach photos of vehicle damage, scene, documents, etc. Photos are stored in Geotab.</p>
+                <div id="photos-grid" class="photos-grid">
+                    <!-- Photos inserted here -->
+                </div>
+                <div class="photo-upload">
+                    <input type="file" id="photo-input" accept="image/*" multiple style="display:none">
+                    <button class="btn btn-secondary" onclick="document.getElementById('photo-input').click()">
+                        📎 Add Photos
+                    </button>
+                    <select id="photo-category" class="photo-category-select">
+                        <option value="Vehicle Damage">Vehicle Damage</option>
+                        <option value="Scene">Scene</option>
+                        <option value="Document">Document</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Third Party (collapsible) -->
+            <div class="section collapsible">
+                <h2 class="section-toggle" onclick="toggleSection(this)">
+                    👥 Third Party Information <span class="toggle-icon">▼</span>
+                </h2>
+                <div class="section-content">
+                    <div id="third-party-form" class="third-party-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" id="tp-name" placeholder="Other party's name">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="tel" id="tp-phone" placeholder="Phone number">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="tp-email" placeholder="Email address">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>License Plate</label>
+                                <input type="text" id="tp-plate" placeholder="License plate">
+                            </div>
+                            <div class="form-group">
+                                <label>Insurance Company</label>
+                                <input type="text" id="tp-insurance" placeholder="Insurance company">
+                            </div>
+                            <div class="form-group">
+                                <label>Policy Number</label>
+                                <input type="text" id="tp-policy" placeholder="Policy number">
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="saveThirdParty()">💾 Save Third Party Info</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="actions-bar">
+                <button class="btn btn-primary" onclick="downloadPdf()">
+                    📄 Download PDF
+                </button>
+                <button class="btn btn-secondary" onclick="copyShareLink()">
+                    🔗 Copy Share Link
+                </button>
+                <button class="btn btn-secondary" onclick="sendEmail()">
+                    ✉️ Send to Email
+                </button>
+                <button class="btn btn-danger" onclick="deleteReport()">
+                    🗑️ Delete
+                </button>
+            </div>
+        </div>
+        
+        <!-- Email Modal -->
+        <div id="email-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Send Report via Email</h2>
+                <div class="form-group">
+                    <label>Recipient Email</label>
+                    <input type="email" id="email-recipient" placeholder="email@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Message (optional)</label>
+                    <textarea id="email-message" rows="3" placeholder="Add a message..."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="sendEmailConfirm()">Send</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Delete Confirmation Modal -->
+        <div id="delete-modal" class="modal hidden">
+            <div class="modal-content modal-small">
+                <h2>⚠️ Delete Report?</h2>
+                <p>This action cannot be undone. The report and all photos will be permanently deleted.</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Toast container -->
+        <div id="toast-container"></div>
+    </div>
+    
+    <script src="detail.js"></script>
+</body>
+</html>

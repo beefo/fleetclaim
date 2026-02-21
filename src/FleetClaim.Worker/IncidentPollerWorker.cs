@@ -201,9 +201,14 @@ public class IncidentPollerWorker : BackgroundService
                     }
                 }, ct);
                 
-                // Filter to collision rules only
+                // Filter to collision rules (including "Possible Collision (legacy)" rule)
                 var collisionIncidents = incidents?
-                    .Where(e => e.Rule?.Name?.Contains("Collision", StringComparison.OrdinalIgnoreCase) == true)
+                    .Where(e => 
+                    {
+                        var ruleName = e.Rule?.Name ?? "";
+                        // Match: "Major Collision", "Minor Collision", "Possible Collision", "Collision" etc.
+                        return ruleName.Contains("Collision", StringComparison.OrdinalIgnoreCase);
+                    })
                     .ToList() ?? [];
                 
                 // Get config for notifications

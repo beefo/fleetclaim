@@ -31,7 +31,9 @@ public class GcpCredentialStore : ICredentialStore
     
     public async Task<GeotabCredentials> GetCredentialsAsync(string database, CancellationToken ct = default)
     {
-        var secretName = $"projects/{_projectId}/secrets/{SecretPrefix}{database}/versions/latest";
+        // Normalize database name to lowercase for consistent secret naming
+        var normalizedDatabase = database.ToLowerInvariant();
+        var secretName = $"projects/{_projectId}/secrets/{SecretPrefix}{normalizedDatabase}/versions/latest";
         
         var response = await _client.AccessSecretVersionAsync(secretName, ct);
         var json = response.Payload.Data.ToStringUtf8();

@@ -1664,11 +1664,24 @@ function closeModal() {
 // Cache for devices
 let devices = [];
 let deviceGroupMap = {}; // deviceId -> [groupIds]
+let includeHistoricDevices = false; // Toggle for showing inactive/historic devices
 
 async function loadDevices() {
     try {
-        devices = await apiCall('Get', { typeName: 'Device' });
+        // Build search criteria
+        const search = {};
+        
+        // By default, only include active devices (have data today)
+        // Using fromDate filters to devices that are currently active
+        if (!includeHistoricDevices) {
+            search.fromDate = new Date().toISOString();
+        }
+        
+        console.log('FleetClaim: Loading devices, includeHistoric:', includeHistoricDevices);
+        devices = await apiCall('Get', { typeName: 'Device', search });
         devices.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        
+        console.log('FleetClaim: Loaded', devices.length, 'devices');
         
         // Build device -> groups mapping
         deviceGroupMap = {};
@@ -1683,6 +1696,19 @@ async function loadDevices() {
     } catch (err) {
         console.error('Error loading devices:', err);
     }
+}
+
+function toggleHistoricDevices() {
+    includeHistoricDevices = !includeHistoricDevices;
+    
+    // Update toggle visual
+    const toggle = document.getElementById('historic-devices-toggle');
+    if (toggle) {
+        toggle.checked = includeHistoricDevices;
+    }
+    
+    // Reload devices with new filter
+    loadDevices();
 }
 
 function updateDeviceSelects() {

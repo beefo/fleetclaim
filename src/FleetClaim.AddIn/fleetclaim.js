@@ -459,7 +459,7 @@ function showReportDetail(report) {
     // Navigate to dedicated detail page
     if (state && typeof state.gotoPage === 'function') {
         console.log('FleetClaim: Navigating to detail page for report:', report.id);
-        state.gotoPage('fleetclaimDetail', { reportId: report.id });
+        state.gotoPage('fleetclaim-detail', { reportId: report.id });
         return;
     }
     

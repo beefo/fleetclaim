@@ -21,8 +21,8 @@ if (!geotab.addin) {
     geotab.addin = {};
 }
 
-// Entry point must match menuId from config (case-insensitive, but lowercase is convention)
-geotab.addin.fleetclaimDetail = function(geotabApi, pageState) {
+// Entry point must match menuId from config - using hyphenated format
+geotab.addin['fleetclaim-detail'] = function(geotabApi, pageState) {
     api = geotabApi;
     state = pageState;
     console.log('FleetClaim Detail page initializing...');
@@ -36,7 +36,7 @@ geotab.addin.fleetclaimDetail = function(geotabApi, pageState) {
     }
 };
 
-geotab.addin.fleetclaimDetail.focus = function(geotabApi, pageState) {
+geotab.addin['fleetclaim-detail'].focus = function(geotabApi, pageState) {
     api = geotabApi;
     state = pageState;
     console.log('FleetClaim Detail focused');
@@ -478,7 +478,7 @@ async function confirmDelete() {
 function goBack() {
     // Navigate back to main FleetClaim page
     if (state && state.gotoPage) {
-        state.gotoPage('fleetclaimIndex');
+        state.gotoPage('fleetclaim-index');
     } else {
         window.history.back();
     }

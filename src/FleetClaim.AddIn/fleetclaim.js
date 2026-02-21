@@ -1973,20 +1973,28 @@ async function submitReportRequest() {
     const selectedDevice = devices.find(d => d.id === deviceId);
     
     try {
-        // Get current user from stored credentials or API
-        let userEmail = storedCredentials?.userName || 'unknown';
-        
-        // If we don't have stored credentials, try getting from API
-        if (userEmail === 'unknown') {
-            try {
+        // Get current user's display name from API
+        let userName = 'Unknown User';
+        try {
+            // Get the logged-in user's info - use their username from credentials
+            const loginName = storedCredentials?.userName || api?.userName;
+            if (loginName) {
                 const users = await apiCall('Get', {
                     typeName: 'User',
-                    search: { name: api.userName }
+                    search: { name: loginName }
                 });
-                userEmail = users[0]?.name || 'unknown';
-            } catch (e) {
-                console.warn('Could not get user name:', e);
+                if (users && users.length > 0) {
+                    // Use firstName + lastName if available, otherwise fall back to name
+                    const user = users[0];
+                    if (user.firstName || user.lastName) {
+                        userName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+                    } else {
+                        userName = user.name || loginName;
+                    }
+                }
             }
+        } catch (e) {
+            console.warn('Could not get user name:', e);
         }
         
         // Create request record
@@ -1998,7 +2006,7 @@ async function submitReportRequest() {
                 deviceName: selectedDevice?.name || deviceId,
                 fromDate: new Date(fromDatetime).toISOString(),
                 toDate: new Date(toDatetime).toISOString(),
-                requestedBy: userEmail,
+                requestedBy: userName,
                 requestedAt: new Date().toISOString(),
                 status: 'Pending',
                 forceReport: forceReport  // Generate report even without collision event

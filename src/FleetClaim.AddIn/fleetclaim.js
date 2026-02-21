@@ -170,6 +170,9 @@ function initializeUI() {
     document.getElementById('cancel-request').addEventListener('click', closeRequestModal);
     document.getElementById('submit-request').addEventListener('click', submitReportRequest);
     
+    // Initialize searchable device dropdown
+    initSearchableDeviceDropdown();
+    
     // Toggle state indicator
     const forceReportCheckbox = document.getElementById('force-report');
     const forceReportState = document.getElementById('force-report-state');
@@ -1563,10 +1566,16 @@ async function sendReportEmail() {
 function prefillRequestModal(report) {
     showRequestModal();
     
-    // Pre-select the vehicle
+    // Pre-select the vehicle in searchable dropdown
+    const deviceSearch = document.getElementById('device-search');
     const deviceSelect = document.getElementById('device-select');
     if (report.vehicleId) {
         deviceSelect.value = report.vehicleId;
+        // Set the display name
+        const device = devices.find(d => d.id === report.vehicleId);
+        if (deviceSearch) {
+            deviceSearch.value = device?.name || report.vehicleName || report.vehicleId;
+        }
     }
     
     // Pre-fill time range (1 hour before and after occurred time)
@@ -1696,21 +1705,140 @@ function updateDeviceSelects() {
         }
     }
     
-    // Update device select in request modal
-    const deviceSelect = document.getElementById('device-select');
-    if (deviceSelect) {
-        const currentValue = deviceSelect.value;
-        deviceSelect.innerHTML = '<option value="">Select a vehicle...</option>' +
-            filteredDevices.map(d => `<option value="${d.id}">${escapeHtml(d.name || d.id)}</option>`).join('');
-        // Restore selection if still valid
-        if (filteredDevices.some(d => d.id === currentValue)) {
-            deviceSelect.value = currentValue;
-        }
+    // Update searchable device dropdown
+    updateSearchableDeviceList(filteredDevices);
+}
+
+// Searchable device dropdown state
+let deviceSearchList = [];
+let highlightedDeviceIndex = -1;
+
+function updateSearchableDeviceList(filteredDevices) {
+    deviceSearchList = filteredDevices;
+    
+    // Update the dropdown if visible
+    const searchInput = document.getElementById('device-search');
+    if (searchInput && searchInput === document.activeElement) {
+        filterDeviceDropdown(searchInput.value);
     }
+}
+
+function initSearchableDeviceDropdown() {
+    const searchInput = document.getElementById('device-search');
+    const dropdown = document.getElementById('device-dropdown');
+    const hiddenInput = document.getElementById('device-select');
+    
+    if (!searchInput || !dropdown) return;
+    
+    // Focus - show dropdown
+    searchInput.addEventListener('focus', () => {
+        filterDeviceDropdown(searchInput.value);
+        dropdown.classList.remove('hidden');
+    });
+    
+    // Input - filter list
+    searchInput.addEventListener('input', () => {
+        filterDeviceDropdown(searchInput.value);
+        highlightedDeviceIndex = -1;
+    });
+    
+    // Keyboard navigation
+    searchInput.addEventListener('keydown', (e) => {
+        const items = dropdown.querySelectorAll('.dropdown-item:not(.no-results)');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedDeviceIndex = Math.min(highlightedDeviceIndex + 1, items.length - 1);
+            updateHighlight(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedDeviceIndex = Math.max(highlightedDeviceIndex - 1, 0);
+            updateHighlight(items);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedDeviceIndex >= 0 && items[highlightedDeviceIndex]) {
+                items[highlightedDeviceIndex].click();
+            }
+        } else if (e.key === 'Escape') {
+            dropdown.classList.add('hidden');
+            searchInput.blur();
+        }
+    });
+    
+    // Click outside - close dropdown
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#device-select-container')) {
+            dropdown.classList.add('hidden');
+        }
+    });
+}
+
+function updateHighlight(items) {
+    items.forEach((item, i) => {
+        item.classList.toggle('highlighted', i === highlightedDeviceIndex);
+        if (i === highlightedDeviceIndex) {
+            item.scrollIntoView({ block: 'nearest' });
+        }
+    });
+}
+
+function filterDeviceDropdown(query) {
+    const dropdown = document.getElementById('device-dropdown');
+    const hiddenInput = document.getElementById('device-select');
+    const searchInput = document.getElementById('device-search');
+    
+    if (!dropdown) return;
+    
+    const lowerQuery = query.toLowerCase().trim();
+    const filtered = lowerQuery 
+        ? deviceSearchList.filter(d => (d.name || d.id).toLowerCase().includes(lowerQuery))
+        : deviceSearchList;
+    
+    // Limit shown results for performance
+    const maxShow = 50;
+    const showFiltered = filtered.slice(0, maxShow);
+    
+    let html = '';
+    
+    if (filtered.length > maxShow) {
+        html += `<div class="dropdown-count">Showing ${maxShow} of ${filtered.length} matches</div>`;
+    } else if (filtered.length > 0) {
+        html += `<div class="dropdown-count">${filtered.length} vehicle${filtered.length !== 1 ? 's' : ''}</div>`;
+    }
+    
+    if (showFiltered.length === 0) {
+        html += '<div class="dropdown-item no-results">No vehicles found</div>';
+    } else {
+        showFiltered.forEach(d => {
+            const isSelected = hiddenInput.value === d.id;
+            html += `<div class="dropdown-item${isSelected ? ' selected' : ''}" data-id="${d.id}">${escapeHtml(d.name || d.id)}</div>`;
+        });
+    }
+    
+    dropdown.innerHTML = html;
+    
+    // Add click handlers
+    dropdown.querySelectorAll('.dropdown-item[data-id]').forEach(item => {
+        item.addEventListener('click', () => {
+            const deviceId = item.dataset.id;
+            const device = deviceSearchList.find(d => d.id === deviceId);
+            if (device) {
+                hiddenInput.value = deviceId;
+                searchInput.value = device.name || device.id;
+                dropdown.classList.add('hidden');
+            }
+        });
+    });
 }
 
 function showRequestModal() {
     document.getElementById('request-modal').classList.remove('hidden');
+    
+    // Clear device search field
+    const deviceSearch = document.getElementById('device-search');
+    const deviceSelect = document.getElementById('device-select');
+    if (deviceSearch) deviceSearch.value = '';
+    if (deviceSelect) deviceSelect.value = '';
     
     // Set default times (last 1 hour)
     const now = new Date();
@@ -1771,16 +1899,24 @@ function regenerateReport(reportId) {
     document.getElementById('force-report').checked = true;
     updateForceReportState();
     
-    // Try to select the device
+    // Try to select the device in searchable dropdown
     if (report.vehicleId) {
         const deviceSelect = document.getElementById('device-select');
+        const deviceSearch = document.getElementById('device-search');
+        
+        const selectDevice = () => {
+            deviceSelect.value = report.vehicleId;
+            const device = devices.find(d => d.id === report.vehicleId);
+            if (deviceSearch) {
+                deviceSearch.value = device?.name || report.vehicleName || report.vehicleId;
+            }
+        };
+        
         // Load devices first if needed
         if (devices.length === 0) {
-            loadDevices().then(() => {
-                deviceSelect.value = report.vehicleId;
-            });
+            loadDevices().then(selectDevice);
         } else {
-            deviceSelect.value = report.vehicleId;
+            selectDevice();
         }
     }
     

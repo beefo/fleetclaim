@@ -154,10 +154,12 @@
                 <p>Select a vehicle and time range to search for collision events:</p>
                 
                 <div class="form-group">
-                    <label for="device-select">Vehicle</label>
-                    <select id="device-select" class="input-full">
-                        <option value="">Loading vehicles...</option>
-                    </select>
+                    <label for="device-search">Vehicle</label>
+                    <div class="searchable-select" id="device-select-container">
+                        <input type="text" id="device-search" class="input-full" placeholder="Search vehicles..." autocomplete="off">
+                        <input type="hidden" id="device-select" value="">
+                        <div id="device-dropdown" class="searchable-dropdown hidden"></div>
+                    </div>
                 </div>
                 
                 <div class="form-row">

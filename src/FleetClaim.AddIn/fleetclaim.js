@@ -456,15 +456,8 @@ function renderRequests(requestsToRender) {
 }
 
 function showReportDetail(report) {
-    // Navigate to dedicated detail page
-    if (state && typeof state.gotoPage === 'function') {
-        console.log('FleetClaim: Navigating to detail page for report:', report.id);
-        state.gotoPage('fleetclaim-detail', { reportId: report.id });
-        return;
-    }
-    
-    // Fallback to modal if navigation not available
-    console.log('FleetClaim: state.gotoPage not available, using modal');
+    // Use modal for now - multi-page navigation needs more investigation
+    // The detail page is ready but state.gotoPage() format for external Add-Ins unclear
     showReportDetailModal(report);
 }
 

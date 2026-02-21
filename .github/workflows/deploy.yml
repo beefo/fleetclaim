@@ -50,8 +50,7 @@ jobs:
           gcloud builds submit \
             --config=cloudbuild.yaml \
             --substitutions=COMMIT_SHA=${{ github.sha }} \
-            --region=${{ env.GCP_REGION }} \
-            --service-account=projects/${{ env.GCP_PROJECT_ID }}/serviceAccounts/cloudbuild-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --project=${{ env.GCP_PROJECT_ID }} \
             --quiet
 
       - name: Deploy API to Cloud Run

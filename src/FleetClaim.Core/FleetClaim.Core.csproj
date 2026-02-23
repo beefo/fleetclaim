@@ -9,13 +9,13 @@
   <ItemGroup>
     <PackageReference Include="Geotab.Checkmate.ObjectModel" Version="*" />
     <PackageReference Include="Google.Cloud.SecretManager.V1" Version="*" />
-    <PackageReference Include="QuestPDF" Version="2024.10.*" />
+    <PackageReference Include="QuestPDF" Version="2026.2.*" />
     <PackageReference Include="SendGrid" Version="9.*" />
     <PackageReference Include="Google.Apis.Gmail.v1" Version="*" />
     <PackageReference Include="MimeKit" Version="*" />
-    <PackageReference Include="System.Text.Json" Version="8.*" />
-    <PackageReference Include="SkiaSharp" Version="2.*" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.*" />
+    <PackageReference Include="System.Text.Json" Version="10.*" />
+    <PackageReference Include="SkiaSharp" Version="3.*" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.*" />
   </ItemGroup>
 
 </Project>

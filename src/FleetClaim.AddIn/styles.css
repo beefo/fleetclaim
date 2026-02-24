@@ -1,33 +1,32 @@
-/* FleetClaim Styles - Using Geotab Zenith Design System */
-* {
+/* FleetClaim Styles - Scoped to #fleetclaim container */
+#fleetclaim {
     box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-body {
     font-family: "Roboto", -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--backgrounds-content-0, #F9FAFB);
     color: var(--text-primary, #1F2833);
     padding: 20px;
 }
 
-.header {
+#fleetclaim *, #fleetclaim *::before, #fleetclaim *::after {
+    box-sizing: border-box;
+}
+
+#fleetclaim .header {
     margin-bottom: 24px;
 }
 
-.header h1 {
+#fleetclaim .header h1 {
     font-size: 24px;
     color: var(--backgrounds-primary-brand, #25477B);
 }
 
-.subtitle {
+#fleetclaim .subtitle {
     color: var(--text-secondary, #4E677E);
     font-size: 14px;
 }
 
 /* Tabs */
-.tabs {
+#fleetclaim .tabs {
     display: flex;
     gap: 8px;
     margin-bottom: 16px;
@@ -35,7 +34,7 @@ body {
     padding-bottom: 0;
 }
 
-.tab {
+#fleetclaim .tab {
     background: none;
     border: none;
     padding: 12px 24px;
@@ -47,33 +46,33 @@ body {
     transition: all 0.2s;
 }
 
-.tab:hover {
+#fleetclaim .tab:hover {
     color: var(--text-primary, #1F2833);
 }
 
-.tab.active {
+#fleetclaim .tab.active {
     color: var(--action-primary--default, #0078D3);
     border-bottom-color: var(--action-primary--default, #0078D3);
     font-weight: 500;
 }
 
-.tab-content {
+#fleetclaim .tab-content {
     display: none;
 }
 
-.tab-content.active {
+#fleetclaim .tab-content.active {
     display: block;
 }
 
 /* Toolbar */
-.toolbar {
+#fleetclaim .toolbar {
     display: flex;
     gap: 12px;
     margin-bottom: 16px;
     flex-wrap: wrap;
 }
 
-.search-input {
+#fleetclaim .search-input {
     flex: 1;
     min-width: 200px;
     padding: 10px 14px;
@@ -82,7 +81,7 @@ body {
     font-size: 14px;
 }
 
-.filter-select {
+#fleetclaim .filter-select {
     padding: 10px 14px;
     border: 1px solid var(--borders-general, #C0CCD8);
     border-radius: 6px;
@@ -90,17 +89,17 @@ body {
     background: var(--backgrounds-main, white);
 }
 
-.filter-select:hover {
+#fleetclaim .filter-select:hover {
     border-color: var(--borders-form-field--hover, #748FAA);
 }
 
-.filter-select:focus {
+#fleetclaim .filter-select:focus {
     border-color: var(--borders-form-field--active, #0078D3);
     outline: none;
 }
 
 /* Buttons - Zenith style */
-.btn {
+#fleetclaim .btn {
     padding: 10px 20px;
     border: none;
     border-radius: 6px;
@@ -110,46 +109,46 @@ body {
     transition: all 0.2s;
 }
 
-.btn-primary {
+#fleetclaim .btn-primary {
     background: var(--action-primary--default, #0078D3);
     color: var(--text-reverse-primary, white);
 }
 
-.btn-primary:hover {
+#fleetclaim .btn-primary:hover {
     background: var(--action-primary--hover, #005AA8);
 }
 
-.btn-primary:active {
+#fleetclaim .btn-primary:active {
     background: var(--action-primary--active, #004080);
 }
 
-.btn-secondary {
+#fleetclaim .btn-secondary {
     background: var(--backgrounds-content-1, #F2F5F7);
     color: var(--text-primary, #1F2833);
     border: 1px solid var(--borders-general, #C0CCD8);
 }
 
-.btn-secondary:hover {
+#fleetclaim .btn-secondary:hover {
     background: var(--backgrounds-hover, #E6EBEF);
 }
 
-.btn-destructive {
+#fleetclaim .btn-destructive {
     background: var(--action-destructive--default, #C51A11);
     color: var(--text-reverse-primary, white);
 }
 
-.btn-destructive:hover {
+#fleetclaim .btn-destructive:hover {
     background: var(--action-destructive--hover, #B11810);
 }
 
 /* Reports List */
-.reports-list {
+#fleetclaim .reports-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
-.report-card {
+#fleetclaim .report-card {
     background: var(--backgrounds-main, white);
     border-radius: 8px;
     padding: 16px;
@@ -161,32 +160,32 @@ body {
     align-items: center;
 }
 
-.report-card:hover {
+#fleetclaim .report-card:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     transform: translateY(-1px);
 }
 
-.report-info {
+#fleetclaim .report-info {
     flex: 1;
 }
 
-.report-title {
+#fleetclaim .report-title {
     font-weight: 600;
     font-size: 15px;
     margin-bottom: 4px;
 }
 
-.report-meta {
+#fleetclaim .report-meta {
     font-size: 13px;
     color: var(--text-secondary, #4E677E);
 }
 
-.report-meta span {
+#fleetclaim .report-meta span {
     margin-right: 16px;
 }
 
 /* Severity badges */
-.severity {
+#fleetclaim .severity {
     padding: 4px 10px;
     border-radius: 12px;
     font-size: 12px;
@@ -195,44 +194,44 @@ body {
 }
 
 /* Severity badges - Zenith accent colors */
-.severity-critical { background: var(--accents-error--main, #FFECEB); color: var(--accents-error--detail, #A01F0E); }
-.severity-high { background: var(--accents-warning--main, #FEF7ED); color: var(--accents-warning--detail, #59480D); }
-.severity-medium { background: var(--accents-general--main, #EBF6FF); color: var(--accents-general--detail, #25477B); }
-.severity-low { background: var(--accents-success--main, #EDFEF2); color: var(--accents-success--detail, #2B6436); }
+#fleetclaim .severity-critical { background: var(--accents-error--main, #FFECEB); color: var(--accents-error--detail, #A01F0E); }
+#fleetclaim .severity-high { background: var(--accents-warning--main, #FEF7ED); color: var(--accents-warning--detail, #59480D); }
+#fleetclaim .severity-medium { background: var(--accents-general--main, #EBF6FF); color: var(--accents-general--detail, #25477B); }
+#fleetclaim .severity-low { background: var(--accents-success--main, #EDFEF2); color: var(--accents-success--detail, #2B6436); }
 
 /* Status badges - Zenith accent colors */
-.status {
+#fleetclaim .status {
     padding: 4px 10px;
     border-radius: 12px;
     font-size: 12px;
     font-weight: 500;
 }
 
-.status-pending { background: var(--accents-general--main, #EBF6FF); color: var(--accents-general--detail, #25477B); }
-.status-processing { background: var(--accents-warning--main, #FEF7ED); color: var(--accents-warning--detail, #59480D); }
-.status-completed { background: var(--accents-success--main, #EDFEF2); color: var(--accents-success--detail, #2B6436); }
-.status-failed { background: var(--accents-error--main, #FFECEB); color: var(--accents-error--detail, #A01F0E); }
+#fleetclaim .status-pending { background: var(--accents-general--main, #EBF6FF); color: var(--accents-general--detail, #25477B); }
+#fleetclaim .status-processing { background: var(--accents-warning--main, #FEF7ED); color: var(--accents-warning--detail, #59480D); }
+#fleetclaim .status-completed { background: var(--accents-success--main, #EDFEF2); color: var(--accents-success--detail, #2B6436); }
+#fleetclaim .status-failed { background: var(--accents-error--main, #FFECEB); color: var(--accents-error--detail, #A01F0E); }
 
 /* Loading */
-.loading {
+#fleetclaim .loading {
     text-align: center;
     padding: 40px;
     color: var(--text-secondary, #4E677E);
 }
 
-.empty-state {
+#fleetclaim .empty-state {
     text-align: center;
     padding: 60px 20px;
     color: var(--text-secondary, #4E677E);
 }
 
-.empty-state h3 {
+#fleetclaim .empty-state h3 {
     margin-bottom: 8px;
     color: var(--text-primary, #1F2833);
 }
 
 /* Modal - Zenith overlay style */
-.modal {
+#fleetclaim .modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -245,11 +244,11 @@ body {
     z-index: 10000; /* High z-index to be above MyGeotab nav */
 }
 
-.modal.hidden {
+#fleetclaim .modal.hidden {
     display: none;
 }
 
-.modal-content {
+#fleetclaim .modal-content {
     background: var(--backgrounds-main, white);
     border-radius: 12px;
     padding: 24px;
@@ -264,11 +263,11 @@ body {
 }
 
 /* Request modal - smaller and centered better */
-.modal-request {
+#fleetclaim .modal-request {
     max-width: 500px;
 }
 
-.modal-close {
+#fleetclaim .modal-close {
     position: absolute;
     top: 12px;
     right: 16px;
@@ -279,11 +278,11 @@ body {
     color: var(--text-secondary, #4E677E);
 }
 
-.modal-close:hover {
+#fleetclaim .modal-close:hover {
     color: var(--text-primary, #1F2833);
 }
 
-.modal-actions {
+#fleetclaim .modal-actions {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
@@ -291,7 +290,7 @@ body {
 }
 
 /* Form inputs - Zenith style */
-.input-full {
+#fleetclaim .input-full {
     width: 100%;
     padding: 12px;
     border: 1px solid var(--borders-general, #C0CCD8);
@@ -302,25 +301,25 @@ body {
     background: var(--backgrounds-main, white);
 }
 
-.input-full:hover {
+#fleetclaim .input-full:hover {
     border-color: var(--borders-form-field--hover, #748FAA);
 }
 
-.input-full:focus {
+#fleetclaim .input-full:focus {
     border-color: var(--borders-form-field--active, #0078D3);
     outline: none;
 }
 
-.input-full::placeholder {
+#fleetclaim .input-full::placeholder {
     color: var(--text-placeholder, #8DA4B9);
 }
 
 /* Form styling */
-.form-group {
+#fleetclaim .form-group {
     margin-bottom: 16px;
 }
 
-.form-group label {
+#fleetclaim .form-group label {
     display: block;
     font-size: 13px;
     font-weight: 500;
@@ -328,13 +327,13 @@ body {
     margin-bottom: 6px;
 }
 
-.form-row {
+#fleetclaim .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
 }
 
-select.input-full {
+#fleetclaim select.input-full {
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -343,19 +342,19 @@ select.input-full {
 }
 
 /* Report Detail */
-.report-detail-header {
+#fleetclaim .report-detail-header {
     margin-bottom: 24px;
 }
 
-.report-detail-header h2 {
+#fleetclaim .report-detail-header h2 {
     margin-bottom: 8px;
 }
 
-.report-section {
+#fleetclaim .report-section {
     margin-bottom: 24px;
 }
 
-.report-section h3 {
+#fleetclaim .report-section h3 {
     font-size: 14px;
     text-transform: uppercase;
     color: var(--text-secondary, #4E677E);
@@ -364,31 +363,31 @@ select.input-full {
     padding-bottom: 8px;
 }
 
-.evidence-grid {
+#fleetclaim .evidence-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 16px;
 }
 
-.evidence-item {
+#fleetclaim .evidence-item {
     background: var(--backgrounds-content-1, #F2F5F7);
     padding: 12px;
     border-radius: 6px;
 }
 
-.evidence-item label {
+#fleetclaim .evidence-item label {
     display: block;
     font-size: 12px;
     color: #666;
     margin-bottom: 4px;
 }
 
-.evidence-item .value {
+#fleetclaim .evidence-item .value {
     font-size: 18px;
     font-weight: 600;
 }
 
-.report-actions {
+#fleetclaim .report-actions {
     display: flex;
     gap: 12px;
     margin-top: 24px;
@@ -397,7 +396,7 @@ select.input-full {
 }
 
 /* Toggle Switch - Clean iOS-style */
-.toggle-group {
+#fleetclaim .toggle-group {
     background: #f8fafc;
     padding: 16px;
     border-radius: 8px;
@@ -405,7 +404,7 @@ select.input-full {
     margin-top: 12px;
 }
 
-.toggle-label {
+#fleetclaim .toggle-label {
     display: flex;
     align-items: center;
     cursor: pointer;
@@ -413,7 +412,7 @@ select.input-full {
     user-select: none;
 }
 
-.toggle-label input[type="checkbox"] {
+#fleetclaim .toggle-label input[type="checkbox"] {
     position: absolute;
     opacity: 0;
     width: 0;
@@ -421,7 +420,7 @@ select.input-full {
     pointer-events: none;
 }
 
-.toggle-switch {
+#fleetclaim .toggle-switch {
     position: relative;
     width: 44px;
     height: 24px;
@@ -432,7 +431,7 @@ select.input-full {
     border: 1px solid #94a3b8;
 }
 
-.toggle-switch::after {
+#fleetclaim .toggle-switch::after {
     content: '';
     position: absolute;
     width: 20px;
@@ -445,16 +444,16 @@ select.input-full {
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
-.toggle-label input:checked + .toggle-switch {
+#fleetclaim .toggle-label input:checked + .toggle-switch {
     background: #3b82f6;
     border-color: #2563eb;
 }
 
-.toggle-label input:checked + .toggle-switch::after {
+#fleetclaim .toggle-label input:checked + .toggle-switch::after {
     transform: translateX(20px);
 }
 
-.toggle-text {
+#fleetclaim .toggle-text {
     font-size: 14px;
     font-weight: 500;
     color: #1f2937;
@@ -462,14 +461,14 @@ select.input-full {
     flex: 1;
 }
 
-.toggle-hint {
+#fleetclaim .toggle-hint {
     margin: 8px 0 0 58px;
     font-size: 13px;
     color: #64748b;
     line-height: 1.5;
 }
 
-.toggle-state {
+#fleetclaim .toggle-state {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
@@ -481,13 +480,13 @@ select.input-full {
     flex-shrink: 0;
 }
 
-.toggle-label input:checked ~ .toggle-state {
+#fleetclaim .toggle-label input:checked ~ .toggle-state {
     background: #dcfce7;
     color: #16a34a;
 }
 
 /* Baseline Report Styling */
-.baseline-badge {
+#fleetclaim .baseline-badge {
     display: inline-block;
     background: #e0e7ff;
     color: #4338ca;
@@ -498,7 +497,7 @@ select.input-full {
     margin-left: 12px;
 }
 
-.baseline-notice {
+#fleetclaim .baseline-notice {
     background: #fef3c7;
     border: 1px solid #f59e0b;
     border-radius: 8px;
@@ -508,11 +507,11 @@ select.input-full {
     color: #92400e;
 }
 
-.baseline-notice strong {
+#fleetclaim .baseline-notice strong {
     color: #78350f;
 }
 
-.baseline-tag {
+#fleetclaim .baseline-tag {
     background: #e0e7ff;
     color: #4338ca;
     padding: 2px 8px;
@@ -522,7 +521,7 @@ select.input-full {
 }
 
 /* Settings Tab */
-.settings-container {
+#fleetclaim .settings-container {
     max-width: 600px;
     padding: 20px;
     background: white;
@@ -530,35 +529,35 @@ select.input-full {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.settings-container h2 {
+#fleetclaim .settings-container h2 {
     font-size: 18px;
     margin-bottom: 8px;
     color: #1a1a2e;
 }
 
-.settings-desc {
+#fleetclaim .settings-desc {
     color: #666;
     font-size: 14px;
     margin-bottom: 24px;
 }
 
-.email-input-container {
+#fleetclaim .email-input-container {
     display: flex;
     gap: 8px;
 }
 
-.email-input-container input {
+#fleetclaim .email-input-container input {
     flex: 1;
 }
 
-.email-chips {
+#fleetclaim .email-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 12px;
 }
 
-.email-chip {
+#fleetclaim .email-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -569,7 +568,7 @@ select.input-full {
     font-size: 13px;
 }
 
-.email-chip button {
+#fleetclaim .email-chip button {
     background: none;
     border: none;
     color: #666;
@@ -579,40 +578,40 @@ select.input-full {
     line-height: 1;
 }
 
-.email-chip button:hover {
+#fleetclaim .email-chip button:hover {
     color: #c53030;
 }
 
-.input-hint {
+#fleetclaim .input-hint {
     font-size: 12px;
     color: #888;
     margin-top: 6px;
 }
 
-.settings-actions {
+#fleetclaim .settings-actions {
     margin-top: 24px;
     display: flex;
     align-items: center;
     gap: 16px;
 }
 
-.settings-status {
+#fleetclaim .settings-status {
     font-size: 14px;
     color: #38a169;
 }
 
-.settings-status.error {
+#fleetclaim .settings-status.error {
     color: #c53030;
 }
 
 /* Notes Section */
-.notes-hint {
+#fleetclaim .notes-hint {
     font-size: 13px;
     color: #666;
     margin-bottom: 10px;
 }
 
-.notes-textarea {
+#fleetclaim .notes-textarea {
     width: 100%;
     min-height: 120px;
     padding: 12px;
@@ -624,35 +623,35 @@ select.input-full {
     margin-bottom: 10px;
 }
 
-.notes-textarea:focus {
+#fleetclaim .notes-textarea:focus {
     outline: none;
     border-color: #2b6cb0;
     box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.1);
 }
 
-.notes-actions {
+#fleetclaim .notes-actions {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-.notes-status {
+#fleetclaim .notes-status {
     font-size: 14px;
     color: #38a169;
 }
 
-.notes-status.error {
+#fleetclaim .notes-status.error {
     color: #c53030;
 }
 
-.notes-meta {
+#fleetclaim .notes-meta {
     font-size: 12px;
     color: #888;
     margin-left: auto;
 }
 
 /* Delete Button */
-.btn-delete {
+#fleetclaim .btn-delete {
     background: none;
     border: none;
     color: #dc2626;
@@ -665,49 +664,49 @@ select.input-full {
     margin-left: 8px;
 }
 
-.btn-delete:hover {
+#fleetclaim .btn-delete:hover {
     opacity: 1;
     background: #fef2f2;
 }
 
-.report-card {
+#fleetclaim .report-card {
     position: relative;
 }
 
-.card-actions {
+#fleetclaim .card-actions {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 /* Danger Button */
-.btn-danger {
+#fleetclaim .btn-danger {
     background: #dc2626;
     color: white;
 }
 
-.btn-danger:hover {
+#fleetclaim .btn-danger:hover {
     background: #b91c1c;
 }
 
 /* Delete Modal */
-.modal-delete {
+#fleetclaim .modal-delete {
     max-width: 400px;
     text-align: center;
 }
 
-.modal-delete h2 {
+#fleetclaim .modal-delete h2 {
     margin-bottom: 12px;
     color: #dc2626;
 }
 
-.modal-delete p {
+#fleetclaim .modal-delete p {
     color: #666;
     margin-bottom: 20px;
 }
 
 /* Toast Notifications */
-.toast-container {
+#fleetclaim .toast-container {
     position: fixed;
     bottom: 24px;
     left: 50%;
@@ -719,7 +718,7 @@ select.input-full {
     pointer-events: none;
 }
 
-.toast {
+#fleetclaim .toast {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -733,49 +732,49 @@ select.input-full {
     max-width: 400px;
 }
 
-.toast.toast-success {
+#fleetclaim .toast.toast-success {
     background: #059669;
     color: white;
 }
 
-.toast.toast-error {
+#fleetclaim .toast.toast-error {
     background: #dc2626;
     color: white;
 }
 
-.toast.toast-info {
+#fleetclaim .toast.toast-info {
     background: #2563eb;
     color: white;
 }
 
-.toast.toast-hide {
+#fleetclaim .toast.toast-hide {
     animation: toast-slide-down 0.2s ease-in forwards;
 }
 
 @keyframes toast-slide-up {
-    from {
+#fleetclaim from {
         opacity: 0;
         transform: translateY(20px);
     }
-    to {
+#fleetclaim to {
         opacity: 1;
         transform: translateY(0);
     }
 }
 
 @keyframes toast-slide-down {
-    from {
+#fleetclaim from {
         opacity: 1;
         transform: translateY(0);
     }
-    to {
+#fleetclaim to {
         opacity: 0;
         transform: translateY(20px);
     }
 }
 
 /* Report Badges */
-.badge {
+#fleetclaim .badge {
     display: inline-block;
     padding: 2px 6px;
     border-radius: 4px;
@@ -786,18 +785,18 @@ select.input-full {
     vertical-align: middle;
 }
 
-.badge-new {
+#fleetclaim .badge-new {
     background: #dbeafe;
     color: #1d4ed8;
     animation: pulse 2s ease-in-out infinite;
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
+#fleetclaim 0%, #fleetclaim 100% { opacity: 1; }
+#fleetclaim 50% { opacity: 0.6; }
 }
 
-.badge-notes {
+#fleetclaim .badge-notes {
     background: #fef3c7;
     color: #92400e;
     font-size: 12px;
@@ -805,34 +804,34 @@ select.input-full {
 }
 
 /* Email Modal */
-.modal-email {
+#fleetclaim .modal-email {
     max-width: 500px;
 }
 
-.modal-email h2 {
+#fleetclaim .modal-email h2 {
     margin-bottom: 8px;
 }
 
-.modal-email p {
+#fleetclaim .modal-email p {
     color: #666;
     margin-bottom: 16px;
     font-size: 14px;
 }
 
-.modal-email textarea {
+#fleetclaim .modal-email textarea {
     resize: vertical;
     font-family: inherit;
 }
 
 /* GPS Map */
-.map-container {
+#fleetclaim .map-container {
     height: 320px;
     border-radius: 8px;
     overflow: hidden;
     background: #f0f0f0;
 }
 
-.map-loading {
+#fleetclaim .map-loading {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -840,7 +839,7 @@ select.input-full {
     color: #666;
 }
 
-.map-static {
+#fleetclaim .map-static {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -851,71 +850,71 @@ select.input-full {
     color: #666;
 }
 
-.map-marker {
+#fleetclaim .map-marker {
     font-size: 24px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-#gps-map {
+#fleetclaim #gps-map {
     z-index: 1;
 }
 
 /* Collapsible Sections */
-.collapsible h3 {
+#fleetclaim .collapsible h3 {
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.collapsible h3:hover {
+#fleetclaim .collapsible h3:hover {
     color: #2563eb;
 }
 
-.toggle-icon {
+#fleetclaim .toggle-icon {
     font-size: 12px;
     color: #666;
 }
 
-.section-content {
+#fleetclaim .section-content {
     padding-top: 12px;
 }
 
-.section-content.collapsed {
+#fleetclaim .section-content.collapsed {
     display: none;
 }
 
-.section-hint {
+#fleetclaim .section-hint {
     font-size: 13px;
     color: #666;
     margin-bottom: 12px;
 }
 
 /* Third Party Form */
-.third-party-form {
+#fleetclaim .third-party-form {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
-.third-party-form .form-row {
+#fleetclaim .third-party-form .form-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 12px;
 }
 
 @media (max-width: 600px) {
-    .third-party-form .form-row {
+#fleetclaim .third-party-form .form-row {
         grid-template-columns: 1fr;
     }
 }
 
 /* Reports Stats Bar */
-.reports-stats {
+#fleetclaim .reports-stats {
     margin-bottom: 12px;
 }
 
-.stats-bar {
+#fleetclaim .stats-bar {
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
@@ -926,26 +925,26 @@ select.input-full {
     color: #64748b;
 }
 
-.stat {
+#fleetclaim .stat {
     display: inline-flex;
     align-items: center;
     gap: 4px;
 }
 
-.stat-critical {
+#fleetclaim .stat-critical {
     color: #dc2626;
 }
 
-.stat-high {
+#fleetclaim .stat-high {
     color: #ea580c;
 }
 
-.stat-new {
+#fleetclaim .stat-new {
     color: #2563eb;
 }
 
 /* Legacy Report Notice */
-.legacy-report-notice {
+#fleetclaim .legacy-report-notice {
     background: #fef3c7;
     border: 1px solid #f59e0b;
     border-radius: 6px;
@@ -953,25 +952,25 @@ select.input-full {
     margin-top: 8px;
 }
 
-.legacy-report-notice p {
+#fleetclaim .legacy-report-notice p {
     margin: 0 0 10px 0;
     color: #92400e;
     font-size: 13px;
 }
 
 /* Photo Upload Section */
-.photo-upload-area {
+#fleetclaim .photo-upload-area {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-bottom: 16px;
 }
 
-.photo-upload-progress {
+#fleetclaim .photo-upload-progress {
     margin: 12px 0;
 }
 
-.progress-bar {
+#fleetclaim .progress-bar {
     height: 6px;
     background: #e2e8f0;
     border-radius: 3px;
@@ -979,27 +978,27 @@ select.input-full {
     margin-bottom: 6px;
 }
 
-.progress-fill {
+#fleetclaim .progress-fill {
     height: 100%;
     background: #2563eb;
     width: 0%;
     transition: width 0.3s;
 }
 
-.progress-text {
+#fleetclaim .progress-text {
     font-size: 12px;
     color: #64748b;
 }
 
 /* Photos Grid */
-.photos-grid {
+#fleetclaim .photos-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 12px;
     margin-top: 12px;
 }
 
-.photo-card {
+#fleetclaim .photo-card {
     position: relative;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -1008,11 +1007,11 @@ select.input-full {
     transition: box-shadow 0.2s;
 }
 
-.photo-card:hover {
+#fleetclaim .photo-card:hover {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.photo-thumbnail {
+#fleetclaim .photo-thumbnail {
     position: relative;
     height: 100px;
     background: #f1f5f9;
@@ -1022,13 +1021,13 @@ select.input-full {
     justify-content: center;
 }
 
-.photo-img {
+#fleetclaim .photo-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-.photo-loading {
+#fleetclaim .photo-loading {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -1037,12 +1036,12 @@ select.input-full {
     color: #94a3b8;
 }
 
-.photo-meta {
+#fleetclaim .photo-meta {
     padding: 8px;
     font-size: 11px;
 }
 
-.photo-category-badge {
+#fleetclaim .photo-category-badge {
     display: inline-block;
     background: #e2e8f0;
     padding: 2px 6px;
@@ -1051,7 +1050,7 @@ select.input-full {
     margin-bottom: 4px;
 }
 
-.photo-filename {
+#fleetclaim .photo-filename {
     display: block;
     color: #64748b;
     white-space: nowrap;
@@ -1059,13 +1058,13 @@ select.input-full {
     text-overflow: ellipsis;
 }
 
-.photo-caption {
+#fleetclaim .photo-caption {
     display: block;
     color: #334155;
     margin-top: 2px;
 }
 
-.photo-delete {
+#fleetclaim .photo-delete {
     position: absolute;
     top: 4px;
     right: 4px;
@@ -1084,12 +1083,12 @@ select.input-full {
     z-index: 10;
 }
 
-.photo-delete:hover {
+#fleetclaim .photo-delete:hover {
     background: #dc2626;
     transform: scale(1.1);
 }
 
-.no-photos {
+#fleetclaim .no-photos {
     color: #94a3b8;
     font-style: italic;
     padding: 16px 0;
@@ -1201,17 +1200,17 @@ select.input-full {
    SEARCHABLE VEHICLE DROPDOWN
    ================================ */
 
-.searchable-select {
+#fleetclaim .searchable-select {
     position: relative;
     width: 100%;
 }
 
-.searchable-select input[type="text"] {
+#fleetclaim .searchable-select input[type="text"] {
     width: 100%;
     padding-right: 30px;
 }
 
-.searchable-select::after {
+#fleetclaim .searchable-select::after {
     content: "▼";
     position: absolute;
     right: 12px;
@@ -1222,7 +1221,7 @@ select.input-full {
     pointer-events: none;
 }
 
-.searchable-dropdown {
+#fleetclaim .searchable-dropdown {
     position: absolute;
     top: 100%;
     left: 0;
@@ -1237,39 +1236,39 @@ select.input-full {
     z-index: 1000;
 }
 
-.searchable-dropdown.hidden {
+#fleetclaim .searchable-dropdown.hidden {
     display: none;
 }
 
-.searchable-dropdown .dropdown-item {
+#fleetclaim .searchable-dropdown .dropdown-item {
     padding: 10px 12px;
     cursor: pointer;
     border-bottom: 1px solid #f1f5f9;
     font-size: 14px;
 }
 
-.searchable-dropdown .dropdown-item:last-child {
+#fleetclaim .searchable-dropdown .dropdown-item:last-child {
     border-bottom: none;
 }
 
 .searchable-dropdown .dropdown-item:hover,
-.searchable-dropdown .dropdown-item.highlighted {
+#fleetclaim .searchable-dropdown .dropdown-item.highlighted {
     background: #f1f5f9;
 }
 
-.searchable-dropdown .dropdown-item.selected {
+#fleetclaim .searchable-dropdown .dropdown-item.selected {
     background: #e0f2fe;
     font-weight: 500;
 }
 
-.searchable-dropdown .no-results {
+#fleetclaim .searchable-dropdown .no-results {
     padding: 12px;
     color: #94a3b8;
     font-style: italic;
     text-align: center;
 }
 
-.searchable-dropdown .dropdown-count {
+#fleetclaim .searchable-dropdown .dropdown-count {
     padding: 8px 12px;
     background: #f8fafc;
     color: #64748b;
@@ -1278,7 +1277,7 @@ select.input-full {
 }
 
 /* Small toggle for inline options */
-.toggle-small {
+#fleetclaim .toggle-small {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1286,7 +1285,7 @@ select.input-full {
     cursor: pointer;
 }
 
-.toggle-switch-small {
+#fleetclaim .toggle-switch-small {
     position: relative;
     width: 32px;
     height: 18px;
@@ -1296,7 +1295,7 @@ select.input-full {
     flex-shrink: 0;
 }
 
-.toggle-switch-small::after {
+#fleetclaim .toggle-switch-small::after {
     content: '';
     position: absolute;
     top: 2px;
@@ -1309,22 +1308,22 @@ select.input-full {
     transition: transform 0.2s;
 }
 
-#historic-devices-toggle:checked + .toggle-switch-small {
+#fleetclaim #historic-devices-toggle:checked + .toggle-switch-small {
     background: #3b82f6;
 }
 
-#historic-devices-toggle:checked + .toggle-switch-small::after {
+#fleetclaim #historic-devices-toggle:checked + .toggle-switch-small::after {
     transform: translateX(14px);
 }
 
-#historic-devices-toggle {
+#fleetclaim #historic-devices-toggle {
     position: absolute;
     opacity: 0;
     width: 0;
     height: 0;
 }
 
-.toggle-text-small {
+#fleetclaim .toggle-text-small {
     font-size: 12px;
     color: #6b7280;
 }

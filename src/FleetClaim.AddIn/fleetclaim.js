@@ -111,11 +111,17 @@ function captureCredentials() {
             };
             
             geotabHost = getHost(session.server);
-            storedCredentials = session.credentials || session;
+            // Merge credentials - ensure userName is captured from either location
+            storedCredentials = {
+                ...(session.credentials || {}),
+                ...session,
+                userName: session.userName || session.credentials?.userName
+            };
             
             console.log('Credentials stored for uploads:', {
                 host: geotabHost,
                 database: storedCredentials?.database,
+                userName: storedCredentials?.userName,
                 hasSessionId: !!storedCredentials?.sessionId
             });
         }, function(err) {
@@ -1976,31 +1982,30 @@ async function submitReportRequest() {
         // Get current user's display name
         let userName = 'Unknown User';
         try {
-            // Try multiple ways to get the current user
-            // 1. From stored credentials
+            // Get login name from session - try multiple sources
             let loginName = storedCredentials?.userName;
             
-            // 2. Try getting current user via GetCurrentUser API call
-            if (!loginName) {
-                console.log('FleetClaim: No stored userName, trying GetCurrentUser...');
-                try {
-                    const currentUser = await apiCall('GetCurrentUser', {});
-                    console.log('FleetClaim: GetCurrentUser result:', currentUser);
-                    loginName = currentUser?.name;
-                    if (currentUser?.firstName || currentUser?.lastName) {
-                        userName = [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ');
-                    } else if (currentUser?.name) {
-                        userName = currentUser.name;
-                    }
-                } catch (e) {
-                    console.log('FleetClaim: GetCurrentUser not available:', e.message);
-                }
+            // If not in storedCredentials, try getting fresh session
+            if (!loginName && api && typeof api.getSession === 'function') {
+                console.log('FleetClaim: No stored userName, getting fresh session...');
+                loginName = await new Promise((resolve) => {
+                    api.getSession(function(session) {
+                        console.log('FleetClaim: Fresh session:', {
+                            userName: session.userName,
+                            credentialsUserName: session.credentials?.userName
+                        });
+                        resolve(session.userName || session.credentials?.userName);
+                    }, function(err) {
+                        console.warn('FleetClaim: getSession failed:', err);
+                        resolve(null);
+                    });
+                });
             }
             
             console.log('FleetClaim: Looking up user:', loginName);
             
-            // If we have a login name but not full name yet, look it up
-            if (loginName && userName === 'Unknown User') {
+            // Look up full name from User object
+            if (loginName) {
                 const users = await apiCall('Get', {
                     typeName: 'User',
                     search: { name: loginName }
@@ -2017,7 +2022,7 @@ async function submitReportRequest() {
                         userName = user.name || loginName;
                     }
                 } else {
-                    // No user found, use login name
+                    // No user found, use login name as fallback
                     userName = loginName;
                 }
             }

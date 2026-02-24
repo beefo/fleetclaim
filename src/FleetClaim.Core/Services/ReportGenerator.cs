@@ -85,6 +85,51 @@ public class ReportGenerator : IReportGenerator
         // Build summary
         var summary = BuildSummary(incident, vehicle, evidence);
         
+        // Get address for incident location using GetAddresses API
+        string? incidentAddress = null;
+        string? incidentCity = null;
+        string? incidentState = null;
+        string? incidentCountry = null;
+        
+        var incidentPoint = evidence.GpsTrail?.FirstOrDefault(g => 
+            g.Timestamp >= (incident.ActiveFrom ?? DateTime.UtcNow).AddSeconds(-30) && 
+            g.Timestamp <= (incident.ActiveFrom ?? DateTime.UtcNow).AddSeconds(30));
+        
+        if (incidentPoint != null)
+        {
+            try
+            {
+                var coordinates = new[] { new { x = incidentPoint.Longitude, y = incidentPoint.Latitude } };
+                var addresses = await api.CallAsync<List<object>>("GetAddresses", typeof(object), new
+                {
+                    coordinates = coordinates
+                }, ct);
+                
+                if (addresses?.Count > 0)
+                {
+                    // GetAddresses returns address objects - extract components
+                    var addressJson = System.Text.Json.JsonSerializer.Serialize(addresses[0]);
+                    using var doc = System.Text.Json.JsonDocument.Parse(addressJson);
+                    var root = doc.RootElement;
+                    
+                    if (root.TryGetProperty("formattedAddress", out var formatted))
+                        incidentAddress = formatted.GetString();
+                    if (root.TryGetProperty("city", out var city))
+                        incidentCity = city.GetString();
+                    if (root.TryGetProperty("region", out var region))
+                        incidentState = region.GetString();
+                    if (root.TryGetProperty("country", out var country))
+                        incidentCountry = country.GetString();
+                    
+                    Console.WriteLine($"Address resolved: {incidentAddress}, {incidentCity}, {incidentState}, {incidentCountry}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Could not get address: {ex.Message}");
+            }
+        }
+        
         var report = new IncidentReport
         {
             IncidentId = incident.Id?.ToString() ?? "",
@@ -95,7 +140,11 @@ public class ReportGenerator : IReportGenerator
             OccurredAt = incident.ActiveFrom ?? DateTime.UtcNow,
             Severity = severity,
             Summary = summary,
-            Evidence = evidence
+            Evidence = evidence,
+            IncidentAddress = incidentAddress,
+            IncidentCity = incidentCity,
+            IncidentState = incidentState,
+            IncidentCountry = incidentCountry
         };
         
         // Generate share URL (before PDF so it can be included in the document)

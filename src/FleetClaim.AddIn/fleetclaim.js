@@ -1058,10 +1058,17 @@ async function uploadBinaryToGeotab(file, mediaFileId, fileName) {
 
 // Fallback: Upload via FleetClaim backend API
 async function uploadViaBackendApi(file, mediaFileId, reportId, category) {
-    const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
-    const database = urlMatch ? urlMatch[1] : null;
+    // Try to get database from stored credentials first, then from URL
+    let database = storedCredentials?.database;
     
     if (!database) {
+        // Match various Geotab URL formats: my.geotab.com, my3.geotab.com, alpha.geotab.com, my.geotab.ca, etc.
+        const urlMatch = window.location.href.match(/(?:my\d?|alpha|preview)\.geotab\.(?:com|ca)\/([^\/\#]+)/);
+        database = urlMatch ? urlMatch[1] : null;
+    }
+    
+    if (!database) {
+        console.error('Could not determine database. URL:', window.location.href, 'storedCredentials:', storedCredentials);
         throw new Error('Could not determine database from URL');
     }
     
@@ -1170,9 +1177,12 @@ async function loadPhotoThumbnails(photos) {
     
     console.log(`Loading ${photos.length} photo thumbnails...`);
     
-    // Get database from URL
-    const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
-    const database = urlMatch ? urlMatch[1] : null;
+    // Get database from stored credentials or URL
+    let database = storedCredentials?.database;
+    if (!database) {
+        const urlMatch = window.location.href.match(/(?:my\d?|alpha|preview)\.geotab\.(?:com|ca)\/([^\/\#]+)/);
+        database = urlMatch ? urlMatch[1] : null;
+    }
     console.log('Database for photo fetch:', database);
     
     for (const photo of photos) {
@@ -1220,14 +1230,17 @@ async function loadPhotoThumbnails(photos) {
 
 // View full-size photo
 function viewPhoto(mediaFileId) {
-    // Get database from URL
-    const urlMatch = window.location.href.match(/my\.geotab\.com\/([^\/\#]+)/);
-    const database = urlMatch ? urlMatch[1] : null;
+    // Get database from stored credentials or URL
+    let database = storedCredentials?.database;
+    if (!database) {
+        const urlMatch = window.location.href.match(/(?:my\d?|alpha|preview)\.geotab\.(?:com|ca)\/([^\/\#]+)/);
+        database = urlMatch ? urlMatch[1] : null;
+    }
     
     console.log('viewPhoto called:', { mediaFileId, database, url: window.location.href });
     
     if (!database) {
-        console.error('Could not extract database from URL');
+        console.error('Could not extract database from URL or credentials');
         alert('Could not load photo - database not found');
         return;
     }

@@ -1974,13 +1974,33 @@ async function submitReportRequest() {
     
     try {
         // Get current user's display name
-        let userName = storedCredentials?.userName || 'Unknown User';
+        let userName = 'Unknown User';
         try {
-            // Get the logged-in user's info using stored credentials
-            const loginName = storedCredentials?.userName;
+            // Try multiple ways to get the current user
+            // 1. From stored credentials
+            let loginName = storedCredentials?.userName;
+            
+            // 2. Try getting current user via GetCurrentUser API call
+            if (!loginName) {
+                console.log('FleetClaim: No stored userName, trying GetCurrentUser...');
+                try {
+                    const currentUser = await apiCall('GetCurrentUser', {});
+                    console.log('FleetClaim: GetCurrentUser result:', currentUser);
+                    loginName = currentUser?.name;
+                    if (currentUser?.firstName || currentUser?.lastName) {
+                        userName = [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ');
+                    } else if (currentUser?.name) {
+                        userName = currentUser.name;
+                    }
+                } catch (e) {
+                    console.log('FleetClaim: GetCurrentUser not available:', e.message);
+                }
+            }
+            
             console.log('FleetClaim: Looking up user:', loginName);
             
-            if (loginName) {
+            // If we have a login name but not full name yet, look it up
+            if (loginName && userName === 'Unknown User') {
                 const users = await apiCall('Get', {
                     typeName: 'User',
                     search: { name: loginName }
@@ -1988,7 +2008,6 @@ async function submitReportRequest() {
                 console.log('FleetClaim: User lookup result:', users?.length, 'users found');
                 
                 if (users && users.length > 0) {
-                    // Use firstName + lastName if available, otherwise fall back to name
                     const user = users[0];
                     console.log('FleetClaim: User details:', user.firstName, user.lastName, user.name);
                     
@@ -1997,6 +2016,9 @@ async function submitReportRequest() {
                     } else {
                         userName = user.name || loginName;
                     }
+                } else {
+                    // No user found, use login name
+                    userName = loginName;
                 }
             }
         } catch (e) {

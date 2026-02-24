@@ -23,6 +23,14 @@ public class ReportGenerator : IReportGenerator
     private readonly TimeSpan _windowBefore = TimeSpan.FromMinutes(5);
     private readonly TimeSpan _windowAfter = TimeSpan.FromMinutes(5);
     
+    // Stock Geotab rule IDs to friendly names (Rule.Name not populated in ExceptionEvent)
+    private static readonly Dictionary<string, string> RuleIdToName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["RuleAccidentId"] = "Possible Collision (Legacy)",
+        ["RuleEnhancedMajorCollisionId"] = "Major Collision",
+        ["RuleEnhancedMinorCollisionId"] = "Minor Collision"
+    };
+    
     public ReportGenerator(
         IIncidentCollector collector, 
         IPdfRenderer pdfRenderer,
@@ -145,8 +153,9 @@ public class ReportGenerator : IReportGenerator
     {
         var sb = new System.Text.StringBuilder();
         
-        // Event type and vehicle
-        var eventType = incident.Rule?.Name ?? "Incident";
+        // Event type and vehicle - use rule ID mapping since Rule.Name is not populated
+        var ruleId = incident.Rule?.Id?.ToString() ?? "";
+        var eventType = RuleIdToName.GetValueOrDefault(ruleId, incident.Rule?.Name ?? "Incident");
         var vehicleName = vehicle?.Name ?? "Unknown vehicle";
         var eventTime = incident.ActiveFrom ?? DateTime.UtcNow;
         

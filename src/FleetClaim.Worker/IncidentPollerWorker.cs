@@ -27,6 +27,22 @@ public class IncidentPollerWorker : BackgroundService
     // Track last poll version per database (in production, persist this)
     private readonly Dictionary<string, long> _feedVersions = new();
     
+    // Stock Geotab rule IDs for collision detection (consistent across all databases)
+    private static readonly HashSet<string> CollisionRuleIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "RuleAccidentId",              // Possible Collision (Legacy)
+        "RuleEnhancedMajorCollisionId", // Major Collision
+        "RuleEnhancedMinorCollisionId"  // Minor Collision
+    };
+    
+    // Map rule IDs to friendly names
+    private static readonly Dictionary<string, string> RuleIdToName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["RuleAccidentId"] = "Possible Collision (Legacy)",
+        ["RuleEnhancedMajorCollisionId"] = "Major Collision",
+        ["RuleEnhancedMinorCollisionId"] = "Minor Collision"
+    };
+    
     public IncidentPollerWorker(
         ICredentialStore credentialStore,
         IGeotabClientFactory clientFactory,
@@ -126,15 +142,17 @@ public class IncidentPollerWorker : BackgroundService
         
         foreach (var incident in feedResult.Data)
         {
-            // Filter by configured rules
-            var ruleName = incident.Rule?.Name ?? "";
-            if (!config.AutoGenerateRules.Any(r => 
-                ruleName.Contains(r, StringComparison.OrdinalIgnoreCase)))
+            // Filter by collision rule IDs (Rule.Name is not populated in ExceptionEvent)
+            var ruleId = incident.Rule?.Id?.ToString() ?? "";
+            if (!CollisionRuleIds.Contains(ruleId))
             {
-                _logger.LogDebug("Skipping incident {Id} - rule {Rule} not in auto-generate list", 
-                    incident.Id, ruleName);
+                _logger.LogDebug("Skipping incident {Id} - rule {RuleId} not a collision rule", 
+                    incident.Id, ruleId);
                 continue;
             }
+            
+            _logger.LogInformation("Processing collision incident {Id} with rule {RuleId} ({RuleName})", 
+                incident.Id, ruleId, RuleIdToName.GetValueOrDefault(ruleId, "Unknown"));
             
             try
             {
@@ -201,15 +219,17 @@ public class IncidentPollerWorker : BackgroundService
                     }
                 }, ct);
                 
-                // Filter to collision rules (including "Possible Collision (legacy)" rule)
+                // Filter to collision rules by ID (Rule.Name is not populated in ExceptionEvent)
                 var collisionIncidents = incidents?
                     .Where(e => 
                     {
-                        var ruleName = e.Rule?.Name ?? "";
-                        // Match: "Major Collision", "Minor Collision", "Possible Collision", "Collision" etc.
-                        return ruleName.Contains("Collision", StringComparison.OrdinalIgnoreCase);
+                        var ruleId = e.Rule?.Id?.ToString() ?? "";
+                        return CollisionRuleIds.Contains(ruleId);
                     })
                     .ToList() ?? [];
+                
+                _logger.LogInformation("Found {Total} total exceptions, {Collision} are collision events for device {DeviceId}",
+                    incidents?.Count ?? 0, collisionIncidents.Count, request.DeviceId);
                 
                 // Get config for notifications
                 var config = await _repository.GetConfigAsync(api, ct) ?? new CustomerConfig();
@@ -382,8 +402,10 @@ public class IncidentPollerWorker : BackgroundService
         CustomerConfig config,
         CancellationToken ct)
     {
-        _logger.LogInformation("Generating report for incident {Id} ({Rule})",
-            incident.Id, incident.Rule?.Name);
+        var ruleId = incident.Rule?.Id?.ToString() ?? "";
+        var ruleName = RuleIdToName.GetValueOrDefault(ruleId, incident.Rule?.Name ?? "Unknown");
+        _logger.LogInformation("Generating report for incident {Id} ({RuleId}: {RuleName})",
+            incident.Id, ruleId, ruleName);
         
         var report = await _reportGenerator.GenerateReportAsync(api, incident, database, ct);
         

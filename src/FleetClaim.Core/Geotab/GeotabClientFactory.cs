@@ -7,6 +7,8 @@ namespace FleetClaim.Core.Geotab;
 public interface IGeotabClientFactory
 {
     Task<API> CreateClientAsync(string database, CancellationToken ct = default);
+    Task<API> RefreshSessionAsync(string database, CancellationToken ct = default);
+    void InvalidateSession(string database);
 }
 
 /// <summary>

@@ -40,8 +40,34 @@ public class GeotabClientFactory : IGeotabClientFactory
             return cached.Api;
         }
         
-        // Create new session
+        return await CreateNewSessionAsync(database, key, ct);
+    }
+    
+    /// <summary>
+    /// Force creates a new session, bypassing cache. Call this if a cached session becomes invalid.
+    /// </summary>
+    public async Task<API> RefreshSessionAsync(string database, CancellationToken ct = default)
+    {
+        var key = database.ToLowerInvariant();
+        _sessions.TryRemove(key, out _);  // Clear any cached invalid session
+        return await CreateNewSessionAsync(database, key, ct);
+    }
+    
+    /// <summary>
+    /// Invalidate a cached session (e.g., when InvalidUserException is received).
+    /// </summary>
+    public void InvalidateSession(string database)
+    {
+        var key = database.ToLowerInvariant();
+        _sessions.TryRemove(key, out _);
+        Console.WriteLine($"[GeotabClientFactory] Invalidated session for {database}");
+    }
+    
+    private async Task<API> CreateNewSessionAsync(string database, string key, CancellationToken ct)
+    {
         var creds = await _credentialStore.GetCredentialsAsync(database, ct);
+        
+        Console.WriteLine($"[GeotabClientFactory] Creating new session for {database} on {creds.Server ?? "my.geotab.com"}");
         
         var api = new API(
             creds.UserName,
@@ -52,6 +78,8 @@ public class GeotabClientFactory : IGeotabClientFactory
         );
         
         await api.AuthenticateAsync(ct);
+        
+        Console.WriteLine($"[GeotabClientFactory] Authenticated successfully for {database}");
         
         // Cache the session
         _sessions[key] = new CachedSession

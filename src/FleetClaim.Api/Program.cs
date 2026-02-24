@@ -218,8 +218,17 @@ app.MapPost("/api/photos/upload", async (
             return Results.BadRequest(new { error = "File too large. Maximum 10MB" });
         }
         
-        // Get Geotab API client
-        var api = await clientFactory.CreateClientAsync(database, ct);
+        // Get Geotab API client with retry on invalid session
+        API api;
+        try
+        {
+            api = await clientFactory.CreateClientAsync(database, ct);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Invalid") || ex.Message.Contains("session"))
+        {
+            Console.WriteLine($"[Photo Upload] Initial auth failed, refreshing: {ex.Message}");
+            api = await clientFactory.RefreshSessionAsync(database, ct);
+        }
         
         // Create MediaFile entity using dynamic object (SDK doesn't expose MediaFile type directly)
         var fileName = file.FileName.ToLower().Replace(" ", "_");
@@ -270,8 +279,20 @@ app.MapPost("/api/photos/upload", async (
         else
         {
             // Create new MediaFile entity (using 3-parameter CallAsync like MediaFileService)
-            var addResult = await api.CallAsync<string>("Add", new { typeName = "MediaFile", entity = mediaFileEntity }, ct);
-            mediaFileId = addResult;
+            // Retry on invalid session
+            try
+            {
+                var addResult = await api.CallAsync<string>("Add", new { typeName = "MediaFile", entity = mediaFileEntity }, ct);
+                mediaFileId = addResult;
+            }
+            catch (Exception ex) when (ex.Message.Contains("Invalid session"))
+            {
+                Console.WriteLine($"[Photo Upload] Session invalid during Add, refreshing: {ex.Message}");
+                clientFactory.InvalidateSession(database);
+                api = await clientFactory.RefreshSessionAsync(database, ct);
+                var addResult = await api.CallAsync<string>("Add", new { typeName = "MediaFile", entity = mediaFileEntity }, ct);
+                mediaFileId = addResult;
+            }
         }
         
         // Now upload the binary file using direct HTTP POST to Geotab

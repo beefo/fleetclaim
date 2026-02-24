@@ -2,6 +2,7 @@ using FleetClaim.Api;
 using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using FleetClaim.Core.Services;
+using Geotab.Checkmate;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;

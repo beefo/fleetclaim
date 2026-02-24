@@ -558,6 +558,51 @@ function showReportDetailModal(report) {
         </div>
         
         <div class="report-section collapsible">
+            <h3 onclick="toggleSection(this)">🔧 Damage Assessment <span class="toggle-icon">▼</span></h3>
+            <div class="section-content collapsed">
+                <p class="section-hint">Assess and document vehicle damage for insurance claims.</p>
+                <div class="damage-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Damage Level</label>
+                            <select id="damage-level" class="filter-select">
+                                <option value="" ${!report.damageLevel ? 'selected' : ''}>Not Assessed</option>
+                                <option value="None" ${report.damageLevel === 'None' ? 'selected' : ''}>None</option>
+                                <option value="Minor" ${report.damageLevel === 'Minor' ? 'selected' : ''}>Minor</option>
+                                <option value="Moderate" ${report.damageLevel === 'Moderate' ? 'selected' : ''}>Moderate</option>
+                                <option value="Severe" ${report.damageLevel === 'Severe' ? 'selected' : ''}>Severe</option>
+                                <option value="Total" ${report.damageLevel === 'Total' ? 'selected' : ''}>Total Loss</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label>Damage Description</label>
+                        <textarea id="damage-description" class="notes-textarea" style="min-height: 80px;" placeholder="Describe the damage (e.g., front bumper dented, headlight cracked, airbags deployed...)">${escapeHtml(report.damageDescription || '')}</textarea>
+                    </div>
+                    <div class="form-row" style="margin-top: 12px;">
+                        <div class="form-group">
+                            <label>Estimated Repair Cost</label>
+                            <input type="text" id="damage-repair-cost" value="${escapeHtml(report.estimatedRepairCost || '')}" placeholder="$0.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Vehicle Driveable?</label>
+                            <select id="damage-driveable" class="filter-select">
+                                <option value="" ${report.vehicleDriveable == null ? 'selected' : ''}>Unknown</option>
+                                <option value="true" ${report.vehicleDriveable === true ? 'selected' : ''}>Yes</option>
+                                <option value="false" ${report.vehicleDriveable === false ? 'selected' : ''}>No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="notes-actions" style="margin-top: 12px;">
+                        <button class="btn btn-secondary" onclick="saveDamageAssessment('${report.id}')">💾 Save Damage Assessment</button>
+                        <span id="damage-status" class="notes-status"></span>
+                        ${report.damageUpdatedAt ? `<span class="notes-meta">Last updated: ${formatDate(report.damageUpdatedAt)}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="report-section collapsible">
             <h3 onclick="toggleSection(this)">📷 Photo Evidence <span class="toggle-icon">▼</span></h3>
             <div class="section-content collapsed">
                 <p class="section-hint">Attach photos of vehicle damage, scene, documents, etc. Photos are stored in Geotab.</p>
@@ -1468,6 +1513,99 @@ async function saveReportNotes(reportId) {
         console.error('Error saving notes:', err);
         statusEl.textContent = '✗ Failed to save';
         statusEl.className = 'notes-status error';
+    }
+}
+
+// Save damage assessment for a report
+async function saveDamageAssessment(reportId) {
+    const damageLevelEl = document.getElementById('damage-level');
+    const damageDescEl = document.getElementById('damage-description');
+    const repairCostEl = document.getElementById('damage-repair-cost');
+    const driveableEl = document.getElementById('damage-driveable');
+    const statusEl = document.getElementById('damage-status');
+    
+    const damageLevel = damageLevelEl.value || null;
+    const damageDescription = damageDescEl.value.trim();
+    const estimatedRepairCost = repairCostEl.value.trim();
+    const vehicleDriveable = driveableEl.value === '' ? null : driveableEl.value === 'true';
+    
+    statusEl.textContent = 'Saving...';
+    statusEl.className = 'notes-status';
+    
+    try {
+        // Find the report's AddInData record
+        const results = await new Promise((resolve, reject) => {
+            api.call('Get', {
+                typeName: 'AddInData',
+                search: { addInId: ADDIN_ID }
+            }, resolve, reject);
+        });
+        
+        let reportRecord = null;
+        let reportWrapper = null;
+        
+        for (const item of results) {
+            try {
+                const wrapper = typeof item.details === 'string' 
+                    ? JSON.parse(item.details) 
+                    : item.details;
+                
+                if (wrapper.type === 'report' && wrapper.payload.id === reportId) {
+                    reportRecord = item;
+                    reportWrapper = wrapper;
+                    break;
+                }
+            } catch (e) {}
+        }
+        
+        if (!reportRecord || !reportWrapper) {
+            throw new Error('Report not found');
+        }
+        
+        // Update damage assessment fields
+        reportWrapper.payload.damageLevel = damageLevel;
+        reportWrapper.payload.damageDescription = damageDescription;
+        reportWrapper.payload.estimatedRepairCost = estimatedRepairCost;
+        reportWrapper.payload.vehicleDriveable = vehicleDriveable;
+        reportWrapper.payload.damageUpdatedAt = new Date().toISOString();
+        
+        // Remove old record and add updated one
+        await new Promise((resolve, reject) => {
+            api.call('Remove', {
+                typeName: 'AddInData',
+                entity: { id: reportRecord.id }
+            }, resolve, reject);
+        });
+        
+        await new Promise((resolve, reject) => {
+            api.call('Add', {
+                typeName: 'AddInData',
+                entity: {
+                    addInId: ADDIN_ID,
+                    details: reportWrapper
+                }
+            }, resolve, reject);
+        });
+        
+        // Update local state
+        const localReport = reports.find(r => r.id === reportId);
+        if (localReport) {
+            localReport.damageLevel = damageLevel;
+            localReport.damageDescription = damageDescription;
+            localReport.estimatedRepairCost = estimatedRepairCost;
+            localReport.vehicleDriveable = vehicleDriveable;
+            localReport.damageUpdatedAt = reportWrapper.payload.damageUpdatedAt;
+        }
+        
+        statusEl.textContent = '✓ Saved!';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        
+        showToast('Damage assessment saved', 'success');
+    } catch (err) {
+        console.error('Error saving damage assessment:', err);
+        statusEl.textContent = '✗ Failed to save';
+        statusEl.className = 'notes-status error';
+        showToast('Failed to save damage assessment', 'error');
     }
 }
 

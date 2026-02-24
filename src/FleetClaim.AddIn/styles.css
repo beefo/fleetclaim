@@ -891,16 +891,22 @@
 }
 
 /* Third Party Form */
-#fleetclaim .third-party-form {
+#fleetclaim .third-party-form,
+#fleetclaim .damage-form {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
-#fleetclaim .third-party-form .form-row {
+#fleetclaim .third-party-form .form-row,
+#fleetclaim .damage-form .form-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
+}
+
+#fleetclaim .third-party-form .form-row {
+    grid-template-columns: repeat(3, 1fr);
 }
 
 @media (max-width: 600px) {

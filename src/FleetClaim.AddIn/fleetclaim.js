@@ -98,9 +98,9 @@ function captureCredentials() {
         api.getSession(function(session) {
             console.log('Session captured via api.getSession:', {
                 server: session.server,
-                database: session.credentials?.database || session.database,
-                userName: session.credentials?.userName || session.userName,
-                hasSessionId: !!(session.credentials?.sessionId || session.sessionId)
+                database: session.database,
+                userName: session.userName,  // userName is directly on session object
+                hasSessionId: !!session.sessionId
             });
             
             const getHost = (s) => {
@@ -111,12 +111,8 @@ function captureCredentials() {
             };
             
             geotabHost = getHost(session.server);
-            // Merge credentials - ensure userName is captured from either location
-            storedCredentials = {
-                ...(session.credentials || {}),
-                ...session,
-                userName: session.userName || session.credentials?.userName
-            };
+            // Store session directly - userName is on session object, not credentials
+            storedCredentials = session;
             
             console.log('Credentials stored for uploads:', {
                 host: geotabHost,
@@ -1982,7 +1978,7 @@ async function submitReportRequest() {
         // Get current user's display name
         let userName = 'Unknown User';
         try {
-            // Get login name from session - try multiple sources
+            // Get login name from session.userName (directly on session object per Geotab docs)
             let loginName = storedCredentials?.userName;
             
             // If not in storedCredentials, try getting fresh session
@@ -1990,11 +1986,8 @@ async function submitReportRequest() {
                 console.log('FleetClaim: No stored userName, getting fresh session...');
                 loginName = await new Promise((resolve) => {
                     api.getSession(function(session) {
-                        console.log('FleetClaim: Fresh session:', {
-                            userName: session.userName,
-                            credentialsUserName: session.credentials?.userName
-                        });
-                        resolve(session.userName || session.credentials?.userName);
+                        console.log('FleetClaim: Fresh session userName:', session.userName);
+                        resolve(session.userName);
                     }, function(err) {
                         console.warn('FleetClaim: getSession failed:', err);
                         resolve(null);
@@ -2002,7 +1995,7 @@ async function submitReportRequest() {
                 });
             }
             
-            console.log('FleetClaim: Looking up user:', loginName);
+            console.log('FleetClaim: Login name from session:', loginName);
             
             // Look up full name from User object
             if (loginName) {
@@ -2014,7 +2007,7 @@ async function submitReportRequest() {
                 
                 if (users && users.length > 0) {
                     const user = users[0];
-                    console.log('FleetClaim: User details:', user.firstName, user.lastName, user.name);
+                    console.log('FleetClaim: User details - firstName:', user.firstName, 'lastName:', user.lastName, 'name:', user.name);
                     
                     if (user.firstName || user.lastName) {
                         userName = [user.firstName, user.lastName].filter(Boolean).join(' ');

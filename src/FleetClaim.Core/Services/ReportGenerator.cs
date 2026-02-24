@@ -60,15 +60,23 @@ public class ReportGenerator : IReportGenerator
         }, ct);
         var vehicle = vehicles?.FirstOrDefault();
         
-        // Get driver details if available
+        // Get driver details if available (Driver is a User in Geotab API)
         string? driverName = null;
         if (incident.Driver?.Id != null)
         {
-            var drivers = await api.CallAsync<List<Driver>>("Get", typeof(Driver), new
+            try
             {
-                search = new UserSearch { Id = incident.Driver.Id }
-            }, ct);
-            driverName = drivers?.FirstOrDefault()?.Name;
+                var users = await api.CallAsync<List<User>>("Get", typeof(User), new
+                {
+                    search = new UserSearch { Id = incident.Driver.Id }
+                }, ct);
+                driverName = users?.FirstOrDefault()?.Name;
+            }
+            catch (Exception ex)
+            {
+                // Driver lookup can fail if user doesn't have permission or driver is unknown
+                Console.WriteLine($"Warning: Could not get driver details: {ex.Message}");
+            }
         }
         
         // Determine severity

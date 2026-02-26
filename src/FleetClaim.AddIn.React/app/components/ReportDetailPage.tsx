@@ -2,22 +2,16 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
     Button,
     Card,
-    Cards,
     Pill,
     Tabs,
     Chart,
     Banner,
-    SummaryTile,
-    SummaryTileType,
-    PageHeader,
     IconCheck,
     IconWarning,
     IconCloseCircle,
     IconLoader,
     IconChevronLeft,
-    IconDownload,
-    IconEmail,
-    IconDelete
+    IconDownload
 } from '@geotab/zenith';
 import { IncidentReport, Severity, Photo } from '@/types';
 import { useGeotab } from '@/contexts';
@@ -75,21 +69,27 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     const [activeTab, setActiveTab] = useState<TabId>('overview');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [notes, setNotes] = useState(report.notes || '');
     
-    // Track if there are unsaved changes
+    // Form state - track all editable fields across all tabs
+    const [notes, setNotes] = useState(report.notes || '');
+    const [damageAssessment, setDamageAssessment] = useState(report.damageAssessment || {});
+    const [thirdPartyInfo, setThirdPartyInfo] = useState(report.thirdPartyInfo || {});
+    
+    // Track if there are unsaved changes across ANY tab
     const hasUnsavedChanges = useMemo(() => {
-        return notes !== (report.notes || '');
-    }, [notes, report.notes]);
+        const notesChanged = notes !== (report.notes || '');
+        const damageChanged = JSON.stringify(damageAssessment) !== JSON.stringify(report.damageAssessment || {});
+        const thirdPartyChanged = JSON.stringify(thirdPartyInfo) !== JSON.stringify(report.thirdPartyInfo || {});
+        return notesChanged || damageChanged || thirdPartyChanged;
+    }, [notes, damageAssessment, thirdPartyInfo, report]);
 
-    // Normalize field names (backend uses vehicleName, frontend may use deviceName)
+    // Normalize field names
     const vehicleName = report.vehicleName || report.deviceName || 'Unknown Vehicle';
     const vehicleId = report.vehicleId || report.deviceId || '';
     
-    // Get GPS trail from evidence or root level
+    // Get GPS trail
     const gpsTrail = useMemo(() => {
         const trail = report.evidence?.gpsTrail || report.gpsTrail || [];
-        // Normalize speedKmh to speed
         return trail.map(p => ({
             latitude: p.latitude,
             longitude: p.longitude,
@@ -98,19 +98,14 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
         }));
     }, [report]);
 
-    // Get photos from evidence or root level
     const photos = report.evidence?.photos || report.photos || [];
-    
-    // Check if this is a baseline report
     const isBaseline = report.isBaselineReport || report.id?.includes('baseline') || !report.incidentDetails?.ruleId;
-
-    // Get incident location from GPS trail if not at root
     const incidentLat = report.latitude ?? (gpsTrail.length > 0 ? gpsTrail[gpsTrail.length - 1].latitude : null);
     const incidentLng = report.longitude ?? (gpsTrail.length > 0 ? gpsTrail[gpsTrail.length - 1].longitude : null);
 
     const handleDownloadPdf = useCallback(async () => {
-        if (!credentials || !credentials.sessionId) {
-            toast.error('Session not available. Please refresh the page.');
+        if (!credentials?.sessionId) {
+            toast.error('Session not available. Please refresh.');
             return;
         }
         try {
@@ -123,38 +118,12 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
             });
             toast.success('PDF downloaded');
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Failed to download PDF';
-            toast.error(message);
-        }
-    }, [report.id, credentials, geotabHost, toast]);
-
-    const handleSendEmail = useCallback(async () => {
-        if (!credentials || !credentials.sessionId) {
-            toast.error('Session not available. Please refresh the page.');
-            return;
-        }
-        
-        const email = prompt('Enter email address:');
-        if (!email) return;
-        
-        try {
-            toast.info('Sending email...');
-            await sendReportEmail(report.id, email, {
-                database: credentials.database,
-                userName: credentials.userName,
-                sessionId: credentials.sessionId,
-                server: geotabHost
-            });
-            toast.success('Report sent to ' + email);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : 'Failed to send email';
-            toast.error(message);
+            toast.error(err instanceof Error ? err.message : 'Failed to download PDF');
         }
     }, [report.id, credentials, geotabHost, toast]);
 
     const handleDelete = useCallback(async () => {
         if (!confirm('Are you sure you want to delete this report?')) return;
-        
         setIsDeleting(true);
         try {
             await onDelete(report.id);
@@ -167,36 +136,27 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
         }
     }, [report.id, onDelete, onBack, toast]);
 
-    const handleSaveChanges = useCallback(async () => {
+    // GLOBAL SAVE - saves all tabs at once
+    const handleSaveAll = useCallback(async () => {
         setIsSaving(true);
         try {
-            await onUpdate(report.id, { notes });
-            toast.success('Changes saved');
+            await onUpdate(report.id, { 
+                notes,
+                damageAssessment,
+                thirdPartyInfo
+            });
+            toast.success('All changes saved');
         } catch (err) {
             toast.error('Failed to save changes');
         } finally {
             setIsSaving(false);
         }
-    }, [report.id, notes, onUpdate, toast]);
-
-    const handleUpdateDamage = useCallback(async (damage: any) => {
-        await onUpdate(report.id, { damageAssessment: damage });
-        toast.success('Damage assessment saved');
-    }, [report.id, onUpdate, toast]);
-
-    const handleUpdateThirdParty = useCallback(async (thirdParty: any) => {
-        await onUpdate(report.id, { thirdPartyInfo: thirdParty });
-        toast.success('Third party info saved');
-    }, [report.id, onUpdate, toast]);
+    }, [report.id, notes, damageAssessment, thirdPartyInfo, onUpdate, toast]);
 
     const handleUpdatePhotos = useCallback(async (newPhotos: Photo[]) => {
-        // Update photos at root level and in evidence (to handle both structures)
         await onUpdate(report.id, { 
             photos: newPhotos,
-            evidence: {
-                ...report.evidence,
-                photos: newPhotos
-            }
+            evidence: { ...report.evidence, photos: newPhotos }
         });
     }, [report.id, report.evidence, onUpdate]);
 
@@ -211,18 +171,11 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     }, [report.severity]);
 
     const locationString = useMemo(() => {
-        const parts = [
-            report.incidentAddress,
-            report.incidentCity,
-            report.incidentState,
-            report.incidentCountry
-        ].filter(Boolean);
+        const parts = [report.incidentAddress, report.incidentCity, report.incidentState, report.incidentCountry].filter(Boolean);
         if (parts.length > 0) return parts.join(', ');
-        if (incidentLat != null && incidentLng != null) {
-            return `${incidentLat.toFixed(5)}, ${incidentLng.toFixed(5)}`;
-        }
+        if (incidentLat != null && incidentLng != null) return `${incidentLat.toFixed(5)}, ${incidentLng.toFixed(5)}`;
         return 'Location unknown';
-    }, [report]);
+    }, [report, incidentLat, incidentLng]);
 
     const tabs = [
         { id: 'overview' as TabId, name: 'Overview' },
@@ -231,179 +184,151 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
         { id: 'thirdparty' as TabId, name: 'Third Party' }
     ];
 
+    const maxSpeed = gpsTrail.length > 0 ? Math.max(...gpsTrail.map(p => p.speed || 0)) : null;
+
     return (
         <div className="report-detail-page">
-            {/* Header with back button */}
-            <PageHeader>
-                <PageHeader.Actions>
-                    <Button type="tertiary" onClick={onBack}>
-                        <IconChevronLeft /> Back
+            {/* Compact Header - matches Device Edit style */}
+            <div className="detail-header">
+                <div className="detail-header-left">
+                    <Button type="tertiary" onClick={onBack} className="back-button">
+                        <IconChevronLeft />
                     </Button>
-                    {hasUnsavedChanges && (
-                        <Button 
-                            type="primary" 
-                            onClick={handleSaveChanges} 
-                            disabled={isSaving}
-                        >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    )}
-                    <Button 
-                        type="secondary" 
-                        onClick={handleDownloadPdf} 
-                        disabled={!credentials?.sessionId}
-                    >
+                    <h1 className="detail-title">{vehicleName}</h1>
+                    {severityPill}
+                    {isBaseline && <Pill type="info">Baseline</Pill>}
+                </div>
+                <div className="detail-header-right">
+                    <Button type="secondary" onClick={handleDownloadPdf} disabled={!credentials?.sessionId}>
                         <IconDownload /> Download PDF
                     </Button>
                     <Button 
-                        type="secondary" 
-                        onClick={handleSendEmail}
-                        disabled={!credentials?.sessionId}
+                        type="primary" 
+                        onClick={handleSaveAll} 
+                        disabled={!hasUnsavedChanges || isSaving}
                     >
-                        <IconEmail /> Email
+                        {isSaving ? 'Saving...' : '💾 Save'}
                     </Button>
-                    <Button 
-                        type="tertiary-destructive" 
-                        onClick={handleDelete} 
-                        disabled={isDeleting}
-                    >
-                        <IconDelete /> Delete
-                    </Button>
-                </PageHeader.Actions>
-            </PageHeader>
-
-            {/* Report title and summary */}
-            <div className="page-title-section">
-                <h1 className="page-title">{vehicleName}</h1>
-                <div className="page-title-badges">
-                    {severityPill}
-                    {isBaseline && <Pill type="info">Baseline Report</Pill>}
                 </div>
             </div>
-            <div className="report-detail-meta">
-                <span>📅 {safeFormat(report.occurredAt, 'MMMM d, yyyy h:mm a')}</span>
-                <span>📍 {locationString}</span>
-                {report.driverName && <span>👤 {report.driverName}</span>}
-            </div>
 
-            {/* Baseline notice */}
+            {/* Baseline notice - compact */}
             {isBaseline && (
                 <Banner type="info" header="Baseline Report">
-                    This report was generated manually without a collision event trigger. 
-                    It documents vehicle data for the requested time period for reference purposes.
+                    Generated manually without a collision event. Documents vehicle data for reference.
                 </Banner>
             )}
 
             {/* Tabs */}
-            <Tabs
-                tabs={tabs}
-                activeTabId={activeTab}
-                onTabChange={(id) => setActiveTab(id as TabId)}
-            />
+            <Tabs tabs={tabs} activeTabId={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
 
             {/* Tab content */}
-            <div className="report-detail-content">
+            <div className="report-tab-content">
                 {activeTab === 'overview' && (
-                    <div className="two-column-layout">
-                        {/* LEFT COLUMN - Details (like Asset Information) */}
-                        <div className="left-column">
-                            {/* Incident Information Card */}
-                            <Card title={isBaseline ? "Vehicle Information" : "Incident Information"}>
+                    <div className="overview-grid">
+                        {/* LEFT COLUMN */}
+                        <div className="overview-left">
+                            <Card title="Vehicle Information" autoHeight>
                                 <Card.Content>
-                                    <div className="form-rows">
-                                        <div className="form-row">
-                                            <label>Vehicle</label>
-                                            <span>{vehicleName || 'Unknown'}</span>
+                                    <div className="detail-rows">
+                                        <div className="detail-row">
+                                            <span className="detail-label">Vehicle</span>
+                                            <span className="detail-value">{vehicleName}</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>Driver</label>
-                                            <span>{report.driverName || 'Unknown'}</span>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Severity</span>
+                                            <span className="detail-value">{severityPill}</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>Incident Time</label>
-                                            <span>{safeFormat(report.occurredAt, 'PPpp')}</span>
+                                        {isBaseline && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Type</span>
+                                                <span className="detail-value"><Pill type="info">Baseline</Pill></span>
+                                            </div>
+                                        )}
+                                        <div className="detail-row">
+                                            <span className="detail-label">Driver</span>
+                                            <span className="detail-value">{report.driverName || 'Unknown'}</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>Report Generated</label>
-                                            <span>{safeFormat(report.generatedAt, 'PPpp')}</span>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Date & Time</span>
+                                            <span className="detail-value">{safeFormat(report.occurredAt, 'MMM d, yyyy h:mm a')}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Coordinates</span>
+                                            <span className="detail-value">{incidentLat?.toFixed(5)}, {incidentLng?.toFixed(5)}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Location</span>
+                                            <span className="detail-value">{locationString}</span>
                                         </div>
                                         {report.requestedBy && (
-                                            <div className="form-row">
-                                                <label>Requested By</label>
-                                                <span>{report.requestedBy}</span>
+                                            <div className="detail-row">
+                                                <span className="detail-label">Requested By</span>
+                                                <span className="detail-value">{report.requestedBy}</span>
                                             </div>
                                         )}
                                     </div>
                                 </Card.Content>
                             </Card>
 
-                            {/* Telematics Data Card */}
-                            <Card title="Telematics Data">
+                            <Card title="Telematics" autoHeight>
                                 <Card.Content>
-                                    <div className="form-rows">
-                                        <div className="form-row">
-                                            <label>Speed at Event</label>
-                                            <span>{report.evidence?.speedAtEventKmh?.toFixed(0) || report.incidentDetails?.speedAtEvent?.toFixed(0) || '—'} km/h</span>
+                                    <div className="detail-rows">
+                                        <div className="detail-row">
+                                            <span className="detail-label">Speed at Event</span>
+                                            <span className="detail-value">{report.evidence?.speedAtEventKmh?.toFixed(0) || '0'} km/h</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>Max Deceleration</label>
-                                            <span>{report.evidence?.decelerationMps2?.toFixed(2) || report.incidentDetails?.maxDecelerationG?.toFixed(2) || '—'} G</span>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Max Deceleration</span>
+                                            <span className="detail-value">{report.evidence?.decelerationMps2?.toFixed(2) || '—'} G</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>Max Speed</label>
-                                            <span>{report.evidence?.maxSpeedKmh?.toFixed(0) || (gpsTrail.length > 0 ? Math.max(...gpsTrail.map(p => p.speed || 0)).toFixed(0) : '—')} km/h</span>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Max Speed</span>
+                                            <span className="detail-value">{maxSpeed?.toFixed(0) || '—'} km/h</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>GPS Points</label>
-                                            <span>{gpsTrail?.length || 0}</span>
+                                        <div className="detail-row">
+                                            <span className="detail-label">GPS Points</span>
+                                            <span className="detail-value">{gpsTrail.length}</span>
                                         </div>
                                     </div>
                                 </Card.Content>
                             </Card>
 
-                            {/* Weather Conditions */}
-                            <Card title="Conditions">
+                            <Card title="Conditions" autoHeight>
                                 <Card.Content>
-                                    <div className="form-rows">
-                                        <div className="form-row">
-                                            <label>Weather</label>
-                                            <span>{report.evidence?.weatherCondition || report.weather?.conditions || 'Unknown'}</span>
+                                    <div className="detail-rows">
+                                        <div className="detail-row">
+                                            <span className="detail-label">Weather</span>
+                                            <span className="detail-value">{report.evidence?.weatherCondition || 'Unknown'}</span>
                                         </div>
-                                        <div className="form-row">
-                                            <label>Temperature</label>
-                                            <span>{report.evidence?.temperatureCelsius?.toFixed(0) ?? report.weather?.temperature?.toFixed(0) ?? '—'}°C</span>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Temperature</span>
+                                            <span className="detail-value">{report.evidence?.temperatureCelsius?.toFixed(0) ?? '—'}°C</span>
                                         </div>
                                     </div>
                                 </Card.Content>
                             </Card>
 
-                            {/* Notes & Driver Statement */}
-                            <Card title="Notes & Driver Statement">
+                            <Card title="Notes" autoHeight>
                                 <Card.Content>
-                                    <p className="notes-hint">Add incident details, driver statements, or context for insurance claims.</p>
                                     <textarea
                                         className="notes-textarea"
-                                        placeholder="Enter notes about this incident..."
+                                        placeholder="Add notes, driver statements, or context..."
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
-                                        rows={4}
+                                        rows={3}
                                     />
-                                    {hasUnsavedChanges && (
-                                        <p className="unsaved-hint" style={{ color: '#f59e0b', fontSize: '12px', marginTop: '8px' }}>
-                                            ⚠️ You have unsaved changes. Click "Save Changes" in the header to save.
-                                        </p>
-                                    )}
                                 </Card.Content>
                             </Card>
                         </div>
 
-                        {/* RIGHT COLUMN - Visual data (like Usage/Location) */}
-                        <div className="right-column">
-                            {/* Speed Profile Chart */}
-                            {gpsTrail.length > 0 && gpsTrail.some(p => p.speed !== undefined) && (
-                                <Card title="Speed Profile">
+                        {/* RIGHT COLUMN */}
+                        <div className="overview-right">
+                            {/* Speed Profile */}
+                            {gpsTrail.length > 0 && (
+                                <Card title="Speed Profile" autoHeight>
                                     <Card.Content>
-                                        <div style={{ height: 'auto', minHeight: 100 }}>
+                                        <div className="chart-container">
                                             <Chart
                                                 type="bar"
                                                 data={{
@@ -423,92 +348,57 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                                                     responsive: true,
                                                     maintainAspectRatio: false,
                                                     scales: {
-                                                        y: {
-                                                            beginAtZero: true,
-                                                            max: 120,
-                                                            title: { display: true, text: 'Speed (km/h)' }
-                                                        },
-                                                        x: {
-                                                            display: false
-                                                        }
+                                                        y: { beginAtZero: true, max: 120, title: { display: true, text: 'km/h' } },
+                                                        x: { display: false }
                                                     }
                                                 }}
-                                                tooltip={{ 
-                                                    title: 'Speed',
-                                                    unit: 'km/h'
-                                                }}
-                                                legend={{ unit: 'km/h' }}
                                             />
                                         </div>
-                                        <div className="speed-chart-legend">
-                                            <span><span className="legend-dot green"></span> Normal (&lt;50)</span>
-                                            <span><span className="legend-dot yellow"></span> Moderate (50-80)</span>
-                                            <span><span className="legend-dot red"></span> High (&gt;80)</span>
+                                        <div className="chart-legend">
+                                            <span><span className="dot green"></span> Normal</span>
+                                            <span><span className="dot yellow"></span> Moderate</span>
+                                            <span><span className="dot red"></span> High</span>
                                         </div>
                                     </Card.Content>
                                 </Card>
                             )}
 
                             {/* Location Map */}
-                            <Card title="Location">
+                            <Card title="Location" autoHeight>
                                 <Card.Content>
-                                    <GpsMap
-                                        gpsTrail={gpsTrail || []}
-                                        incidentLocation={{
-                                            latitude: incidentLat,
-                                            longitude: incidentLng
-                                        }}
-                                        occurredAt={report.occurredAt}
-                                        height="auto"
-                                    />
-                                    <div className="location-address">
-                                        📍 {locationString}
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                                        {incidentLat != null && incidentLng != null && (
+                                            <a 
+                                                href={`https://www.google.com/maps?q=${incidentLat},${incidentLng}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ fontSize: '13px', color: 'var(--zen-color-primary, #0070f3)' }}
+                                            >
+                                                🗺️ View Map
+                                            </a>
+                                        )}
+                                    </div>
+                                    <div className="map-container" style={{ height: '300px' }}>
+                                        <GpsMap
+                                            gpsTrail={gpsTrail}
+                                            incidentLocation={{ latitude: incidentLat, longitude: incidentLng }}
+                                            occurredAt={report.occurredAt}
+                                            height="300px"
+                                        />
+                                    </div>
+                                    <div className="map-details">
+                                        <span className="map-address">{locationString}</span>
+                                        <span className="map-updated">Last updated: {safeFormat(report.occurredAt, 'MMM d, yyyy h:mm a')}</span>
                                     </div>
                                 </Card.Content>
                             </Card>
-
-                            {/* Key Metrics using SummaryTile */}
-                            <div className="metrics-tiles">
-                                <SummaryTile
-                                    title="Event Speed"
-                                    tileType={
-                                        (report.evidence?.speedAtEventKmh || 0) > 80 ? SummaryTileType.Error :
-                                        (report.evidence?.speedAtEventKmh || 0) > 50 ? SummaryTileType.Warning :
-                                        SummaryTileType.Default
-                                    }
-                                >
-                                    {report.evidence?.speedAtEventKmh?.toFixed(0) || '—'} km/h
-                                </SummaryTile>
-                                <SummaryTile
-                                    title="Max G-Force"
-                                    tileType={
-                                        Math.abs(report.evidence?.decelerationMps2 || 0) > 3 ? SummaryTileType.Error :
-                                        Math.abs(report.evidence?.decelerationMps2 || 0) > 1.5 ? SummaryTileType.Warning :
-                                        SummaryTileType.Default
-                                    }
-                                >
-                                    {report.evidence?.decelerationMps2?.toFixed(2) || '—'} G
-                                </SummaryTile>
-                                <SummaryTile
-                                    title="Photos"
-                                    tileType={SummaryTileType.Active}
-                                >
-                                    {photos.length}
-                                </SummaryTile>
-                                <SummaryTile
-                                    title="GPS Points"
-                                    tileType={SummaryTileType.Default}
-                                >
-                                    {gpsTrail?.length || 0}
-                                </SummaryTile>
-                            </div>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'photos' && (
                     <PhotosSection
-                        photos={photos || []}
+                        photos={photos}
                         reportId={report.id}
                         deviceId={vehicleId}
                         onUpdate={handleUpdatePhotos}
@@ -518,17 +408,15 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
 
                 {activeTab === 'damage' && (
                     <DamageAssessmentForm
-                        assessment={report.damageAssessment}
-                        onSave={handleUpdateDamage}
-                        isSaving={false}
+                        assessment={damageAssessment}
+                        onChange={setDamageAssessment}
                     />
                 )}
 
                 {activeTab === 'thirdparty' && (
                     <ThirdPartyInfoForm
-                        info={report.thirdPartyInfo}
-                        onSave={handleUpdateThirdParty}
-                        isSaving={false}
+                        info={thirdPartyInfo}
+                        onChange={setThirdPartyInfo}
                     />
                 )}
             </div>

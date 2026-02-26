@@ -1,30 +1,309 @@
 /**
  * FleetClaim Add-In Styles
- * Extends Zenith design system
+ * Matches MyGeotab Device Edit layout style
  */
 
 /* ============================================
-   Layout
+   Layout - Minimal padding, no wasted space
    ============================================ */
 
 .fleetclaim-content {
-    padding: 16px;
-    min-height: calc(100vh - 180px);
+    padding: 4px 16px;
 }
 
 /* ============================================
-   Summary Tiles Container
+   Summary Tiles Container (Reports/Requests tabs)
    ============================================ */
 
 .summary-tiles-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
 /* ============================================
-   Reports Tab
+   Report Detail Page - Device Edit Style
+   ============================================ */
+
+.report-detail-page {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 0;
+}
+
+/* Header - matches Device Edit header style */
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--zen-color-border, #e0e0e0);
+    margin-bottom: 4px;
+}
+
+.detail-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.detail-header-left .back-button {
+    padding: 4px 8px;
+    min-width: auto;
+}
+
+.detail-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--zen-color-text-primary);
+}
+
+.detail-header-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Tab content - no extra padding */
+.report-tab-content {
+    padding: 0;
+}
+
+/* ============================================
+   Overview Grid - Two Column Layout
+   ============================================ */
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(400px, 1.4fr);
+    gap: 8px;
+    align-items: start;
+}
+
+.overview-left,
+.overview-right {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Tighter card spacing in overview */
+.overview-left > *,
+.overview-right > * {
+    margin-bottom: 0;
+}
+
+/* Cards auto-size to content */
+.overview-grid [class*="Card"],
+.overview-grid .zen-card {
+    margin: 0;
+}
+
+/* ============================================
+   Detail Rows - Label/Value pairs
+   ============================================ */
+
+.detail-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--zen-color-border-light, #f0f0f0);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.detail-row:first-child {
+    padding-top: 0;
+}
+
+.detail-label {
+    font-size: 13px;
+    color: var(--zen-color-text-secondary, #666);
+}
+
+.detail-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--zen-color-text-primary, #111);
+    text-align: right;
+}
+
+/* ============================================
+   Chart Container - Proper height
+   ============================================ */
+
+.chart-container {
+    height: 250px;
+    width: 100%;
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--zen-color-text-secondary);
+}
+
+.chart-legend .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.chart-legend .dot.green { background: #22c55e; }
+.chart-legend .dot.yellow { background: #f59e0b; }
+.chart-legend .dot.red { background: #ef4444; }
+
+/* ============================================
+   Map Container - Taller, details below
+   ============================================ */
+
+.map-container {
+    height: 300px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.map-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.map-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--zen-color-border-light, #eee);
+    font-size: 13px;
+    color: var(--zen-color-text-secondary);
+}
+
+.map-address {
+    color: var(--zen-color-text-primary);
+    font-weight: 500;
+}
+
+.map-updated {
+    font-size: 12px;
+    color: var(--zen-color-text-tertiary, #999);
+}
+
+/* ============================================
+   Notes Textarea - Full width, bordered
+   ============================================ */
+
+.notes-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--zen-color-border, #d1d5db);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    background: #fff;
+}
+
+.notes-textarea:focus {
+    outline: none;
+    border-color: var(--zen-color-primary, #0070f3);
+    box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.1);
+}
+
+/* ============================================
+   Photos Tab - Two Column Layout
+   ============================================ */
+
+/* Note: .photos-grid defined in Photos Section below */
+
+/* ============================================
+   Third Party Tab - Two Column Layout
+   ============================================ */
+
+.third-party-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: start;
+}
+
+/* ============================================
+   Damage Assessment - Full Width Two Column
+   ============================================ */
+
+.damage-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: start;
+}
+
+.damage-form-grid > * {
+    min-width: 0;
+}
+
+/* ============================================
+   Form Inputs - Zenith Style
+   ============================================ */
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.form-field:last-child {
+    margin-bottom: 0;
+}
+
+.form-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--zen-color-text-primary);
+}
+
+.form-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--zen-color-border, #d1d5db);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--zen-color-primary, #0070f3);
+    box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.1);
+}
+
+.form-input::placeholder {
+    color: var(--zen-color-text-tertiary, #999);
+}
+
+/* ============================================
+   Reports List Tab
    ============================================ */
 
 .reports-tab,
@@ -32,42 +311,22 @@
 .settings-tab {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-}
-
-.report-status-icons {
-    display: flex;
-    gap: 4px;
-}
-
-.report-status-icons span {
-    font-size: 14px;
+    gap: 12px;
 }
 
 /* ============================================
    Requests Tab
    ============================================ */
 
-/* Replaced with Zenith Banner component */
-/* .requests-info {
+.requests-info {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 16px;
-    background: var(--zen-color-surface-info);
-    border-radius: 8px;
+    padding: 10px 14px;
+    background: var(--zen-color-surface-info, #e8f4fd);
+    border-radius: 6px;
     color: var(--zen-color-text-secondary);
-    font-size: 14px;
-} */
-
-.request-options .badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px 6px;
-    background: var(--zen-color-warning);
-    border-radius: 4px;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 /* ============================================
@@ -77,15 +336,15 @@
 .settings-form {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
 }
 
 .setting-item {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--zen-color-border);
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--zen-color-border-light);
 }
 
 .setting-item:last-child {
@@ -95,459 +354,165 @@
 .setting-label {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    flex: 1;
+    gap: 2px;
 }
 
 .setting-title {
     font-weight: 500;
     color: var(--zen-color-text-primary);
+    font-size: 14px;
 }
 
 .setting-description {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--zen-color-text-secondary);
-}
-
-.settings-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid var(--zen-color-border);
-}
-
-.about-section {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.about-section h3 {
-    margin: 0;
-    font-size: 1.25rem;
-}
-
-.about-details {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 14px;
-    color: var(--zen-color-text-secondary);
-}
-
-.about-links {
-    display: flex;
-    gap: 16px;
-    margin-top: 12px;
-}
-
-.shortcuts-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.shortcut-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.shortcut-item kbd {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    height: 28px;
-    padding: 0 8px;
-    background: var(--zen-color-surface-secondary);
-    border: 1px solid var(--zen-color-border);
-    border-radius: 6px;
-    font-family: monospace;
-    font-size: 13px;
 }
 
 /* ============================================
-   Report Detail Modal
+   Responsive
    ============================================ */
 
-.report-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--zen-color-border);
-    margin-bottom: 16px;
-}
-
-.report-header-info {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.report-header-main {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.report-header-main h2 {
-    margin: 0;
-    font-size: 1.5rem;
-}
-
-.report-header-details {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    font-size: 14px;
-    color: var(--zen-color-text-secondary);
-}
-
-.report-header-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.report-tab-content {
-    padding: 16px 0;
-}
-
-.overview-tab {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-}
-
-.detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.detail-item label {
-    font-size: 12px;
-    text-transform: uppercase;
-    color: var(--zen-color-text-secondary);
-    letter-spacing: 0.5px;
-}
-
-.detail-item span {
-    font-size: 15px;
-    color: var(--zen-color-text-primary);
-}
-
-.weather-info {
-    display: flex;
-    gap: 16px;
-    font-size: 14px;
-}
-
-.notes-card textarea {
-    width: 100%;
-    margin-bottom: 12px;
-}
-
-.modal-footer-left {
-    flex: 1;
-}
-
-/* ============================================
-   Two-Column Layout (Device Edit style)
-   ============================================ */
-
-.two-column-layout {
-    display: grid;
-    grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
-    gap: 16px;
-    align-items: start;
-}
-
-.left-column,
-.right-column {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-/* Compact cards */
-.two-column-layout .zen-card,
-.two-column-layout [class*="Card"] {
-    margin: 0;
-}
-
-.two-column-layout .zen-card-content,
-.two-column-layout [class*="CardContent"] {
-    padding: 12px 16px;
-}
-
-/* Form rows - label/value pairs like Geotab Asset Info */
-.form-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-.form-rows .form-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--zen-color-border-light, #f0f0f0);
-}
-
-.form-rows .form-row:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.form-rows .form-row:first-child {
-    padding-top: 0;
-}
-
-.form-rows .form-row label {
-    font-size: 13px;
-    color: var(--zen-color-text-secondary, #666);
-    flex-shrink: 0;
-    margin-right: 12px;
-}
-
-.form-rows .form-row span {
-    font-size: 13px;
-    color: var(--zen-color-text-primary, #111);
-    text-align: right;
-}
-
-/* Metrics tiles using Zenith SummaryTile */
-.metrics-tiles {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-
-/* Metrics grid (legacy - keep for compatibility) */
-.metrics-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-.metric-item {
-    text-align: center;
-    padding: 8px 4px;
-    background: var(--zen-color-surface-secondary, #f8f9fa);
-    border-radius: 6px;
-}
-
-.metric-label {
-    font-size: 10px;
-    color: var(--zen-color-text-secondary, #666);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 2px;
-}
-
-.metric-value {
-    font-size: 13px;
-    color: var(--zen-color-text-primary, #111);
-}
-
-.metric-value.large {
-    font-size: 20px;
-    font-weight: 600;
-}
-
-.metric-value .unit {
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--zen-color-text-secondary, #666);
-}
-
-/* Location address under map */
-.location-address {
-    margin-top: 8px;
-    padding-top: 8px;
-    font-size: 12px;
-    color: var(--zen-color-text-secondary, #666);
-    border-top: 1px solid var(--zen-color-border-light, #eee);
-}
-
-/* Speed chart legend */
-.speed-chart-legend {
-    display: flex;
-    gap: 12px;
-    margin-top: 8px;
-    justify-content: center;
-    font-size: 10px;
-    color: var(--zen-color-text-secondary, #666);
-}
-
-.legend-dot {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    margin-right: 4px;
-}
-
-.legend-dot.green { background-color: #22c55e; }
-.legend-dot.yellow { background-color: #f59e0b; }
-.legend-dot.red { background-color: #ef4444; }
-
-/* Responsive: stack on mobile */
 @media (max-width: 900px) {
-    .two-column-layout {
+    .overview-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .photos-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .third-party-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .damage-form-grid {
         grid-template-columns: 1fr;
     }
 }
 
-.delete-button {
-    color: var(--zen-color-error) !important;
-}
-
 /* ============================================
-   GPS Map
+   Misc Components
    ============================================ */
 
-.gps-map {
+/* Toast container */
+.toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-}
-
-.gps-map-container {
-    position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--zen-color-surface-secondary);
-}
-
-.gps-map-image {
-    width: 100%;
-    height: auto;
-    display: block;
-}
-
-.gps-map-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 12px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-}
-
-.gps-map-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    color: white;
-    font-size: 13px;
-}
-
-.gps-map-link {
-    color: white !important;
-}
-
-.speed-chart {
-    padding: 12px;
-    background: var(--zen-color-surface-secondary);
-    border-radius: 8px;
-}
-
-.speed-chart h4 {
-    margin: 0 0 12px;
-    font-size: 14px;
-    color: var(--zen-color-text-secondary);
-}
-
-.speed-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 60px;
-}
-
-.speed-bar {
-    flex: 1;
-    min-width: 4px;
-    border-radius: 2px 2px 0 0;
-    transition: height 0.2s;
-}
-
-/* ============================================
-   Photos Section
-   ============================================ */
-
-.photos-section {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.upload-controls {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.category-select {
-    display: flex;
-    align-items: center;
     gap: 8px;
 }
 
+.toast {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.2s ease;
+}
+
+.toast.success { background: #10b981; color: white; }
+.toast.error { background: #ef4444; color: white; }
+.toast.info { background: #3b82f6; color: white; }
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Loading states */
+.loading-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    color: var(--zen-color-text-secondary);
+    font-size: 14px;
+}
+
+/* Empty states */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--zen-color-text-secondary);
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.empty-state-text {
+    font-size: 14px;
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+/* ============================================
+   Photos Section - Two Column
+   ============================================ */
+
 .photos-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 16px;
+    grid-template-columns: 250px 1fr;
+    gap: 8px;
+    align-items: start;
+}
+
+.photos-upload,
+.photos-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Ensure cards auto-size */
+.photos-upload [class*="Card"],
+.photos-gallery [class*="Card"] {
+    height: auto !important;
+    min-height: 0;
+}
+
+.photo-thumbnails {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 8px;
 }
 
 .photo-item {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
 }
 
-.photo-thumbnail {
-    aspect-ratio: 4/3;
-    border-radius: 8px;
+.photo-thumb {
+    aspect-ratio: 1;
+    border-radius: 4px;
     overflow: hidden;
     cursor: pointer;
-    background: var(--zen-color-surface-secondary);
+    background: var(--zen-color-surface-secondary, #f5f5f5);
+    border: 1px solid var(--zen-color-border-light);
 }
 
-.photo-thumbnail img {
+.photo-thumb:hover {
+    border-color: var(--zen-color-primary, #0070f3);
+}
+
+.photo-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.2s;
 }
 
-.photo-thumbnail:hover img {
-    transform: scale(1.05);
-}
-
-.photo-thumbnail-loading {
+.photo-loading {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--zen-color-surface-secondary);
-    color: var(--zen-color-text-secondary);
     font-size: 24px;
     animation: pulse 1.5s infinite;
 }
@@ -557,64 +522,37 @@
     50% { opacity: 1; }
 }
 
-.photo-info {
+.photo-meta {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: 4px;
 }
 
 .photo-name {
-    font-size: 13px;
+    font-size: 11px;
     color: var(--zen-color-text-secondary);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-/* Replaced with Zenith Banner component */
-/* .empty-photos {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--zen-color-text-secondary);
-} */
-
-/* Photo Modal (Zenith Modal) */
-.photo-modal-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 0;
+.photo-delete {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 12px;
 }
 
-.photo-modal-image {
-    max-width: 100%;
-    max-height: 60vh;
-    object-fit: contain;
-    border-radius: 4px;
-}
-
-.photo-modal-info {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    padding: 8px 16px;
-    background: var(--zen-color-surface-secondary);
-    border-radius: 4px;
-    font-size: 13px;
-    color: var(--zen-color-text-secondary);
+.photo-delete:hover {
+    opacity: 1;
 }
 
 /* ============================================
-   Damage Assessment Form
+   Damage Assessment - Radio Options
    ============================================ */
-
-.damage-assessment-form,
-.third-party-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
 
 .damage-level-options {
     display: flex;
@@ -623,469 +561,79 @@
 }
 
 .damage-level-option {
-    padding: 12px 16px;
-    border: 2px solid var(--zen-color-border);
-    border-radius: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--zen-color-border, #ddd);
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
 }
 
 .damage-level-option:hover {
     border-color: var(--zen-color-primary);
+    background: var(--zen-color-surface-secondary, #f8f9fa);
 }
 
 .damage-level-option.selected {
-    border-color: var(--zen-color-primary);
-    background: var(--zen-color-surface-info);
+    border-color: var(--zen-color-primary, #0070f3);
+    background: rgba(0, 112, 243, 0.05);
 }
 
-.damage-level-header {
+.damage-level-option input[type="radio"] {
+    margin-top: 2px;
+}
+
+.damage-level-content {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .damage-level-label {
     font-weight: 500;
+    font-size: 14px;
+    color: var(--zen-color-text-primary);
 }
 
-.damage-level-description {
-    font-size: 13px;
+.damage-level-desc {
+    font-size: 12px;
     color: var(--zen-color-text-secondary);
-    margin-left: 24px;
-}
-
-/* ============================================
-   Forms
-   ============================================ */
-
-.form-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-field label,
-.form-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--zen-color-text-secondary);
-}
-
-.form-row {
-    display: flex;
-    gap: 16px;
-}
-
-.form-section-half {
-    flex: 1;
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-}
-
-.form-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--zen-color-border);
 }
 
 .toggle-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-}
-
-.toggle-label-text {
-    font-size: 14px;
-    color: var(--zen-color-text-secondary);
-}
-
-.zen-input,
-.zen-textarea,
-.zen-select {
-    padding: 10px 12px;
-    border: 1px solid var(--zen-color-border);
-    border-radius: 6px;
-    font-size: 14px;
-    background: var(--zen-color-surface);
-    color: var(--zen-color-text-primary);
-    transition: border-color 0.2s;
-}
-
-.zen-input:focus,
-.zen-textarea:focus,
-.zen-select:focus {
-    outline: none;
-    border-color: var(--zen-color-primary);
-}
-
-.zen-textarea {
-    resize: vertical;
-    min-height: 80px;
+    gap: 10px;
 }
 
 /* ============================================
-   New Request Modal
+   Third Party Form Grid
    ============================================ */
 
-.request-form {
+.third-party-left,
+.third-party-right {
     display: flex;
     flex-direction: column;
-    gap: 24px;
-}
-
-.time-range-presets {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.time-range-inputs {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.time-range-separator {
-    color: var(--zen-color-text-secondary);
-}
-
-.form-field-toggle {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 16px;
-    background: var(--zen-color-surface-secondary);
-    border-radius: 8px;
-}
-
-.toggle-label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-}
-
-.toggle-title {
-    font-weight: 500;
-}
-
-.toggle-description {
-    font-size: 13px;
-    color: var(--zen-color-text-secondary);
+    gap: 6px;
 }
 
 /* ============================================
-   Toast Notifications
+   Responsive - Photos/Damage/ThirdParty
    ============================================ */
 
-.toast-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    z-index: 10001;
-    max-width: 400px;
-}
-
-.toast {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    background: var(--zen-color-surface);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    cursor: pointer;
-    animation: slideIn 0.2s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
+@media (max-width: 700px) {
+    .photos-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
     }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-.toast-success {
-    border-left: 4px solid var(--zen-color-success);
-}
-
-.toast-error {
-    border-left: 4px solid var(--zen-color-error);
-}
-
-.toast-warning {
-    border-left: 4px solid var(--zen-color-warning);
-}
-
-.toast-info {
-    border-left: 4px solid var(--zen-color-info);
-}
-
-.toast-icon {
-    font-size: 18px;
-}
-
-.toast-message {
-    flex: 1;
-    font-size: 14px;
-}
-
-.toast-close {
-    background: none;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    opacity: 0.5;
-    transition: opacity 0.2s;
-}
-
-.toast-close:hover {
-    opacity: 1;
-}
-
-/* ============================================
-   Loading & Empty States
-   ============================================ */
-
-.loading-state,
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 48px 24px;
-    text-align: center;
-    color: var(--zen-color-text-secondary);
-}
-
-.empty-state h3 {
-    margin: 0 0 8px;
-    color: var(--zen-color-text-primary);
-}
-
-.empty-state p {
-    margin: 0;
-}
-
-/* ============================================
-   Responsive
-   ============================================ */
-
-@media (max-width: 768px) {
-    .report-header {
-        flex-direction: column;
-        gap: 16px;
-    }
-
-    .report-header-actions {
-        width: 100%;
-        justify-content: flex-start;
-        flex-wrap: wrap;
-    }
-
-    .detail-grid {
+    
+    .third-party-grid {
         grid-template-columns: 1fr;
     }
-
-    .form-row {
-        flex-direction: column;
-    }
-
-    .photos-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .toast-container {
-        left: 16px;
-        right: 16px;
-        bottom: 16px;
-        max-width: none;
-    }
-}
-
-/* ============================================
-   Report Detail Page
-   ============================================ */
-
-.report-detail-page {
-    padding: 12px 16px;
-}
-
-.report-detail-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.report-detail-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.report-detail-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
-}
-
-.report-detail-title h1 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--zen-color-text-primary);
-}
-
-.report-detail-meta {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    color: var(--zen-color-text-secondary);
-    font-size: 13px;
-    margin-bottom: 12px;
-}
-
-.report-detail-meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.report-detail-content {
-    margin-top: 8px;
-}
-
-.tab-overview {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.notes-textarea {
-    width: 100%;
-    min-height: 80px;
-    padding: 10px;
-    border: 1px solid var(--zen-color-border);
-    border-radius: 4px;
-    font-family: inherit;
-    font-size: 13px;
-    resize: vertical;
-}
-
-.notes-textarea:focus {
-    outline: none;
-    border-color: var(--zen-color-primary);
-}
-
-.gps-map-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--zen-color-background-secondary);
-    border-radius: 8px;
-    color: var(--zen-color-text-secondary);
-}
-
-@media (max-width: 768px) {
-    .report-detail-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
     
-    .report-detail-actions {
-        width: 100%;
+    .damage-form-grid {
+        grid-template-columns: 1fr;
     }
-    
-    .report-detail-title {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-}
-
-/* ============================================
-   Baseline Report Notice
-   ============================================ */
-
-.baseline-notice {
-    background: var(--zen-color-info-light, #e0f2fe);
-    border: 1px solid var(--zen-color-info, #0ea5e9);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-    font-size: 14px;
-}
-
-.baseline-notice strong {
-    color: var(--zen-color-info, #0ea5e9);
-}
-
-/* ============================================
-   Notes Section
-   ============================================ */
-
-.notes-hint {
-    color: var(--zen-color-text-secondary);
-    font-size: 13px;
-    margin-bottom: 8px;
-}
-
-.notes-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 12px;
-}
-
-/* ============================================
-   Detail Grid
-   ============================================ */
-
-.detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-}
-
-.detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.detail-item label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--zen-color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.detail-item span {
-    font-size: 14px;
-    color: var(--zen-color-text-primary);
 }

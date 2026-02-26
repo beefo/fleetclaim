@@ -59,6 +59,7 @@ export interface ThirdPartyInfo {
     otherVehicleMake?: string;
     otherVehicleModel?: string;
     otherVehiclePlate?: string;
+    otherVehicleColor?: string;
     witnesses?: string;
     policeReportNumber?: string;
     additionalNotes?: string;

@@ -27,16 +27,8 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
 }) => {
     const { session, api, state, credentials, geotabHost, captureCredentials } = useGeotab();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
-    // Get database from session or state fallback
     const database = session?.database || (state?.getState() as any)?.database || '';
     
-    // Debug logging for credentials
-    console.log('[PhotosSection] render - credentials:', credentials ? {
-        database: credentials.database,
-        userName: credentials.userName,
-        hasSessionId: !!credentials.sessionId
-    } : 'null', 'photos:', photos.length);
     const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>('damage');
     const [isUploading, setIsUploading] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
@@ -48,16 +40,10 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        console.log('[PhotosSection] handleFileChange called, files:', files?.length);
         if (!files || files.length === 0) return;
-        
-        console.log('[PhotosSection] database value:', database);
-        console.log('[PhotosSection] credentials:', credentials);
-        console.log('[PhotosSection] geotabHost:', geotabHost);
         
         if (!database) {
             toast.error('Database not available. Please refresh the page.');
-            console.error('[PhotosSection] database is empty, aborting upload');
             return;
         }
 
@@ -65,21 +51,14 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
         toast.info('Uploading photo...');
 
         try {
-            if (!api) {
-                throw new Error('Geotab API not available');
-            }
+            if (!api) throw new Error('Geotab API not available');
             
-            // Ensure we have credentials for upload
-            // If not yet captured, capture them now (after API warmup from earlier calls)
             let uploadCredentials = credentials;
             let uploadHost = geotabHost;
             
             if (!uploadCredentials || !uploadCredentials.sessionId) {
-                console.log('[PhotosSection] Credentials not captured, attempting capture...');
                 try {
                     await captureCredentials();
-                    // Note: this updates state, but we need to wait for re-render
-                    // So we'll call getSession directly for this upload
                     const freshSession = await new Promise<any>((resolve, reject) => {
                         api.getSession((s: any) => resolve(s), reject);
                     });
@@ -94,88 +73,58 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
                             : freshSession.server;
                     }
                 } catch (credErr) {
-                    console.error('[PhotosSection] Failed to capture credentials:', credErr);
                     throw new Error('Could not get session credentials. Please try again.');
                 }
             }
             
             if (!uploadCredentials || !uploadCredentials.sessionId) {
-                throw new Error('Session credentials not available. Please refresh the page.');
+                throw new Error('Session credentials not available. Please refresh.');
             }
             
             const file = files[0];
-            const result = await uploadPhoto(
-                api,
-                uploadCredentials,
-                uploadHost,
-                file,
-                deviceId,
-                reportId,
-                selectedCategory
-            );
-
+            const result = await uploadPhoto(api, uploadCredentials, uploadHost, file, deviceId, reportId, selectedCategory);
             const updatedPhotos = [...photos, result.photo];
             await onUpdate(updatedPhotos);
             toast.success('Photo uploaded');
         } catch (err) {
-            console.error('[PhotosSection] Upload error:', err);
             toast.error(err instanceof Error ? err.message : 'Upload failed');
         } finally {
             setIsUploading(false);
-            // Reset file input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     }, [api, credentials, geotabHost, captureCredentials, database, deviceId, reportId, selectedCategory, photos, onUpdate, toast]);
 
     const handleDeletePhoto = useCallback(async (photo: Photo) => {
         if (!api || !confirm('Delete this photo?')) return;
-
         setDeletingPhotoId(photo.id);
-
         try {
             await deletePhotoApi(api, photo.mediaFileId);
-            const updatedPhotos = photos.filter(p => p.id !== photo.id);
-            await onUpdate(updatedPhotos);
+            await onUpdate(photos.filter(p => p.id !== photo.id));
             toast.success('Photo deleted');
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Failed to delete photo');
+            toast.error(err instanceof Error ? err.message : 'Failed to delete');
         } finally {
             setDeletingPhotoId(null);
         }
     }, [api, photos, onUpdate, toast]);
 
-    const handleViewPhoto = useCallback((photo: Photo) => {
-        setViewingPhoto(photo);
-    }, []);
-
     const groupedPhotos = React.useMemo(() => {
-        const groups: Record<PhotoCategory, Photo[]> = {
-            damage: [],
-            scene: [],
-            other: []
-        };
-
+        const groups: Record<PhotoCategory, Photo[]> = { damage: [], scene: [], other: [] };
         photos.forEach(photo => {
-            const category = photo.category as PhotoCategory || 'other';
-            if (groups[category]) {
-                groups[category].push(photo);
-            } else {
-                groups.other.push(photo);
-            }
+            const cat = (photo.category as PhotoCategory) || 'other';
+            (groups[cat] || groups.other).push(photo);
         });
-
         return groups;
     }, [photos]);
 
     return (
-        <div className="photos-section">
-            {/* Upload controls */}
-            <Card title="Upload Photos">
-                <Card.Content>
-                    <div className="upload-controls">
-                        <div className="category-select">
+        <div className="photos-grid">
+            {/* LEFT COLUMN - Upload */}
+            <div className="photos-upload">
+                <Card title="Upload Photos" autoHeight>
+                    <Card.Content>
+                        <div className="form-field">
+                            <label className="form-label">Category</label>
                             <Select
                                 title="Category"
                                 value={selectedCategory}
@@ -187,103 +136,85 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
                                 ] as any}
                             />
                         </div>
-                        <Button
-                            type="primary"
-                            onClick={handleUploadClick}
-                            disabled={isUploading}
-                        >
+                        <Button type="primary" onClick={handleUploadClick} disabled={isUploading}>
                             {isUploading ? 'Uploading...' : '📷 Upload Photo'}
                         </Button>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            style={{ display: 'none' }}
-                        />
-                    </div>
-                </Card.Content>
-            </Card>
+                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                    </Card.Content>
+                </Card>
 
-            {/* Photo grid by category */}
-            {Object.entries(groupedPhotos).map(([category, categoryPhotos]) => (
-                categoryPhotos.length > 0 && (
-                    <Card key={category} title={formatPhotoCategory(category)}>
-                        <Card.Content>
-                            <div className="photos-grid">
-                                {categoryPhotos.map(photo => (
-                                    <div key={photo.id} className="photo-item">
-                                        <div 
-                                            className="photo-thumbnail"
-                                            onClick={() => handleViewPhoto(photo)}
-                                        >
-                                            {credentials?.sessionId ? (
+                {photos.length === 0 && (
+                    <Banner type="info" header="No Photos">
+                        Upload photos of damage, scene, or other evidence.
+                    </Banner>
+                )}
+            </div>
+
+            {/* RIGHT COLUMN - Photo Gallery */}
+            <div className="photos-gallery">
+                {Object.entries(groupedPhotos).map(([category, categoryPhotos]) => (
+                    categoryPhotos.length > 0 && (
+                        <Card key={category} title={`${formatPhotoCategory(category)} (${categoryPhotos.length})`} autoHeight>
+                            <Card.Content>
+                                <div className="photo-thumbnails">
+                                    {categoryPhotos.map(photo => (
+                                        <div key={photo.id} className="photo-item">
+                                            <div className="photo-thumb" onClick={() => setViewingPhoto(photo)}>
                                                 <img
-                                                    src={getThumbnailUrl(photo.mediaFileId, credentials, geotabHost)}
+                                                    src={credentials?.sessionId 
+                                                        ? getThumbnailUrl(photo.mediaFileId, credentials, geotabHost)
+                                                        : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f5f5f5" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23999" font-size="40">📷</text></svg>'
+                                                    }
                                                     alt={photo.fileName}
                                                     loading="lazy"
                                                     onError={(e) => {
-                                                        console.log('[PhotosSection] Thumbnail load error for:', photo.mediaFileId);
-                                                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23ccc" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23666">📷</text></svg>';
+                                                        const img = e.target as HTMLImageElement;
+                                                        // Prevent infinite loop
+                                                        if (!img.dataset.errorHandled) {
+                                                            img.dataset.errorHandled = 'true';
+                                                            img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23eee" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23999" font-size="40">📷</text></svg>';
+                                                        }
                                                     }}
                                                 />
-                                            ) : (
-                                                <div className="photo-thumbnail-loading">
-                                                    <span>⏳</span>
-                                                </div>
-                                            )}
+                                            </div>
+                                            <div className="photo-meta">
+                                                <span className="photo-name" title={photo.fileName}>
+                                                    {photo.fileName.length > 15 ? photo.fileName.substring(0, 12) + '...' : photo.fileName}
+                                                </span>
+                                                <button
+                                                    className="photo-delete"
+                                                    onClick={() => handleDeletePhoto(photo)}
+                                                    disabled={deletingPhotoId === photo.id}
+                                                    title="Delete"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="photo-info">
-                                            <span className="photo-name" title={photo.fileName}>
-                                                {photo.fileName.length > 20 
-                                                    ? photo.fileName.substring(0, 17) + '...' 
-                                                    : photo.fileName}
-                                            </span>
-                                            <Button
-                                                type="tertiary"
-                                                
-                                                onClick={() => handleDeletePhoto(photo)}
-                                                disabled={deletingPhotoId === photo.id}
-                                            >
-                                                {deletingPhotoId === photo.id ? '...' : '🗑️'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card.Content>
-                    </Card>
-                )
-            ))}
-
-            {photos.length === 0 && (
-                <Banner type="info" header="No Photos">
-                    Upload photos of vehicle damage, the accident scene, or other relevant evidence.
-                </Banner>
-            )}
+                                    ))}
+                                </div>
+                            </Card.Content>
+                        </Card>
+                    )
+                ))}
+            </div>
 
             {/* Photo viewer modal */}
             {viewingPhoto && credentials && (
-                <Modal
-                    isOpen={!!viewingPhoto}
-                    onClose={() => setViewingPhoto(null)}
-                    title={viewingPhoto.fileName}
-                    maxWidth="800px"
-                >
-                    <div className="photo-modal-content">
+                <Modal isOpen={!!viewingPhoto} onClose={() => setViewingPhoto(null)} title={viewingPhoto.fileName} maxWidth="800px">
+                    <div style={{ textAlign: 'center' }}>
                         <img
                             src={getFullImageUrl(viewingPhoto.mediaFileId, credentials, geotabHost)}
                             alt={viewingPhoto.fileName}
-                            className="photo-modal-image"
+                            style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: '4px' }}
                         />
-                        <div className="photo-modal-info">
+                        <div style={{ marginTop: '12px', color: '#666', fontSize: '13px' }}>
                             <span>{formatPhotoCategory(viewingPhoto.category)}</span>
+                            <span style={{ margin: '0 8px' }}>•</span>
                             <span>{new Date(viewingPhoto.uploadedAt).toLocaleString()}</span>
                         </div>
                     </div>
-                    <Modal.SecondaryButton onClick={() => setViewingPhoto(null)}>
-                        Close
-                    </Modal.SecondaryButton>
+                    <Modal.SecondaryButton onClick={() => setViewingPhoto(null)}>Close</Modal.SecondaryButton>
                 </Modal>
             )}
         </div>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FleetClaim - Development</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Source Sans Pro', sans-serif;
+        }
+        .dev-banner {
+            background: #1a73e8;
+            color: white;
+            padding: 8px 16px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dev-banner button {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="dev-banner">
+        <span>🔧 FleetClaim Development Mode - Using mock Geotab API</span>
+        <button onclick="location.reload()">Reload</button>
+    </div>
+    <div id="fleetclaim"></div>
+    
+    <!-- Mock Geotab API for development -->
+    <script>
+        window.geotab = {
+            addin: {}
+        };
+        
+        // Mock API that simulates Geotab responses
+        const mockApi = {
+            call: function(method, params, success, error) {
+                console.log('[MockAPI] call:', method, params);
+                
+                // Simulate API responses
+                setTimeout(() => {
+                    switch(method) {
+                        case 'Get':
+                            if (params.typeName === 'Device') {
+                                success([
+                                    { id: 'b1', name: 'Vehicle 001', serialNumber: 'G9001' },
+                                    { id: 'b2', name: 'Vehicle 002', serialNumber: 'G9002' },
+                                    { id: 'b3', name: 'Vehicle 003', serialNumber: 'G9003' }
+                                ]);
+                            } else if (params.typeName === 'AddInData') {
+                                success([
+                                    {
+                                        id: 'aid1',
+                                        addInId: 'aji_jHQGE8k2TDodR8tZrpw',
+                                        details: JSON.stringify({
+                                            type: 'report',
+                                            payload: {
+                                                id: 'rpt_001',
+                                                deviceId: 'b1',
+                                                deviceName: 'Vehicle 001',
+                                                driverName: 'John Smith',
+                                                occurredAt: new Date(Date.now() - 3600000).toISOString(),
+                                                generatedAt: new Date().toISOString(),
+                                                latitude: 43.4516,
+                                                longitude: -79.6877,
+                                                incidentCity: 'Burlington',
+                                                incidentState: 'ON',
+                                                severity: 'high',
+                                                shareToken: 'mock_token_123'
+                                            }
+                                        })
+                                    }
+                                ]);
+                            } else if (params.typeName === 'User') {
+                                success([{ id: 'u1', name: 'testuser@geotab.com', firstName: 'Test' }]);
+                            } else {
+                                success([]);
+                            }
+                            break;
+                        default:
+                            success(null);
+                    }
+                }, 200);
+                
+                return Promise.resolve();
+            },
+            multiCall: function(calls) {
+                return Promise.all(calls.map(([method, params]) => 
+                    new Promise((resolve) => this.call(method, params, resolve, () => resolve(null)))
+                ));
+            },
+            getSession: function(success) {
+                success({
+                    database: 'demo_fleetclaim',
+                    userName: 'testuser@geotab.com',
+                    sessionId: 'mock_session_id_123',
+                    server: 'my.geotab.com'
+                });
+            }
+        };
+        
+        // Mock state
+        const mockState = {
+            getState: () => ({}),
+            setState: () => {},
+            gotoPage: () => true,
+            hasAccessToPage: () => true,
+            getGroupFilter: () => [],
+            translate: (text) => text
+        };
+    </script>
+</body>
+</html>

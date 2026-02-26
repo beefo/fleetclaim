@@ -1,0 +1,20 @@
+{
+    "name": "FleetClaim React",
+    "supportEmail": "support@fleetclaim.com",
+    "version": "2.0.0",
+    "items": [
+        {
+            "page": "fleetclaim-react",
+            "title": {
+                "en": "FleetClaim (React)"
+            },
+            "menuId": "ActivityLink",
+            "icon": "https://fleetclaim-addin-react-589116575765.us-central1.run.app/images/icon.svg",
+            "url": "https://fleetclaim-addin-react-589116575765.us-central1.run.app/",
+            "menuName": {
+                "en": "FleetClaim (React)"
+            }
+        }
+    ],
+    "isSigned": false
+}

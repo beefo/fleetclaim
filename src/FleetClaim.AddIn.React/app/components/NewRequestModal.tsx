@@ -215,6 +215,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                         }}
                         placeholder="Select a vehicle..."
                         searchField={true}
+                        multiselect={false}
                         errorHandler={(e) => console.error('Dropdown error:', e)}
                     />
                 </div>

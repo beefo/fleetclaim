@@ -364,7 +364,7 @@ app.MapPost("/api/photo/upload", async (
         var creds = await credentialStore.GetCredentialsAsync(database, ct);
         
         // Create authenticated API client
-        var api = await clientFactory.CreateClientAsync(database, ct);
+        var api = await clientFactory.CreateAsync(database, ct);
         var loginCreds = api.LoginResult?.Credentials;
         
         if (loginCreds == null)
@@ -469,7 +469,7 @@ app.MapGet("/api/photo/{database}/{mediaFileId}", async (
     try
     {
         // Get service credentials
-        var api = await clientFactory.CreateClientAsync(database, ct);
+        var api = await clientFactory.CreateAsync(database, ct);
         var creds = api.LoginResult?.Credentials;
         
         if (creds == null)

@@ -153,7 +153,7 @@ export const GpsMap: React.FC<GpsMapProps> = ({
     }, [bounds, incidentLocation, centerLat, centerLng]);
 
     // Render a clean OpenStreetMap embed - no overlay, details handled by parent
-    // The parent .map-container handles positioning; we just render the iframe
+    // The parent .fc-map-container handles positioning; we just render the iframe
     return (
         <iframe 
             className="gps-map-iframe"

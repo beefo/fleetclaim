@@ -378,7 +378,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                                             </a>
                                         )}
                                     </div>
-                                    <div className="map-container" style={{ height: '300px' }}>
+                                    <div className="fc-map-container" style={{ height: '300px' }}>
                                         <GpsMap
                                             gpsTrail={gpsTrail}
                                             incidentLocation={{ latitude: incidentLat, longitude: incidentLng }}

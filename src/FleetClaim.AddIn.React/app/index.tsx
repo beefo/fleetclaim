@@ -70,34 +70,59 @@ if (typeof window !== 'undefined') {
         ) {
             console.log('FleetClaim: Initializing...');
             
+            // HACK: Try to find credentials through various means
+            console.log("FleetClaim: Attempting to find session credentials...");
+            
+            // Method 1: Check window.geotab for any credential info
+            const geotabGlobal = (window as any).geotab;
+            console.log("FleetClaim: window.geotab keys:", geotabGlobal ? Object.keys(geotabGlobal) : "undefined");
+            
+            // Method 2: Check parent window (we're in an iframe)
             try {
-                console.log("FleetClaim: About to call getSession...");
-                console.log("FleetClaim: typeof getSession =", typeof (freshApi as any).getSession);
-                
-                (freshApi as any).getSession(function(session: any, server: any) {
-                    // 'session.userName' is the user's login email/username
-                    console.log("Current User:", session.userName);
-                    console.log("Database:", session.database);
-                    console.log("Session ID:", session.sessionId);
-                    console.log("Server:", server);
-                    
-                    // Example: Use the name to get full User details (like First/Last Name)
-                    freshApi.call("Get", {
-                        typeName: "User",
-                        search: { name: session.userName }
-                    }, function(userArray: any) {
-                        if (userArray.length > 0) {
-                            let user = userArray[0];
-                            console.log("Full Name:", user.firstName + " " + user.lastName);
-                        }
-                    }, function(error: any) {
-                        console.error("FleetClaim: Get User failed:", error);
-                    });
-                }, function(error: any) {
-                    console.error("FleetClaim: getSession ERROR callback:", error);
+                const parentGeotab = (window.parent as any).geotab;
+                console.log("FleetClaim: parent.geotab keys:", parentGeotab ? Object.keys(parentGeotab) : "undefined");
+            } catch (e) {
+                console.log("FleetClaim: Cannot access parent window (cross-origin)");
+            }
+            
+            // Method 3: Inspect the api object deeply
+            console.log("FleetClaim: freshApi keys:", Object.keys(freshApi));
+            console.log("FleetClaim: freshApi prototype:", Object.getPrototypeOf(freshApi));
+            
+            // Method 4: Check for any global credentials or session objects
+            const windowKeys = Object.keys(window).filter(k => 
+                k.toLowerCase().includes('session') || 
+                k.toLowerCase().includes('cred') || 
+                k.toLowerCase().includes('geotab') ||
+                k.toLowerCase().includes('user')
+            );
+            console.log("FleetClaim: Interesting window keys:", windowKeys);
+            
+            // Method 5: Try to get credentials from localStorage/sessionStorage
+            try {
+                const storageKeys = [...Object.keys(localStorage), ...Object.keys(sessionStorage)];
+                const geotabStorageKeys = storageKeys.filter(k => k.toLowerCase().includes('geotab') || k.toLowerCase().includes('session'));
+                console.log("FleetClaim: Geotab storage keys:", geotabStorageKeys);
+                geotabStorageKeys.forEach(k => {
+                    const val = localStorage.getItem(k) || sessionStorage.getItem(k);
+                    console.log(`FleetClaim: Storage[${k}]:`, val?.substring(0, 200));
                 });
             } catch (e) {
-                console.error("FleetClaim: getSession threw exception:", e);
+                console.log("FleetClaim: Cannot access storage");
+            }
+            
+            // Method 6: Check cookies
+            console.log("FleetClaim: Cookies:", document.cookie?.substring(0, 500) || "none");
+            
+            // Method 7: Try the standard getSession anyway and log the error details
+            try {
+                (freshApi as any).getSession(function(session: any, server: any) {
+                    console.log("FleetClaim: getSession SUCCESS!", { session, server });
+                }, function(error: any) {
+                    console.log("FleetClaim: getSession error callback:", error);
+                });
+            } catch (e) {
+                console.log("FleetClaim: getSession threw:", e);
             }
             
             currentApi = freshApi;

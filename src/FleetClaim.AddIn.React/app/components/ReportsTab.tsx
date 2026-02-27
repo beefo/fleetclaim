@@ -130,7 +130,24 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
             title: 'Date/Time',
             meta: { defaultWidth: 160 },
             columnComponent: {
-                render: (entity) => format(new Date(entity.report.occurredAt), 'MMM d, yyyy h:mm a'),
+                render: (entity) => (
+                    <button 
+                        type="button"
+                        onClick={() => handleViewReport(entity.report)}
+                        style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            padding: 0, 
+                            color: 'var(--zen-color-link)', 
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            textAlign: 'left',
+                            font: 'inherit'
+                        }}
+                    >
+                        {format(new Date(entity.report.occurredAt), 'MMM d, yyyy h:mm a')}
+                    </button>
+                ),
                 renderHeader: (title) => title
             }
         },

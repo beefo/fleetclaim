@@ -1,5 +1,4 @@
 import React from 'react';
-import { IconClose } from '@geotab/zenith';
 import { Toast } from '@/hooks';
 
 interface ToastContainerProps {
@@ -27,15 +26,14 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onRemove
                 >
                     <span className="toast-icon">{toastIcons[toast.type]}</span>
                     <span className="toast-message">{toast.message}</span>
-                    <button
-                        className="toast-close-btn"
+                    <button 
+                        className="toast-close"
                         onClick={(e) => {
                             e.stopPropagation();
                             onRemove(toast.id);
                         }}
-                        aria-label="Close"
                     >
-                        <IconClose />
+                        ✕
                     </button>
                 </div>
             ))}

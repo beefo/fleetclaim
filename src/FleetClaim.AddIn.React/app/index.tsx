@@ -70,6 +70,36 @@ if (typeof window !== 'undefined') {
         ) {
             console.log('FleetClaim: Initializing...');
             
+            try {
+                console.log("FleetClaim: About to call getSession...");
+                console.log("FleetClaim: typeof getSession =", typeof (freshApi as any).getSession);
+                
+                (freshApi as any).getSession(function(session: any, server: any) {
+                    // 'session.userName' is the user's login email/username
+                    console.log("Current User:", session.userName);
+                    console.log("Database:", session.database);
+                    console.log("Session ID:", session.sessionId);
+                    console.log("Server:", server);
+                    
+                    // Example: Use the name to get full User details (like First/Last Name)
+                    freshApi.call("Get", {
+                        typeName: "User",
+                        search: { name: session.userName }
+                    }, function(userArray: any) {
+                        if (userArray.length > 0) {
+                            let user = userArray[0];
+                            console.log("Full Name:", user.firstName + " " + user.lastName);
+                        }
+                    }, function(error: any) {
+                        console.error("FleetClaim: Get User failed:", error);
+                    });
+                }, function(error: any) {
+                    console.error("FleetClaim: getSession ERROR callback:", error);
+                });
+            } catch (e) {
+                console.error("FleetClaim: getSession threw exception:", e);
+            }
+            
             currentApi = freshApi;
             currentState = freshState;
             

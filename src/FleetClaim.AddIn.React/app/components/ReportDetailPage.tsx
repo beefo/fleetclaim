@@ -366,29 +366,14 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                             {/* Location Map */}
                             <Card title="Location" autoHeight>
                                 <Card.Content>
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-                                        {incidentLat != null && incidentLng != null && (
-                                            <a 
-                                                href={`https://www.google.com/maps?q=${incidentLat},${incidentLng}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ fontSize: '13px', color: 'var(--zen-color-primary, #0070f3)' }}
-                                            >
-                                                🗺️ View Map
-                                            </a>
-                                        )}
-                                    </div>
-                                    <div className="map-container" style={{ height: '300px' }}>
-                                        <GpsMap
-                                            gpsTrail={gpsTrail}
-                                            incidentLocation={{ latitude: incidentLat, longitude: incidentLng }}
-                                            occurredAt={report.occurredAt}
-                                            height="300px"
-                                        />
-                                    </div>
-                                    <div className="map-details">
-                                        <span className="map-address">{locationString}</span>
-                                        <span className="map-updated">Last updated: {safeFormat(report.occurredAt, 'MMM d, yyyy h:mm a')}</span>
+                                    <GpsMap
+                                        gpsTrail={gpsTrail || []}
+                                        incidentLocation={{ latitude: incidentLat, longitude: incidentLng }}
+                                        occurredAt={report.occurredAt}
+                                        height={250}
+                                    />
+                                    <div className="location-address" style={{ marginTop: '8px', fontSize: '13px', color: 'var(--zen-color-text-secondary)' }}>
+                                        📍 {locationString}
                                     </div>
                                 </Card.Content>
                             </Card>

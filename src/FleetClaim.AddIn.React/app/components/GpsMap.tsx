@@ -152,15 +152,37 @@ export const GpsMap: React.FC<GpsMapProps> = ({
         return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${markerLat},${markerLng}`;
     }, [bounds, incidentLocation, centerLat, centerLng]);
 
-    // Render a clean OpenStreetMap embed - no overlay, details handled by parent
+    // Render an OpenStreetMap embed with overlay info (no speed chart here - it's in its own card)
     return (
         <div className="gps-map">
-            <iframe 
-                src={osmEmbedUrl}
-                style={{ width: '100%', height: numericHeight, border: 'none', borderRadius: '8px' }}
-                title="GPS Trail Map"
-                loading="lazy"
-            />
+            <div className="gps-map-container">
+                <iframe 
+                    src={osmEmbedUrl}
+                    style={{ width: '100%', height: numericHeight, border: 'none', borderRadius: '8px' }}
+                    title="GPS Trail Map"
+                    loading="lazy"
+                />
+                <div className="gps-map-overlay">
+                    <div className="gps-map-info">
+                        <span className="gps-coord">
+                            📍 {incidentLocation?.latitude?.toFixed(5)}, {incidentLocation?.longitude?.toFixed(5)}
+                        </span>
+                        {gpsTrail.length > 0 && (
+                            <span className="gps-trail-info">
+                                🚗 {gpsTrail.length} GPS points | Max: {Math.max(...gpsTrail.map(p => p.speed || 0)).toFixed(0)} km/h
+                            </span>
+                        )}
+                    </div>
+                    <a 
+                        href={`https://www.google.com/maps?q=${incidentLocation?.latitude || 0},${incidentLocation?.longitude || 0}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="zen-link gps-map-link"
+                    >
+                        Open in Google Maps ↗
+                    </a>
+                </div>
+            </div>
         </div>
     );
 };

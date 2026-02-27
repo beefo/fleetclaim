@@ -1,0 +1,9 @@
+node_modules/
+app/
+.dev/
+*.md
+*.json
+!package.json
+webpack.*
+tsconfig.json
+zip.util.js

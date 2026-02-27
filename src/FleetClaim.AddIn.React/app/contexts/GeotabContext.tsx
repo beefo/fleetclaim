@@ -120,59 +120,108 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         }
         
         // Method 1: Try api.getSession() first
+        // NOTE: Following official Geotab mg-media-files pattern - NO error callback!
+        // The Add-In API proxy may not handle error callbacks correctly
         try {
-            await new Promise<void>((resolve, reject) => {
+            const sessionResult = await new Promise<any>((resolve) => {
                 if (typeof api.getSession !== 'function') {
-                    reject(new Error('api.getSession not available'));
+                    console.warn('[GeotabContext] api.getSession is not a function');
+                    resolve(null);
                     return;
                 }
                 
-                api.getSession(
-                    (cr: any) => {
-                        // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
-                        const creds = cr.credentials || cr;
-                        
-                        console.log('[GeotabContext] Session captured via api.getSession:', {
-                            server: cr.server,
-                            database: creds.database,
-                            userName: creds.userName,
-                            hasSessionId: !!creds.sessionId
-                        });
-                        
-                        if (cr.server) {
-                            if (cr.server.startsWith('http')) {
-                                try { host = new URL(cr.server).hostname; } catch (e) { host = cr.server; }
-                            } else {
-                                host = cr.server;
-                            }
-                        }
-                        
-                        setGeotabHost(host);
-                        setCredentials({
-                            database: creds.database,
-                            userName: creds.userName,
-                            sessionId: creds.sessionId
-                        });
-                        credentialsCaptured.current = true;
-                        
-                        console.log('[GeotabContext] Credentials stored for uploads:', {
-                            host,
-                            database: creds.database,
-                            userName: creds.userName,
-                            hasSessionId: !!creds.sessionId
-                        });
-                        
-                        resolve();
-                    },
-                    (err: any) => {
-                        console.warn('[GeotabContext] api.getSession failed:', err);
-                        reject(err);
-                    }
-                );
+                // Use a timeout in case getSession never calls back
+                const timeout = setTimeout(() => {
+                    console.warn('[GeotabContext] api.getSession timed out after 5s');
+                    resolve(null);
+                }, 5000);
+                
+                // Following official pattern: only success callback, no error callback
+                api.getSession((cr: any) => {
+                    clearTimeout(timeout);
+                    console.log('[GeotabContext] api.getSession raw response:', JSON.stringify(cr, null, 2));
+                    resolve(cr);
+                });
             });
-            return; // Success, no need to try other methods
+            
+            if (sessionResult) {
+                // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
+                const creds = sessionResult.credentials || sessionResult;
+                
+                console.log('[GeotabContext] Session captured via api.getSession:', {
+                    server: sessionResult.server,
+                    database: creds.database,
+                    userName: creds.userName,
+                    hasSessionId: !!creds.sessionId
+                });
+                
+                // Only proceed if we actually have sessionId
+                if (creds.sessionId) {
+                    if (sessionResult.server) {
+                        if (sessionResult.server.startsWith('http')) {
+                            try { host = new URL(sessionResult.server).hostname; } catch (e) { host = sessionResult.server; }
+                        } else {
+                            host = sessionResult.server;
+                        }
+                    }
+                    
+                    setGeotabHost(host);
+                    setCredentials({
+                        database: creds.database || database,
+                        userName: creds.userName,
+                        sessionId: creds.sessionId
+                    });
+                    credentialsCaptured.current = true;
+                    
+                    console.log('[GeotabContext] Credentials stored for uploads:', {
+                        host,
+                        database: creds.database || database,
+                        userName: creds.userName,
+                        hasSessionId: true
+                    });
+                    
+                    return; // Success, no need to try other methods
+                } else {
+                    console.log('[GeotabContext] api.getSession returned but no sessionId, trying alternatives...');
+                }
+            }
         } catch (e) {
-            console.log('[GeotabContext] api.getSession failed, trying alternative methods...');
+            console.log('[GeotabContext] api.getSession threw exception:', e);
+        }
+        
+        console.log('[GeotabContext] api.getSession did not provide sessionId, trying alternative methods...');
+        
+        // Method 1b: Inspect the api object for internal credentials
+        // MyGeotab API objects sometimes store credentials internally
+        try {
+            const apiAny = api as any;
+            console.log('[GeotabContext] Inspecting api object keys:', Object.keys(apiAny));
+            
+            // Check common internal credential locations
+            const possibleCredPaths = [
+                apiAny.credentials,
+                apiAny._credentials,
+                apiAny.session,
+                apiAny._session,
+                apiAny.options?.credentials,
+                apiAny.config?.credentials,
+            ];
+            
+            for (const creds of possibleCredPaths) {
+                if (creds?.sessionId) {
+                    console.log('[GeotabContext] Found credentials in api object');
+                    setGeotabHost(host);
+                    setCredentials({
+                        database: creds.database || database,
+                        userName: creds.userName,
+                        sessionId: creds.sessionId
+                    });
+                    credentialsCaptured.current = true;
+                    return;
+                }
+            }
+        } catch (e) {
+            console.log('[GeotabContext] Could not inspect api object:', e);
         }
         
         // Method 2: Try to get credentials from parent window (for iframes)

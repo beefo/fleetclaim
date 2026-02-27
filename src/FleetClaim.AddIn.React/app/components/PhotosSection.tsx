@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { Button, Card, Select, Banner, Modal } from '@geotab/zenith';
 import { Photo } from '@/types';
 import { useGeotab } from '@/contexts';
@@ -25,10 +25,25 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
     onUpdate,
     toast
 }) => {
-    const { session, api, state, credentials, geotabHost, captureCredentials } = useGeotab();
+    const { session, api, state } = useGeotab();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const database = session?.database || (state?.getState() as any)?.database || '';
     
+    // Get database from session or URL
+    const database = useMemo(() => {
+        // Try session first
+        if (session?.database) return session.database;
+        
+        // Try state
+        const stateData = state?.getState() as any;
+        if (stateData?.database) return stateData.database;
+        
+        // Extract from URL path (e.g., /demo_fleetclaim)
+        const pathMatch = window.location.pathname.match(/^\/([^\/]+)/);
+        if (pathMatch) return pathMatch[1];
+        
+        return '';
+    }, [session, state]);
+
     const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>('damage');
     const [isUploading, setIsUploading] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);
@@ -47,52 +62,41 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
             return;
         }
 
+        if (!api) {
+            toast.error('Geotab API not available.');
+            return;
+        }
+
         setIsUploading(true);
         toast.info('Uploading photo...');
 
         try {
-            if (!api) throw new Error('Geotab API not available');
-            
-            let uploadCredentials = credentials;
-            let uploadHost = geotabHost;
-            
-            if (!uploadCredentials || !uploadCredentials.sessionId) {
-                try {
-                    await captureCredentials();
-                    const freshSession = await new Promise<any>((resolve, reject) => {
-                        api.getSession((s: any) => resolve(s), reject);
-                    });
-                    uploadCredentials = {
-                        database: freshSession.database,
-                        userName: freshSession.userName,
-                        sessionId: freshSession.sessionId
-                    };
-                    if (freshSession.server) {
-                        uploadHost = freshSession.server.startsWith('http') 
-                            ? new URL(freshSession.server).hostname 
-                            : freshSession.server;
-                    }
-                } catch (credErr) {
-                    throw new Error('Could not get session credentials. Please try again.');
-                }
-            }
-            
-            if (!uploadCredentials || !uploadCredentials.sessionId) {
-                throw new Error('Session credentials not available. Please refresh.');
-            }
-            
             const file = files[0];
-            const result = await uploadPhoto(api, uploadCredentials, uploadHost, file, deviceId, reportId, selectedCategory);
+            
+            // Validate file
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                throw new Error('Invalid file type. Please upload a JPG, PNG, GIF, or WebP image.');
+            }
+            
+            if (file.size > 10 * 1024 * 1024) {
+                throw new Error('File too large. Maximum size is 10MB.');
+            }
+            
+            // Upload via Add-In API + backend proxy
+            const result = await uploadPhoto(api, database, file, reportId, selectedCategory);
+            
             const updatedPhotos = [...photos, result.photo];
             await onUpdate(updatedPhotos);
             toast.success('Photo uploaded');
         } catch (err) {
+            console.error('[PhotosSection] Upload failed:', err);
             toast.error(err instanceof Error ? err.message : 'Upload failed');
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
-    }, [api, credentials, geotabHost, captureCredentials, database, deviceId, reportId, selectedCategory, photos, onUpdate, toast]);
+    }, [api, database, reportId, selectedCategory, photos, onUpdate, toast]);
 
     const handleDeletePhoto = useCallback(async (photo: Photo) => {
         if (!api || !confirm('Delete this photo?')) return;
@@ -108,7 +112,7 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
         }
     }, [api, photos, onUpdate, toast]);
 
-    const groupedPhotos = React.useMemo(() => {
+    const groupedPhotos = useMemo(() => {
         const groups: Record<PhotoCategory, Photo[]> = { damage: [], scene: [], other: [] };
         photos.forEach(photo => {
             const cat = (photo.category as PhotoCategory) || 'other';
@@ -136,10 +140,15 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
                                 ] as any}
                             />
                         </div>
-                        <Button type="primary" onClick={handleUploadClick} disabled={isUploading}>
+                        <Button type="primary" onClick={handleUploadClick} disabled={isUploading || !database}>
                             {isUploading ? 'Uploading...' : '📷 Upload Photo'}
                         </Button>
                         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                        {!database && (
+                            <div style={{ color: '#d32f2f', fontSize: '12px', marginTop: '8px' }}>
+                                Database not detected. Photo upload unavailable.
+                            </div>
+                        )}
                     </Card.Content>
                 </Card>
 
@@ -161,15 +170,14 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
                                         <div key={photo.id} className="photo-item">
                                             <div className="photo-thumb" onClick={() => setViewingPhoto(photo)}>
                                                 <img
-                                                    src={credentials?.sessionId 
-                                                        ? getThumbnailUrl(photo.mediaFileId, credentials, geotabHost)
+                                                    src={database 
+                                                        ? getThumbnailUrl(photo.mediaFileId, database)
                                                         : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f5f5f5" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23999" font-size="40">📷</text></svg>'
                                                     }
                                                     alt={photo.fileName}
                                                     loading="lazy"
                                                     onError={(e) => {
                                                         const img = e.target as HTMLImageElement;
-                                                        // Prevent infinite loop
                                                         if (!img.dataset.errorHandled) {
                                                             img.dataset.errorHandled = 'true';
                                                             img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23eee" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23999" font-size="40">📷</text></svg>';
@@ -200,11 +208,11 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
             </div>
 
             {/* Photo viewer modal */}
-            {viewingPhoto && credentials && (
+            {viewingPhoto && database && (
                 <Modal isOpen={!!viewingPhoto} onClose={() => setViewingPhoto(null)} title={viewingPhoto.fileName} maxWidth="800px">
                     <div style={{ textAlign: 'center' }}>
                         <img
-                            src={getFullImageUrl(viewingPhoto.mediaFileId, credentials, geotabHost)}
+                            src={getFullImageUrl(viewingPhoto.mediaFileId, database)}
                             alt={viewingPhoto.fileName}
                             style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: '4px' }}
                         />

@@ -24,6 +24,13 @@ if (typeof window !== 'undefined') {
     }
 }
 
+// Declare global api variable for MyGeotab's internal eval calls
+declare global {
+    interface Window {
+        api?: GeotabApi;
+    }
+}
+
 /**
  * MyGeotab Add-In Registration
  */
@@ -73,6 +80,9 @@ if (typeof window !== 'undefined') {
             currentApi = freshApi;
             currentState = freshState;
             
+            // Expose api globally - required for MyGeotab's internal eval() calls
+            (window as any).api = freshApi;
+            
             // Apply translations if available
             if (freshState.translate) {
                 freshState.translate(elAddin);
@@ -93,6 +103,9 @@ if (typeof window !== 'undefined') {
             
             currentApi = freshApi;
             currentState = freshState;
+            
+            // Update global api reference
+            (window as any).api = freshApi;
             
             // Remove hidden class if present
             elAddin.classList.remove('hidden');

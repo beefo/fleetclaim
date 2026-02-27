@@ -127,8 +127,8 @@ describe('reportService', () => {
                 deviceName: 'Test Vehicle',
                 requestedBy: 'user@test.com',
                 requestedAt: new Date().toISOString(),
-                rangeStart: new Date().toISOString(),
-                rangeEnd: new Date().toISOString(),
+                fromDate: new Date().toISOString(),
+                toDate: new Date().toISOString(),
                 status: 'pending'
             };
             
@@ -159,8 +159,8 @@ describe('reportService', () => {
                 deviceId: 'b1',
                 deviceName: 'Test Vehicle',
                 requestedBy: 'user@test.com',
-                rangeStart: new Date().toISOString(),
-                rangeEnd: new Date().toISOString()
+                fromDate: new Date().toISOString(),
+                toDate: new Date().toISOString()
             });
             
             expect(result).toBe('new_aid_123');

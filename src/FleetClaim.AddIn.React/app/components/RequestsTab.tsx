@@ -90,8 +90,8 @@ export const RequestsTab: React.FC<RequestsTabProps> = ({ onRefresh, toast }) =>
             sortable: false,
             columnComponent: {
                 render: (entity) => {
-                    const start = format(new Date(entity.request.rangeStart), 'MMM d, h:mm a');
-                    const end = format(new Date(entity.request.rangeEnd), 'h:mm a');
+                    const start = format(new Date(entity.request.fromDate), 'MMM d, h:mm a');
+                    const end = format(new Date(entity.request.toDate), 'h:mm a');
                     return `${start} - ${end}`;
                 },
                 renderHeader: (title) => title

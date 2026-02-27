@@ -144,8 +144,8 @@ export interface ReportRequest {
     deviceName?: string;
     requestedBy: string;
     requestedAt: string;
-    rangeStart: string;
-    rangeEnd: string;
+    fromDate: string;
+    toDate: string;
     status: RequestStatus;
     forceReport?: boolean;
     error?: string;

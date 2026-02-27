@@ -51,8 +51,8 @@ export function useRequests() {
             deviceId,
             deviceName,
             requestedBy: userName,
-            rangeStart: rangeStart.toISOString(),
-            rangeEnd: rangeEnd.toISOString(),
+            fromDate: rangeStart.toISOString(),
+            toDate: rangeEnd.toISOString(),
             forceReport
         };
         

@@ -153,18 +153,11 @@ export const GpsMap: React.FC<GpsMapProps> = ({
     }, [bounds, incidentLocation, centerLat, centerLng]);
 
     // Render a clean OpenStreetMap embed - no overlay, details handled by parent
+    // The parent .map-container handles positioning; we just need to fill it
     return (
-        <div className="gps-map" style={{ position: 'relative', width: '100%', height: numericHeight, overflow: 'hidden', borderRadius: '8px' }}>
+        <div className="gps-map" style={{ height: '100%' }}>
             <iframe 
                 src={osmEmbedUrl}
-                style={{ 
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%', 
-                    height: '100%', 
-                    border: 'none'
-                }}
                 title="GPS Trail Map"
                 loading="lazy"
             />

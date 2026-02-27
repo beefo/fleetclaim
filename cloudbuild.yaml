@@ -45,26 +45,41 @@ steps:
       - 'push'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
 
-  # Build Add-In image
+  # Build Add-In React image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
-      - 'src/FleetClaim.AddIn'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:latest'
+      - 'src/FleetClaim.AddIn.React'
 
-  # Push Add-In image
+  # Push Add-In React image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:latest'
+
+  # Deploy Add-In React to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fleetclaim-addin-react'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+      - '--platform'
+      - 'managed'
 
   # Build Admin image
   - name: 'gcr.io/cloud-builders/docker'
@@ -94,8 +109,8 @@ images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:$COMMIT_SHA'
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:latest'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
 

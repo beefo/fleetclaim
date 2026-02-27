@@ -300,27 +300,44 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
     }, [state]);
 
     // Load current user when API is available
+    // Use isCurrentUser search to get the logged-in user without needing username
     useEffect(() => {
         if (!api) return;
         
         const loadCurrentUser = async () => {
             try {
+                // Use isCurrentUser search - works even when we don't know the username
                 const users: User[] = await call<User[]>('Get', {
                     typeName: 'User',
-                    search: { name: session?.userName }
+                    search: { isCurrentUser: true }
                 }) || [];
+                
                 if (users.length > 0) {
-                    setCurrentUser(users[0]);
+                    const user = users[0];
+                    console.log('[GeotabContext] Current user loaded:', user.name);
+                    setCurrentUser(user);
+                    
+                    // Update session with username if it was missing
+                    if (!session?.userName && user.name) {
+                        console.log('[GeotabContext] Updating session with username from User API:', user.name);
+                        setSession(prev => prev ? {
+                            ...prev,
+                            userName: user.name
+                        } : {
+                            database: '',
+                            userName: user.name,
+                            sessionId: '',
+                            server: ''
+                        });
+                    }
                 }
             } catch (err) {
                 console.error('Failed to load current user:', err);
             }
         };
         
-        if (session?.userName) {
-            loadCurrentUser();
-        }
-    }, [api, session?.userName, call]);
+        loadCurrentUser();
+    }, [api, call]);
 
     // Refresh session when API changes
     useEffect(() => {

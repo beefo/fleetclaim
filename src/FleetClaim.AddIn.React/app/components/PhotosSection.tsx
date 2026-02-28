@@ -29,6 +29,13 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const database = session?.database || (state?.getState() as any)?.database || '';
     
+    // Ensure credentials are captured when photos are present
+    React.useEffect(() => {
+        if (photos.length > 0 && !credentials?.sessionId && api) {
+            captureCredentials();
+        }
+    }, [photos.length, credentials?.sessionId, api, captureCredentials]);
+    
     const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>('damage');
     const [isUploading, setIsUploading] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<Photo | null>(null);

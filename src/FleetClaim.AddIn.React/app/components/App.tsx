@@ -25,16 +25,18 @@ const App: React.FC = () => {
     const credentialAttempted = useRef(false);
     
     // Capture credentials after API is available
-    // Following the vanilla Add-In pattern: capture after API calls have "warmed up" the session
+    // We try immediately and also after a delay to handle session warmup
     useEffect(() => {
         if (api && !credentials && !credentialAttempted.current) {
             credentialAttempted.current = true;
-            // Delay slightly to allow initial API calls to warm up the session
+            
+            // Try immediately
+            captureCredentials().catch(() => {});
+            
+            // Also retry after a delay in case session needs warmup
             const timer = setTimeout(() => {
-                captureCredentials().catch(() => {
-                    // Will retry on upload if needed
-                });
-            }, 1000);
+                captureCredentials().catch(() => {});
+            }, 1500);
             return () => clearTimeout(timer);
         }
     }, [api, credentials, captureCredentials]);

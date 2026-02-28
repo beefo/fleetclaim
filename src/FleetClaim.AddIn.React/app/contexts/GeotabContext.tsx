@@ -96,7 +96,10 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
      * Uses api.getSession() which returns credentials after API warmup.
      */
     const captureCredentials = useCallback(async () => {
-        if (!api || credentialsCaptured.current) return;
+        if (!api) return;
+        
+        // Skip if we already have valid credentials
+        if (credentialsCaptured.current && credentials?.sessionId) return;
         
         // Extract host from URL
         let host = window.location.hostname || 'my.geotab.com';
@@ -113,6 +116,12 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                 api.getSession((cr: any, server?: string) => {
                     // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
                     const creds = cr.credentials || cr;
+                    
+                    // Validate we got actual credentials
+                    if (!creds?.sessionId) {
+                        reject(new Error('No sessionId in credentials'));
+                        return;
+                    }
                     
                     const serverStr = server || cr.server;
                     if (serverStr) {
@@ -135,9 +144,10 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                 });
             });
         } catch (e) {
-            console.warn('[GeotabContext] Failed to capture credentials:', e);
+            // Allow retry on next call
+            credentialsCaptured.current = false;
         }
-    }, [api]);
+    }, [api, credentials?.sessionId]);
 
     const call = useCallback(
         async function callGeotab<T>(method: string, params: object): Promise<T> {

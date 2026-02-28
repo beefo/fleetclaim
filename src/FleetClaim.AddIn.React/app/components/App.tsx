@@ -43,6 +43,7 @@ const App: React.FC = () => {
     
     const [activeTab, setActiveTab] = useState<TabId>('reports');
     const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
+    const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
 
     const handleRefresh = useCallback(() => {
         // Will be passed to child components
@@ -56,6 +57,7 @@ const App: React.FC = () => {
     const handleRequestSubmitted = useCallback(() => {
         setIsNewRequestOpen(false);
         setActiveTab('requests');
+        setRequestsRefreshKey(k => k + 1);  // Trigger refresh of RequestsTab
         toast.success('Report request submitted');
     }, [toast]);
 
@@ -102,7 +104,7 @@ const App: React.FC = () => {
                     <ReportsTab onRefresh={handleRefresh} toast={toast} />
                 )}
                 {activeTab === 'requests' && (
-                    <RequestsTab onRefresh={handleRefresh} toast={toast} />
+                    <RequestsTab key={requestsRefreshKey} onRefresh={handleRefresh} toast={toast} />
                 )}
                 {activeTab === 'settings' && (
                     <SettingsTab toast={toast} />

@@ -5,9 +5,30 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - 'cloudbuild.yaml'
+      - 'cloudbuild*.yaml'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
+    inputs:
+      deploy_api:
+        description: 'Deploy API'
+        type: boolean
+        default: false
+      deploy_addin:
+        description: 'Deploy Add-In'
+        type: boolean
+        default: false
+      deploy_worker:
+        description: 'Deploy Worker'
+        type: boolean
+        default: false
+      deploy_admin:
+        description: 'Deploy Admin'
+        type: boolean
+        default: false
+      deploy_all:
+        description: 'Deploy ALL components'
+        type: boolean
+        default: false
 
 env:
   GCP_PROJECT_ID: fleetclaim
@@ -16,12 +37,69 @@ env:
   SERVICE_ACCOUNT: github-deploy@fleetclaim.iam.gserviceaccount.com
 
 jobs:
-  deploy:
+  # Run tests first - deploy only proceeds if tests pass
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+  # Detect which components changed
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      addin: ${{ steps.filter.outputs.addin }}
+      worker: ${{ steps.filter.outputs.worker }}
+      admin: ${{ steps.filter.outputs.admin }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'src/FleetClaim.Api/**'
+              - 'src/FleetClaim.Core/**'
+              - 'cloudbuild-api.yaml'
+            addin:
+              - 'src/FleetClaim.AddIn.React/**'
+              - 'cloudbuild-addin.yaml'
+            worker:
+              - 'src/FleetClaim.Worker/**'
+              - 'src/FleetClaim.Core/**'
+              - 'cloudbuild-worker.yaml'
+            admin:
+              - 'src/FleetClaim.Admin/**'
+              - 'cloudbuild-admin.yaml'
+
+  # Deploy API
+  deploy-api:
+    needs: [test, changes]
+    if: |
+      needs.changes.outputs.api == 'true' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.deploy_api || inputs.deploy_all))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,20 +115,125 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Build and Deploy with Cloud Build
+      - name: Deploy API
         run: |
           gcloud builds submit \
-            --config=cloudbuild.yaml \
+            --config=cloudbuild-api.yaml \
             --substitutions=COMMIT_SHA=${{ github.sha }} \
             --project=${{ env.GCP_PROJECT_ID }}
 
-      - name: Deployment Summary
+      - name: Summary
         run: |
-          echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 API Deployed" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Services deployed:**" >> $GITHUB_STEP_SUMMARY
-          echo "- fleetclaim-api" >> $GITHUB_STEP_SUMMARY
-          echo "- fleetclaim-addin-react" >> $GITHUB_STEP_SUMMARY
-          echo "- fleetclaim-admin" >> $GITHUB_STEP_SUMMARY
-          echo "- fleetclaim-worker (job)" >> $GITHUB_STEP_SUMMARY
+
+  # Deploy Add-In
+  deploy-addin:
+    needs: [test, changes]
+    if: |
+      needs.changes.outputs.addin == 'true' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.deploy_addin || inputs.deploy_all))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy Add-In
+        run: |
+          gcloud builds submit \
+            --config=cloudbuild-addin.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }} \
+            --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Add-In Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # Deploy Worker
+  deploy-worker:
+    needs: [test, changes]
+    if: |
+      needs.changes.outputs.worker == 'true' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.deploy_worker || inputs.deploy_all))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy Worker
+        run: |
+          gcloud builds submit \
+            --config=cloudbuild-worker.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }} \
+            --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Worker Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # Deploy Admin
+  deploy-admin:
+    needs: [test, changes]
+    if: |
+      needs.changes.outputs.admin == 'true' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.deploy_admin || inputs.deploy_all))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy Admin
+        run: |
+          gcloud builds submit \
+            --config=cloudbuild-admin.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }} \
+            --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Admin Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

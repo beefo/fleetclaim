@@ -1,0 +1,46 @@
+steps:
+  # Build Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-worker'
+    args:
+      - 'build'
+      - '--cache-from'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
+      - '-f'
+      - 'src/FleetClaim.Worker/Dockerfile'
+      - '.'
+
+  # Push Worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-worker'
+    args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker']
+    waitFor: ['build-worker']
+
+  # Update Worker Job
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-worker'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'jobs'
+      - 'update'
+      - 'fleetclaim-worker'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+    waitFor: ['push-worker']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/worker:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '600s'

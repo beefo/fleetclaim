@@ -1,0 +1,47 @@
+steps:
+  # Build Admin image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-admin'
+    args:
+      - 'build'
+      - '--cache-from'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
+      - '-f'
+      - 'src/FleetClaim.Admin/Dockerfile'
+      - '.'
+
+  # Push Admin image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-admin'
+    args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin']
+    waitFor: ['build-admin']
+
+  # Deploy Admin to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-admin'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fleetclaim-admin'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+    waitFor: ['push-admin']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/admin:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '600s'

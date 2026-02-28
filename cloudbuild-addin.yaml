@@ -1,0 +1,46 @@
+steps:
+  # Build Add-In React image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-addin'
+    args:
+      - 'build'
+      - '--cache-from'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:latest'
+      - 'src/FleetClaim.AddIn.React'
+
+  # Push Add-In image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-addin'
+    args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react']
+    waitFor: ['build-addin']
+
+  # Deploy Add-In to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-addin'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fleetclaim-addin-react'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+      - '--platform'
+      - 'managed'
+    waitFor: ['push-addin']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/addin-react:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '600s'

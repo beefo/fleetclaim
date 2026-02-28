@@ -1,0 +1,47 @@
+steps:
+  # Build API image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-api'
+    args:
+      - 'build'
+      - '--cache-from'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+      - '-f'
+      - 'src/FleetClaim.Api/Dockerfile'
+      - '.'
+
+  # Push API image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-api'
+    args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api']
+    waitFor: ['build-api']
+
+  # Deploy API to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-api'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fleetclaim-api'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+    waitFor: ['push-api']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/api:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '600s'

@@ -14,74 +14,43 @@ env:
   GCP_REGION: us-central1
   WORKLOAD_IDENTITY_PROVIDER: projects/589116575765/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   SERVICE_ACCOUNT: github-deploy@fleetclaim.iam.gserviceaccount.com
-  WORKER_IMAGE: us-central1-docker.pkg.dev/fleetclaim/fleetclaim/worker
-  API_IMAGE: us-central1-docker.pkg.dev/fleetclaim/fleetclaim/api
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write  # Required for Workload Identity Federation
+      id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
-        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
-          token_format: access_token
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Authenticate Docker to Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
-
-      - name: Build and Push with Cloud Build
+      - name: Build and Deploy with Cloud Build
         run: |
           gcloud builds submit \
             --config=cloudbuild.yaml \
             --substitutions=COMMIT_SHA=${{ github.sha }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --quiet
+            --project=${{ env.GCP_PROJECT_ID }}
 
-      - name: Deploy API to Cloud Run
+      - name: Deployment Summary
         run: |
-          gcloud run deploy fleetclaim-api \
-            --image=${{ env.API_IMAGE }}:${{ github.sha }} \
-            --region=${{ env.GCP_REGION }} \
-            --platform=managed \
-            --quiet
-
-      - name: Update Worker Job
-        run: |
-          gcloud run jobs update fleetclaim-worker \
-            --image=${{ env.WORKER_IMAGE }}:${{ github.sha }} \
-            --region=${{ env.GCP_REGION }} \
-            --quiet
-
-      - name: Deploy Add-In to Cloud Run
-        run: |
-          gcloud run deploy fleetclaim-addin-react \
-            --image=us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/fleetclaim/addin-react:${{ github.sha }} \
-            --region=${{ env.GCP_REGION }} \
-            --platform=managed \
-            --allow-unauthenticated \
-            --quiet
-
-      - name: Get Deployment Info
-        run: |
-          API_URL=$(gcloud run services describe fleetclaim-api --region=${{ env.GCP_REGION }} --format='value(status.url)')
           echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**API URL:** $API_URL" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Worker Job:** fleetclaim-worker updated" >> $GITHUB_STEP_SUMMARY
+          echo "**Services deployed:**" >> $GITHUB_STEP_SUMMARY
+          echo "- fleetclaim-api" >> $GITHUB_STEP_SUMMARY
+          echo "- fleetclaim-addin-react" >> $GITHUB_STEP_SUMMARY
+          echo "- fleetclaim-admin" >> $GITHUB_STEP_SUMMARY
+          echo "- fleetclaim-worker (job)" >> $GITHUB_STEP_SUMMARY

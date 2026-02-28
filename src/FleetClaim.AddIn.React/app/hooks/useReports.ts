@@ -22,7 +22,7 @@ export interface SortOptions {
 const DEFAULT_FILTERS: ReportFilters = {
     search: '',
     severity: 'all',
-    dateRange: 'week',
+    dateRange: 'month',  // Default to 30 days so mobile users can see more reports
     vehicleId: 'all'
 };
 

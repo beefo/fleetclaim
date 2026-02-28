@@ -86,7 +86,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         setFilters({
             search: '',
             severity: 'all',
-            dateRange: 'week',
+            dateRange: 'month',
             vehicleId: 'all'
         });
     }, [setFilters]);
@@ -295,7 +295,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
                 getDefaultFiltersState={() => ({
                     search: { state: { value: '' } },
                     severity: { state: { selectedOption: ['all'] } },
-                    dateRange: { state: { selectedOption: ['week'] } }
+                    dateRange: { state: { selectedOption: ['month'] } }
                 })}
                 onClearAllFilters={handleClearFilters}
             >

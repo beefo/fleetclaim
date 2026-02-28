@@ -8,7 +8,7 @@ import { ReportRequest } from '@/types';
 import { loadRequests, submitReportRequest, deleteRequest, RequestRecord } from '@/services';
 
 export function useRequests() {
-    const { api, session, currentUser } = useGeotab();
+    const { api, session, currentUser, credentials } = useGeotab();
     const [requests, setRequests] = useState<RequestRecord[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -42,8 +42,9 @@ export function useRequests() {
     ) => {
         if (!api) return;
         
-        // Get username from session or currentUser
-        const userName = session?.userName || currentUser?.name || 'Unknown User';
+        // Get username - prefer credentials.userName (email) over currentUser.name (short name)
+        // credentials comes from getSession() and has the full email
+        const userName = credentials?.userName || session?.userName || currentUser?.name || 'Unknown User';
         
         const request = {
             deviceId,
@@ -70,7 +71,7 @@ export function useRequests() {
         setRequests(prev => [newRecord, ...prev]);
         
         return newRecord.request.id;
-    }, [api, session, currentUser]);
+    }, [api, credentials, session, currentUser]);
 
     const remove = useCallback(async (requestId: string) => {
         if (!api) return;

@@ -231,7 +231,7 @@ public class ModelTests
         
         // Assert
         Assert.Equal("reportRequest", wrapper.Type);
-        Assert.NotNull(wrapper.Payload);
+        Assert.NotEqual(default, wrapper.Payload); // JsonElement is a struct, use NotEqual default
     }
     
     [Fact]

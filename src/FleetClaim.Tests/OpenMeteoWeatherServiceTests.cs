@@ -23,8 +23,9 @@ public class OpenMeteoWeatherServiceTests
             // Assert
             Assert.NotNull(result);
             Assert.NotNull(result.Condition);
-            // Temperature should be reasonable
-            Assert.InRange(result.TemperatureCelsius, -50, 60);
+            // Temperature should be reasonable (handle nullable)
+            Assert.NotNull(result.TemperatureCelsius);
+            Assert.InRange(result.TemperatureCelsius.Value, -50, 60);
         }
         catch (HttpRequestException)
         {

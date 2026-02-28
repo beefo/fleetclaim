@@ -1,0 +1,315 @@
+/**
+ * Tests for GeotabContext
+ */
+
+import React from 'react';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { GeotabProvider, useGeotab, GeotabCredentials } from '@/contexts/GeotabContext';
+import { GeotabApi, GeotabPageState } from '@/types';
+
+// Create mock API
+const createMockApi = (): GeotabApi => ({
+    call: jest.fn((method, params, success, error) => {
+        if (method === 'Get' && (params as any).typeName === 'User') {
+            const users = [{ id: 'u1', name: 'test@test.com', firstName: 'Test', lastName: 'User' }];
+            if (success) success(users);
+            return Promise.resolve(users);
+        }
+        if (method === 'Get' && (params as any).typeName === 'Device') {
+            const devices = [{ id: 'd1', name: 'Test Vehicle' }];
+            if (success) success(devices);
+            return Promise.resolve(devices);
+        }
+        if (method === 'Get' && (params as any).typeName === 'Group') {
+            const groups = [{ id: 'g1', name: 'Test Group' }];
+            if (success) success(groups);
+            return Promise.resolve(groups);
+        }
+        if (success) success([]);
+        return Promise.resolve([]);
+    }),
+    multiCall: jest.fn((calls, success, error) => {
+        const results = calls.map(() => []);
+        if (success) success(results);
+        return Promise.resolve(results);
+    }),
+    getSession: jest.fn((success, error) => {
+        const session = {
+            database: 'test_db',
+            userName: 'test@test.com',
+            sessionId: 'session-123'
+        };
+        if (success) success(session);
+        return Promise.resolve(session);
+    })
+});
+
+const createMockState = (): GeotabPageState => ({
+    getState: jest.fn(() => ({ database: 'test_db' })),
+    setState: jest.fn(),
+    gotoPage: jest.fn(() => true),
+    hasAccessToPage: jest.fn(() => true),
+    getGroupFilter: jest.fn(() => [{ id: 'g1' }]),
+    translate: jest.fn((t) => t)
+});
+
+const wrapper = ({ children, api, state }: { children: React.ReactNode; api?: GeotabApi; state?: GeotabPageState }) => (
+    <GeotabProvider initialApi={api} initialState={state}>
+        {children}
+    </GeotabProvider>
+);
+
+describe('GeotabContext', () => {
+    describe('useGeotab hook', () => {
+        it('should throw error when used outside provider', () => {
+            // Suppress console.error for this test
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+            
+            expect(() => {
+                renderHook(() => useGeotab());
+            }).toThrow('useGeotab must be used within a GeotabProvider');
+            
+            consoleSpy.mockRestore();
+        });
+
+        it('should provide context values within provider', () => {
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            expect(result.current.api).toBeNull();
+            expect(result.current.state).toBeNull();
+            expect(result.current.devices).toEqual([]);
+            expect(result.current.groups).toEqual([]);
+            expect(result.current.isLoading).toBe(false);
+        });
+    });
+
+    describe('setGeotabApi', () => {
+        it('should set api and state', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            act(() => {
+                result.current.setGeotabApi(mockApi, mockState);
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).toBe(mockApi);
+                expect(result.current.state).toBe(mockState);
+            });
+        });
+    });
+
+    describe('with initial API', () => {
+        it('should load current user on mount', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.currentUser).not.toBeNull();
+            });
+
+            expect(result.current.currentUser?.name).toBe('test@test.com');
+        });
+    });
+
+    describe('call method', () => {
+        it('should call API and return result', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            const users = await result.current.call('Get', { typeName: 'User' });
+            
+            expect(mockApi.call).toHaveBeenCalledWith(
+                'Get',
+                { typeName: 'User' },
+                expect.any(Function),
+                expect.any(Function)
+            );
+        });
+
+        it('should throw when api is not available', async () => {
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            await expect(result.current.call('Get', {})).rejects.toThrow('Geotab API not initialized');
+        });
+    });
+
+    describe('multiCall method', () => {
+        it('should call API multiCall', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await result.current.multiCall([['Get', { typeName: 'Device' }]]);
+            
+            expect(mockApi.multiCall).toHaveBeenCalled();
+        });
+
+        it('should throw when api is not available', async () => {
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            await expect(result.current.multiCall([['Get', {}]])).rejects.toThrow('Geotab API not initialized');
+        });
+    });
+
+    describe('loadDevices', () => {
+        it('should load devices from API', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await act(async () => {
+                await result.current.loadDevices();
+            });
+
+            expect(result.current.devices).toHaveLength(1);
+            expect(result.current.devices[0].name).toBe('Test Vehicle');
+        });
+    });
+
+    describe('loadGroups', () => {
+        it('should load groups from API', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await act(async () => {
+                await result.current.loadGroups();
+            });
+
+            expect(result.current.groups).toHaveLength(1);
+            expect(result.current.groups[0].name).toBe('Test Group');
+        });
+    });
+
+    describe('getGroupFilter', () => {
+        it('should return group filter from state', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.state).not.toBeNull();
+            });
+
+            const filter = result.current.getGroupFilter();
+            expect(filter).toEqual([{ id: 'g1' }]);
+        });
+
+        it('should return empty array when state is null', () => {
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            const filter = result.current.getGroupFilter();
+            expect(filter).toEqual([]);
+        });
+    });
+
+    describe('captureCredentials', () => {
+        it('should capture credentials via getSession', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            expect(result.current.credentials).not.toBeNull();
+            expect(result.current.credentials?.database).toBe('test_db');
+            expect(result.current.credentials?.sessionId).toBe('session-123');
+        });
+    });
+
+    describe('geotabHost', () => {
+        it('should default to my.geotab.com', () => {
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            expect(result.current.geotabHost).toBe('my.geotab.com');
+        });
+    });
+});

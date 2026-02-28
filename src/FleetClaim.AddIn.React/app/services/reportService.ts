@@ -92,8 +92,6 @@ export async function updateReport(
     report: IncidentReport,
     groups?: Array<{ id: string }>
 ): Promise<void> {
-    console.log('[reportService] updateReport called:', { addInDataId, reportId: report.id });
-    
     const wrapper: AddInDataWrapper<IncidentReport> = {
         type: 'report',
         payload: report,
@@ -111,9 +109,7 @@ export async function updateReport(
                 details: wrapper  // Object, not JSON.stringify(wrapper)
             }
         });
-        console.log('[reportService] updateReport success');
     } catch (err) {
-        console.error('[reportService] updateReport failed:', err);
         throw err;
     }
 }
@@ -182,6 +178,19 @@ export interface GeotabCredentials {
 }
 
 /**
+ * Build headers for authenticated API calls
+ */
+function buildAuthHeaders(credentials: GeotabCredentials): HeadersInit {
+    return {
+        'Content-Type': 'application/json',
+        'X-Geotab-Database': credentials.database,
+        'X-Geotab-UserName': credentials.userName,
+        'X-Geotab-SessionId': credentials.sessionId,
+        'X-Geotab-Server': credentials.server || 'my.geotab.com'
+    };
+}
+
+/**
  * Download PDF for a report (requires authenticated credentials)
  */
 export async function downloadPdf(
@@ -190,16 +199,8 @@ export async function downloadPdf(
 ): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/api/pdf`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            credentials: {
-                database: credentials.database,
-                userName: credentials.userName,
-                sessionId: credentials.sessionId,
-                server: credentials.server || 'my.geotab.com'
-            },
-            reportId
-        })
+        headers: buildAuthHeaders(credentials),
+        body: JSON.stringify({ reportId })
     });
     
     if (!response.ok) {
@@ -269,14 +270,8 @@ export async function sendReportEmail(
 ): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/api/email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders(credentials),
         body: JSON.stringify({
-            credentials: {
-                database: credentials.database,
-                userName: credentials.userName,
-                sessionId: credentials.sessionId,
-                server: credentials.server || 'my.geotab.com'
-            },
             reportId,
             email: toEmail,
             message

@@ -5,7 +5,6 @@ using FleetClaim.Core.Services;
 using Geotab.Checkmate;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Caching.Memory;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
@@ -59,16 +58,10 @@ if (!string.IsNullOrEmpty(gmailRefreshToken) && !string.IsNullOrEmpty(gmailClien
     builder.Services.AddSingleton<IGmailEmailService>(sp =>
         new GmailEmailService(gmailCredentials, gmailFromEmail));
 }
-else
-{
-    Console.WriteLine("Warning: Gmail credentials not configured. Email features will be disabled.");
-    // Register a null instance - the endpoint checks for null before using
-}
 
 // Rate limiting
 builder.Services.AddRateLimiter(options =>
 {
-    // PDF generation rate limit
     options.AddFixedWindowLimiter("pdf", opt =>
     {
         opt.Window = TimeSpan.FromMinutes(1);
@@ -76,7 +69,6 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueLimit = 5;
     });
     
-    // Email rate limit
     options.AddFixedWindowLimiter("email", opt =>
     {
         opt.Window = TimeSpan.FromMinutes(1);
@@ -102,7 +94,7 @@ builder.Services.AddCors(options =>
             return host.EndsWith(".geotab.com") ||
                    host.EndsWith(".geotab.ca") ||
                    host == "localhost" ||
-                   host.EndsWith(".run.app"); // GCP Cloud Run
+                   host.EndsWith(".run.app");
         })
         .AllowAnyHeader()
         .AllowAnyMethod();
@@ -111,7 +103,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Enable CORS
 app.UseCors();
 
 // Security headers
@@ -129,8 +120,36 @@ app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 // ============================================================================
-// Authenticated Endpoints - Require MyGeotab credentials verification
+// Helper Functions
 // ============================================================================
+
+/// <summary>
+/// Extract Geotab credentials from X-headers or request body
+/// Headers take precedence: X-Geotab-Database, X-Geotab-UserName, X-Geotab-SessionId, X-Geotab-Server
+/// </summary>
+GeotabCredentialsRequest ExtractCredentials(HttpContext context, GeotabCredentialsRequest? bodyCredentials = null)
+{
+    // Try headers first
+    var database = context.Request.Headers["X-Geotab-Database"].FirstOrDefault();
+    var userName = context.Request.Headers["X-Geotab-UserName"].FirstOrDefault();
+    var sessionId = context.Request.Headers["X-Geotab-SessionId"].FirstOrDefault();
+    var server = context.Request.Headers["X-Geotab-Server"].FirstOrDefault();
+    
+    // If headers have all required fields, use them
+    if (!string.IsNullOrEmpty(database) && !string.IsNullOrEmpty(userName) && !string.IsNullOrEmpty(sessionId))
+    {
+        return new GeotabCredentialsRequest
+        {
+            Database = database,
+            UserName = userName,
+            SessionId = sessionId,
+            Server = server ?? "my.geotab.com"
+        };
+    }
+    
+    // Fall back to body credentials
+    return bodyCredentials ?? new GeotabCredentialsRequest();
+}
 
 /// <summary>
 /// Verify MyGeotab credentials by calling GetSystemTime API
@@ -149,45 +168,111 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
     
     try
     {
-        // Build the Geotab server URL
         var server = creds.Server ?? "my.geotab.com";
         if (!server.StartsWith("http"))
         {
             server = $"https://{server}";
         }
         
-        // Create API with provided credentials
         var api = new API(
             creds.UserName,
-            null, // No password - using session
+            null,
             creds.SessionId,
             creds.Database,
             server);
         
-        // Verify by calling GetSystemTime - this will fail if credentials are invalid
-        var systemTime = await api.CallAsync<DateTime>("GetSystemTime", ct);
-        
-        Console.WriteLine($"[Auth] Credentials verified for {creds.UserName}@{creds.Database} (server time: {systemTime})");
+        // Verify by calling GetSystemTime - fails if credentials are invalid
+        await api.CallAsync<DateTime>("GetSystemTime", ct);
         
         return (true, null, api);
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[Auth] Credential verification failed for {creds.UserName}@{creds.Database}: {ex.Message}");
-        return (false, "Invalid or expired credentials", null);
+        return (false, $"Invalid or expired credentials: {ex.Message}", null);
     }
 }
 
+/// <summary>
+/// Fetch photo data for embedding in PDF
+/// </summary>
+async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
+    API api,
+    IncidentReport report,
+    CancellationToken ct)
+{
+    var photoData = new Dictionary<string, byte[]>();
+    
+    if (report.Evidence?.Photos == null || report.Evidence.Photos.Count == 0)
+        return photoData;
+    
+    var credentials = api.LoginResult?.Credentials;
+    if (credentials == null)
+        return photoData;
+    
+    using var httpClient = new HttpClient();
+    
+    foreach (var photo in report.Evidence.Photos.Take(10))
+    {
+        try
+        {
+            var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                method = "DownloadMediaFile",
+                @params = new
+                {
+                    credentials = new
+                    {
+                        database = credentials.Database,
+                        userName = credentials.UserName,
+                        sessionId = credentials.SessionId
+                    },
+                    mediaFile = new { id = photo.MediaFileId }
+                }
+            });
+            
+            using var formContent = new MultipartFormDataContent();
+            formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
+            
+            var response = await httpClient.PostAsync("https://my.geotab.com/apiv1/", formContent, ct);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                if (contentType.StartsWith("image/"))
+                {
+                    var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+                    if (bytes.Length > 100)
+                    {
+                        photoData[photo.MediaFileId] = bytes;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Skip photos that fail to download
+        }
+    }
+    
+    return photoData;
+}
+
+// ============================================================================
+// Endpoints
+// ============================================================================
+
 // Generate PDF with credential verification
+// Accepts credentials via X-headers OR request body
 app.MapPost("/api/pdf", async (
+    HttpContext context,
     [FromBody] PdfGenerateRequest request,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
     [FromServices] IMediaFileService mediaFileService,
     CancellationToken ct) =>
 {
-    // Verify credentials
-    var (success, error, api) = await VerifyCredentialsAsync(request.Credentials, ct);
+    var creds = ExtractCredentials(context, request.Credentials);
+    var (success, error, api) = await VerifyCredentialsAsync(creds, ct);
     if (!success || api == null)
     {
         return Results.Unauthorized();
@@ -200,7 +285,6 @@ app.MapPost("/api/pdf", async (
     
     try
     {
-        // Fetch the report
         var reports = await repository.GetReportsAsync(api, ct: ct);
         var report = reports.FirstOrDefault(r => r.Id == request.ReportId);
         
@@ -218,16 +302,12 @@ app.MapPost("/api/pdf", async (
             {
                 pdfBytes = await mediaFileService.DownloadFileAsync(api, report.PdfMediaFileId, ct);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[PDF] Failed to download pre-generated PDF: {ex.Message}");
-            }
+            catch { /* Fall through to generate */ }
         }
         
         // Generate on-demand if no pre-generated PDF
         if (pdfBytes == null || pdfBytes.Length == 0)
         {
-            // Fetch photo data for embedding in PDF
             var photoData = await FetchPhotoDataAsync(api, report, ct);
             var base64Pdf = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
             pdfBytes = Convert.FromBase64String(base64Pdf);
@@ -247,7 +327,6 @@ app.MapPost("/api/pdf", async (
 }).RequireRateLimiting("pdf");
 
 // Generate PDF using service account (for external Add-Ins that can't get sessionId)
-// Requires userName query param to verify user exists in the database
 app.MapGet("/api/pdf/{database}/{reportId}", async (
     string database,
     string reportId,
@@ -258,7 +337,7 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     [FromServices] IMediaFileService mediaFileService,
     CancellationToken ct) =>
 {
-    // Input validation - prevent path traversal and injection
+    // Input validation
     if (!Regex.IsMatch(database, @"^[a-zA-Z0-9_\-\.]+$") || database.Length > 100)
     {
         return Results.BadRequest(new { error = "Invalid database name" });
@@ -274,10 +353,9 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     
     try
     {
-        // Authenticate using service account credentials
         var api = await clientFactory.CreateClientAsync(database);
         
-        // Verify the user exists in this database (authorization check)
+        // Verify user exists in database
         var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
             "Get", 
             typeof(Geotab.Checkmate.ObjectModel.User), 
@@ -286,11 +364,9 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
         
         if (users == null || users.Count == 0)
         {
-            Console.WriteLine($"[PDF] User '{userName}' not found in database '{database}'");
             return Results.Unauthorized();
         }
         
-        // Fetch the report
         var reports = await repository.GetReportsAsync(api, ct: ct);
         var report = reports.FirstOrDefault(r => r.Id == reportId);
         
@@ -301,23 +377,17 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
         
         byte[]? pdfBytes = null;
         
-        // Try to download pre-generated PDF from MediaFile
         if (!string.IsNullOrEmpty(report.PdfMediaFileId))
         {
             try
             {
                 pdfBytes = await mediaFileService.DownloadFileAsync(api, report.PdfMediaFileId, ct);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[PDF] Failed to download pre-generated PDF: {ex.Message}");
-            }
+            catch { /* Fall through */ }
         }
         
-        // Generate on-demand if no pre-generated PDF
         if (pdfBytes == null || pdfBytes.Length == 0)
         {
-            // Fetch photo data for embedding in PDF
             var photoData = await FetchPhotoDataAsync(api, report, ct);
             var base64Pdf = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
             pdfBytes = Convert.FromBase64String(base64Pdf);
@@ -343,7 +413,9 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
 }).RequireRateLimiting("pdf");
 
 // Send report via email with credential verification
+// Accepts credentials via X-headers OR request body
 app.MapPost("/api/email", async (
+    HttpContext context,
     [FromBody] EmailSendRequest request,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
@@ -351,7 +423,6 @@ app.MapPost("/api/email", async (
     IServiceProvider serviceProvider,
     CancellationToken ct) =>
 {
-    // Check if email service is configured
     var gmailService = serviceProvider.GetService<IGmailEmailService>();
     if (gmailService == null)
     {
@@ -360,14 +431,13 @@ app.MapPost("/api/email", async (
             statusCode: 503);
     }
     
-    // Verify credentials
-    var (success, error, api) = await VerifyCredentialsAsync(request.Credentials, ct);
+    var creds = ExtractCredentials(context, request.Credentials);
+    var (success, error, api) = await VerifyCredentialsAsync(creds, ct);
     if (!success || api == null)
     {
         return Results.Unauthorized();
     }
     
-    // Validate email
     var emailRegex = new Regex(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
     if (string.IsNullOrWhiteSpace(request.Email) || !emailRegex.IsMatch(request.Email))
     {
@@ -381,7 +451,6 @@ app.MapPost("/api/email", async (
     
     try
     {
-        // Fetch the report
         var reports = await repository.GetReportsAsync(api, ct: ct);
         var report = reports.FirstOrDefault(r => r.Id == request.ReportId);
         
@@ -390,7 +459,6 @@ app.MapPost("/api/email", async (
             return Results.NotFound(new { error = "Report not found" });
         }
         
-        // Send email
         await gmailService.SendReportEmailAsync(report, request.Email, request.Message, ct);
         
         return Results.Ok(new { success = true, message = $"Email sent to {request.Email}" });
@@ -404,71 +472,3 @@ app.MapPost("/api/email", async (
 }).RequireRateLimiting("email");
 
 app.Run();
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-static async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
-    API api,
-    IncidentReport report,
-    CancellationToken ct)
-{
-    var photoData = new Dictionary<string, byte[]>();
-    
-    if (report.Evidence?.Photos == null || report.Evidence.Photos.Count == 0)
-        return photoData;
-    
-    var credentials = api.LoginResult?.Credentials;
-    if (credentials == null)
-        return photoData;
-    
-    using var httpClient = new HttpClient();
-    
-    foreach (var photo in report.Evidence.Photos.Take(10)) // Limit to 10 photos
-    {
-        try
-        {
-            var downloadUrl = "https://my.geotab.com/apiv1/";
-            
-            var jsonRpc = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                method = "DownloadMediaFile",
-                @params = new
-                {
-                    credentials = new
-                    {
-                        database = credentials.Database,
-                        userName = credentials.UserName,
-                        sessionId = credentials.SessionId
-                    },
-                    mediaFile = new { id = photo.MediaFileId }
-                }
-            });
-            
-            using var formContent = new MultipartFormDataContent();
-            formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
-            
-            var response = await httpClient.PostAsync(downloadUrl, formContent, ct);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                if (contentType.StartsWith("image/"))
-                {
-                    var bytes = await response.Content.ReadAsByteArrayAsync(ct);
-                    if (bytes.Length > 100) // Basic sanity check
-                    {
-                        photoData[photo.MediaFileId] = bytes;
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[PDF] Failed to fetch photo {photo.MediaFileId}: {ex.Message}");
-        }
-    }
-    
-    return photoData;
-}

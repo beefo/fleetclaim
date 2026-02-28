@@ -27,7 +27,6 @@ export function useRequests() {
             );
             setRequests(loaded);
         } catch (err) {
-            console.error('Failed to load requests:', err);
             setError(err instanceof Error ? err.message : 'Failed to load requests');
         } finally {
             setIsLoading(false);
@@ -43,9 +42,8 @@ export function useRequests() {
     ) => {
         if (!api) return;
         
-        // Get username from session or currentUser (fallback for external Add-Ins)
+        // Get username from session or currentUser
         const userName = session?.userName || currentUser?.name || 'Unknown User';
-        console.log('[useRequests] Submitting request with userName:', userName);
         
         const request = {
             deviceId,

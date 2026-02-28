@@ -232,7 +232,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
                         onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            console.log('View clicked for:', entity.report.id, entity.report);
                             setSelectedReport(entity.report);
                         }}
                     >

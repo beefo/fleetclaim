@@ -31,9 +31,8 @@ const App: React.FC = () => {
             credentialAttempted.current = true;
             // Delay slightly to allow initial API calls to warm up the session
             const timer = setTimeout(() => {
-                console.log('[App] Capturing credentials after warmup...');
-                captureCredentials().catch(err => {
-                    console.warn('[App] Failed to capture credentials (will retry on upload):', err);
+                captureCredentials().catch(() => {
+                    // Will retry on upload if needed
                 });
             }, 1000);
             return () => clearTimeout(timer);

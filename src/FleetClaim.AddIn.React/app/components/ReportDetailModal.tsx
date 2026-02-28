@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Button } from '@geotab/zenith';
+import { Modal } from '@geotab/zenith';
 import { IncidentReport } from '@/types';
 
 interface ReportDetailModalProps {
@@ -20,25 +20,15 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     isOpen,
     onClose,
 }) => {
-    console.log('ReportDetailModal: rendering, isOpen=', isOpen, 'report=', report);
-    
-    if (!isOpen) {
-        console.log('ReportDetailModal: not open, returning null');
+    if (!isOpen || !report) {
         return null;
     }
-    
-    if (!report) {
-        console.log('ReportDetailModal: no report, returning null');
-        return null;
-    }
-
-    console.log('ReportDetailModal: about to render Modal');
 
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Test Modal"
+            title="Report Details"
         >
             <Modal.Content>
                 <p>Report ID: {report.id || 'unknown'}</p>

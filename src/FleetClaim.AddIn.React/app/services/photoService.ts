@@ -4,11 +4,10 @@
  * Handles photo upload and management via Geotab MediaFile API
  */
 
-import { GeotabApi, SessionInfo, MediaFile, Photo } from '@/types';
+import { GeotabApi, MediaFile, Photo } from '@/types';
 import { GeotabCredentials } from '@/contexts/GeotabContext';
 
 const ADDIN_ID = 'aji_jHQGE8k2TDodR8tZrpw';
-const API_BASE_URL = 'https://fleetclaim-api-589116575765.us-central1.run.app';
 
 export interface UploadResult {
     mediaFileId: string;
@@ -36,13 +35,7 @@ export async function uploadPhoto(
     reportId: string,
     category: 'damage' | 'scene' | 'other'
 ): Promise<UploadResult> {
-    console.log('[photoService] Starting upload with credentials:', { 
-        database: credentials.database, 
-        userName: credentials.userName,
-        host: geotabHost
-    });
-    
-    // Step 2: Create MediaFile entity via API
+    // Create MediaFile entity via API
     // Add timestamp to filename to avoid DuplicateException
     const baseName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
     const ext = baseName.includes('.') ? baseName.substring(baseName.lastIndexOf('.')) : '';
@@ -64,8 +57,6 @@ export async function uploadPhoto(
         })
     };
     
-    console.log('[photoService] Creating MediaFile entity:', mediaFile);
-    
     const mediaFileId = await new Promise<string>((resolve, reject) => {
         api.call('Add', {
             typeName: 'MediaFile',
@@ -73,20 +64,17 @@ export async function uploadPhoto(
         }, resolve, reject);
     });
     
-    console.log('[photoService] MediaFile created:', mediaFileId);
-    
-    // Step 3: Upload binary via raw XMLHttpRequest (matching Geotab's official example)
+    // Upload binary via raw XMLHttpRequest (matching Geotab's official example)
     try {
         await uploadBinaryToGeotab(file, mediaFileId, fileName, credentials, geotabHost);
     } catch (uploadErr) {
-        console.error('[photoService] Binary upload failed:', uploadErr);
-        // Clean up the MediaFile entity
+        // Clean up the MediaFile entity on failure
         try {
             await new Promise<void>((resolve, reject) => {
                 api.call('Remove', { typeName: 'MediaFile', entity: { id: mediaFileId } }, resolve, reject);
             });
         } catch (e) {
-            console.warn('[photoService] Could not clean up MediaFile:', e);
+            // Ignore cleanup errors
         }
         throw uploadErr;
     }
@@ -110,7 +98,7 @@ function uploadBinaryToGeotab(
     file: File,
     mediaFileId: string,
     fileName: string,
-    credentials: any,
+    credentials: GeotabCredentials,
     host: string
 ): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -141,7 +129,6 @@ function uploadBinaryToGeotab(
                     if (jsonResponse.error) {
                         reject(new Error(jsonResponse.error.message || JSON.stringify(jsonResponse.error)));
                     } else {
-                        console.log('[photoService] Upload success:', jsonResponse);
                         resolve(jsonResponse);
                     }
                 } catch (parseErr) {
@@ -153,12 +140,11 @@ function uploadBinaryToGeotab(
             }
         });
         
-        xhr.addEventListener('error', function(e) {
+        xhr.addEventListener('error', function() {
             reject(new Error('Network error during upload'));
         });
         
         const uploadUrl = `https://${host}/apiv1/`;
-        console.log('[photoService] Uploading to:', uploadUrl);
         
         xhr.open('POST', uploadUrl);
         xhr.setRequestHeader('Accept', 'application/json, */*;q=0.8');
@@ -168,20 +154,19 @@ function uploadBinaryToGeotab(
 
 /**
  * Get a download URL for a MediaFile
- * Uses Geotab's DownloadMediaFile API with credentials in URL (like Vue app pattern)
+ * Uses Geotab's DownloadMediaFile API with credentials in URL
  */
 export function getDownloadUrl(
     mediaFileId: string,
-    credentials: { database: string; userName: string; sessionId: string } | null,
+    credentials: GeotabCredentials | null,
     host: string = 'my.geotab.com'
 ): string {
     if (!credentials || !credentials.sessionId) {
         // Return a placeholder if no credentials
-        console.warn('[photoService] No credentials for download URL, using placeholder');
         return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23ccc" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%23666">📷</text></svg>';
     }
     
-    // Build DownloadMediaFile URL with credentials (matching Vue app pattern)
+    // Build DownloadMediaFile URL with credentials
     const userName = encodeURIComponent(credentials.userName);
     const database = encodeURIComponent(credentials.database);
     const sessionId = encodeURIComponent(credentials.sessionId);
@@ -193,11 +178,10 @@ export function getDownloadUrl(
 
 /**
  * Get a thumbnail URL for a MediaFile (alias for getDownloadUrl)
- * Geotab returns the actual image, browser handles display size via CSS
  */
 export function getThumbnailUrl(
     mediaFileId: string,
-    credentials: { database: string; userName: string; sessionId: string } | null,
+    credentials: GeotabCredentials | null,
     host: string = 'my.geotab.com'
 ): string {
     return getDownloadUrl(mediaFileId, credentials, host);
@@ -208,7 +192,7 @@ export function getThumbnailUrl(
  */
 export function getFullImageUrl(
     mediaFileId: string,
-    credentials: { database: string; userName: string; sessionId: string } | null,
+    credentials: GeotabCredentials | null,
     host: string = 'my.geotab.com'
 ): string {
     return getDownloadUrl(mediaFileId, credentials, host);

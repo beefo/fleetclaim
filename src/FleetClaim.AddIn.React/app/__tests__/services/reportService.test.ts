@@ -198,7 +198,7 @@ describe('reportService', () => {
             document.body.removeChild = jest.fn();
         });
 
-        it('should POST to /api/pdf with credentials', async () => {
+        it('should POST to /api/pdf with credentials in X-headers', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 blob: () => Promise.resolve(new Blob(['pdf content'], { type: 'application/pdf' }))
@@ -218,7 +218,12 @@ describe('reportService', () => {
                 expect.stringContaining('/api/pdf'),
                 expect.objectContaining({
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: expect.objectContaining({
+                        'Content-Type': 'application/json',
+                        'X-Geotab-Database': 'test_db',
+                        'X-Geotab-UserName': 'test@example.com',
+                        'X-Geotab-SessionId': 'session-123'
+                    }),
                     body: expect.stringContaining('rpt_001')
                 })
             );

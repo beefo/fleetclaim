@@ -60,18 +60,16 @@ export function useReports() {
             // Capture credentials AFTER successful API call (following Geotab's mg-media-files pattern)
             if (!credentials && !credentialsCapturedAfterLoad.current) {
                 credentialsCapturedAfterLoad.current = true;
-                console.log('[useReports] Reports loaded, now capturing credentials...');
-                captureCredentials().catch(err => {
-                    console.warn('[useReports] Failed to capture credentials after load:', err);
+                captureCredentials().catch(() => {
+                    // Credential capture is best-effort
                 });
             }
         } catch (err) {
-            console.error('Failed to load reports:', err);
             setError(err instanceof Error ? err.message : 'Failed to load reports');
         } finally {
             setIsLoading(false);
         }
-    }, [api]);
+    }, [api, credentials, captureCredentials]);
 
     // Filter and sort reports
     const filteredReports = useMemo(() => {
@@ -160,16 +158,12 @@ export function useReports() {
     }), [reports, filteredReports]);
 
     const update = useCallback(async (reportId: string, updates: Partial<IncidentReport>) => {
-        console.log('[useReports] update called:', { reportId, updates: Object.keys(updates) });
         if (!api) {
-            console.error('[useReports] update: no API available');
             throw new Error('Geotab API not available');
         }
         
         const record = reports.find(r => r.report.id === reportId);
-        console.log('[useReports] found record:', record ? { addInDataId: record.addInDataId } : null);
         if (!record) {
-            console.error('[useReports] update: report not found in local state');
             throw new Error('Report not found');
         }
         

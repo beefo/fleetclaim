@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { GeotabApi, GeotabPageState, SessionInfo, Device, User, Group } from '@/types';
 
-// Credentials captured from api.getSession() for MediaFile uploads
+// Credentials captured from api.getSession() for MediaFile uploads and API calls
 export interface GeotabCredentials {
     database: string;
     userName: string;
@@ -18,7 +18,7 @@ export interface GeotabContextValue {
     isLoading: boolean;
     error: string | null;
     
-    // Credentials for MediaFile uploads (captured after API warmup)
+    // Credentials for MediaFile uploads and API calls (captured via api.getSession after warmup)
     credentials: GeotabCredentials | null;
     geotabHost: string;
     
@@ -80,50 +80,29 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         return new Promise<void>((resolve, reject) => {
             // NOTE: getSession signature is getSession(callback, newSession?) 
             // where newSession is a BOOLEAN, not an error callback!
-            // Passing a function as second arg causes logout/MethodNotSupported
             try {
                 api.getSession((sessionInfo) => {
                     setSession(sessionInfo);
                     resolve();
                 });
             } catch (err) {
-                console.error('Failed to get session:', err);
                 reject(err);
             }
         });
     }, [api]);
 
-    // Capture credentials for MediaFile upload
-    // Try multiple methods since api.getSession() may not work in all environments
+    /**
+     * Capture credentials for MediaFile upload and API authentication.
+     * Uses api.getSession() which returns credentials after API warmup.
+     */
     const captureCredentials = useCallback(async () => {
         if (!api || credentialsCaptured.current) return;
         
-        console.log('[GeotabContext] Attempting to capture credentials for MediaFile upload...');
-        
         // Extract host from URL
-        let host = 'my.geotab.com';
-        try {
-            host = window.location.hostname;
-            console.log('[GeotabContext] Host from window.location:', host);
-        } catch (e) {
-            console.warn('[GeotabContext] Could not get host from URL');
-        }
+        let host = window.location.hostname || 'my.geotab.com';
         
-        // Extract database from URL path
-        let database = '';
-        try {
-            const pathMatch = window.location.pathname.match(/^\/([^\/]+)/);
-            if (pathMatch) {
-                database = pathMatch[1];
-                console.log('[GeotabContext] Database from URL path:', database);
-            }
-        } catch (e) {
-            console.warn('[GeotabContext] Could not extract database from URL');
-        }
-        
-        // Method 1: Try api.getSession() first
+        // Use api.getSession() to get credentials
         // NOTE: getSession signature is getSession(callback, newSession?) where newSession is a BOOLEAN!
-        // Passing a function as second arg causes logout/MethodNotSupported error
         try {
             await new Promise<void>((resolve, reject) => {
                 if (typeof api.getSession !== 'function') {
@@ -131,102 +110,33 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                     return;
                 }
                 
-                try {
-                    api.getSession((cr: any, server?: string) => {
-                        // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
-                        const creds = cr.credentials || cr;
-                        
-                        console.log('[GeotabContext] Session captured via api.getSession:', {
-                            server: server || cr.server,
-                            database: creds.database,
-                            userName: creds.userName,
-                            hasSessionId: !!creds.sessionId
-                        });
-                        
-                        const serverStr = server || cr.server;
-                        if (serverStr) {
-                            if (serverStr.startsWith('http')) {
-                                try { host = new URL(serverStr).hostname; } catch (e) { host = serverStr; }
-                            } else {
-                                host = serverStr;
-                            }
+                api.getSession((cr: any, server?: string) => {
+                    // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
+                    const creds = cr.credentials || cr;
+                    
+                    const serverStr = server || cr.server;
+                    if (serverStr) {
+                        if (serverStr.startsWith('http')) {
+                            try { host = new URL(serverStr).hostname; } catch (e) { host = serverStr; }
+                        } else {
+                            host = serverStr;
                         }
-                        
-                        setGeotabHost(host);
-                        setCredentials({
-                            database: creds.database,
-                            userName: creds.userName,
-                            sessionId: creds.sessionId
-                        });
-                        credentialsCaptured.current = true;
-                        
-                        console.log('[GeotabContext] Credentials stored for uploads:', {
-                            host,
-                            database: creds.database,
-                            userName: creds.userName,
-                            hasSessionId: !!creds.sessionId
-                        });
-                        
-                        resolve();
-                    });
-                } catch (err) {
-                    console.warn('[GeotabContext] api.getSession failed:', err);
-                    reject(err);
-                }
-            });
-            return; // Success, no need to try other methods
-        } catch (e) {
-            console.log('[GeotabContext] api.getSession failed, trying alternative methods...');
-        }
-        
-        // Method 2: Try to get credentials from parent window (for iframes)
-        try {
-            const parentGeotab = (window.parent as any)?.geotab;
-            if (parentGeotab?.addin?.credentials) {
-                const creds = parentGeotab.addin.credentials;
-                console.log('[GeotabContext] Credentials from parent window:', {
-                    database: creds.database,
-                    userName: creds.userName,
-                    hasSessionId: !!creds.sessionId
-                });
-                setGeotabHost(host);
-                setCredentials({
-                    database: creds.database || database,
-                    userName: creds.userName,
-                    sessionId: creds.sessionId
-                });
-                credentialsCaptured.current = true;
-                return;
-            }
-        } catch (e) {
-            console.log('[GeotabContext] Could not access parent window credentials');
-        }
-        
-        // Method 3: Try localStorage/sessionStorage
-        try {
-            const storageKeys = ['geotab-credentials', 'credentials', 'session'];
-            for (const key of storageKeys) {
-                const stored = sessionStorage.getItem(key) || localStorage.getItem(key);
-                if (stored) {
-                    const creds = JSON.parse(stored);
-                    if (creds.sessionId) {
-                        console.log('[GeotabContext] Credentials from storage:', key);
-                        setGeotabHost(host);
-                        setCredentials({
-                            database: creds.database || database,
-                            userName: creds.userName,
-                            sessionId: creds.sessionId
-                        });
-                        credentialsCaptured.current = true;
-                        return;
                     }
-                }
-            }
+                    
+                    setGeotabHost(host);
+                    setCredentials({
+                        database: creds.database,
+                        userName: creds.userName,
+                        sessionId: creds.sessionId
+                    });
+                    credentialsCaptured.current = true;
+                    
+                    resolve();
+                });
+            });
         } catch (e) {
-            console.log('[GeotabContext] Could not get credentials from storage');
+            console.warn('[GeotabContext] Failed to capture credentials:', e);
         }
-        
-        console.warn('[GeotabContext] Could not capture credentials via any method');
     }, [api]);
 
     const call = useCallback(
@@ -278,7 +188,6 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
             
             setDevices(sorted);
         } catch (err) {
-            console.error('Failed to load devices:', err);
             setError(err instanceof Error ? err.message : 'Failed to load devices');
         } finally {
             setIsLoading(false);
@@ -294,7 +203,7 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
             }) || [];
             setGroups(result);
         } catch (err) {
-            console.error('Failed to load groups:', err);
+            // Silently handle group load errors
         }
     }, [api, call]);
 
@@ -304,7 +213,6 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
     }, [state]);
 
     // Load current user when API is available
-    // Use isCurrentUser search to get the logged-in user without needing username
     useEffect(() => {
         if (!api) return;
         
@@ -318,12 +226,10 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                 
                 if (users.length > 0) {
                     const user = users[0];
-                    console.log('[GeotabContext] Current user loaded:', user.name);
                     setCurrentUser(user);
                     
                     // Update session with username if it was missing
                     if (!session?.userName && user.name) {
-                        console.log('[GeotabContext] Updating session with username from User API:', user.name);
                         setSession(prev => prev ? {
                             ...prev,
                             userName: user.name
@@ -336,47 +242,17 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                     }
                 }
             } catch (err) {
-                console.error('Failed to load current user:', err);
+                // Silently handle user load errors
             }
         };
         
         loadCurrentUser();
     }, [api, call]);
 
-    // Refresh session when API changes
+    // Get session info when API changes
     useEffect(() => {
         if (api && state) {
-            console.log('[GeotabContext] API and state available, checking session...');
-            
-            // First try to get session from state.getState()
-            try {
-                const stateData = state.getState() as any;
-                console.log('[GeotabContext] state.getState() raw:', JSON.stringify(stateData));
-                if (stateData && stateData.credentials) {
-                    const sessionData = {
-                        database: stateData.credentials.database || stateData.database,
-                        userName: stateData.credentials.userName,
-                        sessionId: stateData.credentials.sessionId,
-                        server: stateData.server
-                    };
-                    console.log('[GeotabContext] Session from state.getState():', JSON.stringify(sessionData));
-                    setSession(sessionData);
-                    return;
-                } else if (stateData && stateData.database) {
-                    console.log('[GeotabContext] Found database at top level:', stateData.database);
-                    setSession({
-                        database: stateData.database,
-                        userName: stateData.userName || '',
-                        sessionId: stateData.sessionId || '',
-                        server: stateData.server || ''
-                    });
-                    return;
-                }
-            } catch (e) {
-                console.warn('[GeotabContext] Could not get session from state:', e);
-            }
-            
-            // Extract database from URL (e.g., my.geotab.com/demo_fleetclaim or my.geotab.com/#demo_fleetclaim)
+            // Extract database from URL (e.g., my.geotab.com/demo_fleetclaim)
             const extractDatabaseFromUrl = (): string => {
                 const pathname = window.location.pathname;
                 const hash = window.location.hash;
@@ -385,17 +261,15 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                 if (pathname && pathname.length > 1) {
                     const dbFromPath = pathname.split('/').filter(Boolean)[0];
                     if (dbFromPath && !dbFromPath.startsWith('#')) {
-                        console.log('[GeotabContext] Database from URL pathname:', dbFromPath);
                         return dbFromPath;
                     }
                 }
                 
                 // Check hash (e.g., #demo_fleetclaim,...)
                 if (hash && hash.length > 1) {
-                    const hashContent = hash.substring(1); // Remove #
+                    const hashContent = hash.substring(1);
                     const dbFromHash = hashContent.split(',')[0];
                     if (dbFromHash) {
-                        console.log('[GeotabContext] Database from URL hash:', dbFromHash);
                         return dbFromHash;
                     }
                 }
@@ -405,20 +279,17 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
             
             const dbFromUrl = extractDatabaseFromUrl();
             if (dbFromUrl) {
-                console.log('[GeotabContext] Using database from URL:', dbFromUrl);
                 setSession({
                     database: dbFromUrl,
                     userName: '',
                     sessionId: '',
                     server: window.location.hostname
                 });
-                return;
             }
             
-            // Last resort: try api.getSession
-            console.log('[GeotabContext] Falling back to api.getSession()');
-            refreshSession().catch(err => {
-                console.warn('Could not refresh session (may not be supported):', err);
+            // Also try api.getSession for full session info
+            refreshSession().catch(() => {
+                // Session refresh is best-effort
             });
         }
     }, [api, state, refreshSession]);

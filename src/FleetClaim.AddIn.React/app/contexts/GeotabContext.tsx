@@ -78,16 +78,18 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         if (!api) return;
         
         return new Promise<void>((resolve, reject) => {
-            api.getSession(
-                (sessionInfo) => {
+            // NOTE: getSession signature is getSession(callback, newSession?) 
+            // where newSession is a BOOLEAN, not an error callback!
+            // Passing a function as second arg causes logout/MethodNotSupported
+            try {
+                api.getSession((sessionInfo) => {
                     setSession(sessionInfo);
                     resolve();
-                },
-                (err) => {
-                    console.error('Failed to get session:', err);
-                    reject(err);
-                }
-            );
+                });
+            } catch (err) {
+                console.error('Failed to get session:', err);
+                reject(err);
+            }
         });
     }, [api]);
 
@@ -120,6 +122,8 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         }
         
         // Method 1: Try api.getSession() first
+        // NOTE: getSession signature is getSession(callback, newSession?) where newSession is a BOOLEAN!
+        // Passing a function as second arg causes logout/MethodNotSupported error
         try {
             await new Promise<void>((resolve, reject) => {
                 if (typeof api.getSession !== 'function') {
@@ -127,23 +131,24 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                     return;
                 }
                 
-                api.getSession(
-                    (cr: any) => {
+                try {
+                    api.getSession((cr: any, server?: string) => {
                         // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
                         const creds = cr.credentials || cr;
                         
                         console.log('[GeotabContext] Session captured via api.getSession:', {
-                            server: cr.server,
+                            server: server || cr.server,
                             database: creds.database,
                             userName: creds.userName,
                             hasSessionId: !!creds.sessionId
                         });
                         
-                        if (cr.server) {
-                            if (cr.server.startsWith('http')) {
-                                try { host = new URL(cr.server).hostname; } catch (e) { host = cr.server; }
+                        const serverStr = server || cr.server;
+                        if (serverStr) {
+                            if (serverStr.startsWith('http')) {
+                                try { host = new URL(serverStr).hostname; } catch (e) { host = serverStr; }
                             } else {
-                                host = cr.server;
+                                host = serverStr;
                             }
                         }
                         
@@ -163,12 +168,11 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                         });
                         
                         resolve();
-                    },
-                    (err: any) => {
-                        console.warn('[GeotabContext] api.getSession failed:', err);
-                        reject(err);
-                    }
-                );
+                    });
+                } catch (err) {
+                    console.warn('[GeotabContext] api.getSession failed:', err);
+                    reject(err);
+                }
             });
             return; // Success, no need to try other methods
         } catch (e) {

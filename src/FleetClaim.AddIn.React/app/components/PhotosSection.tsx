@@ -59,8 +59,14 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
             if (!uploadCredentials || !uploadCredentials.sessionId) {
                 try {
                     await captureCredentials();
+                    // NOTE: getSession signature is getSession(callback, newSession?) where newSession is a BOOLEAN!
+                    // Passing a function as second arg causes logout/MethodNotSupported error
                     const freshSession = await new Promise<any>((resolve, reject) => {
-                        api.getSession((s: any) => resolve(s), reject);
+                        try {
+                            api.getSession((s: any) => resolve(s));
+                        } catch (e) {
+                            reject(e);
+                        }
                     });
                     uploadCredentials = {
                         database: freshSession.database,

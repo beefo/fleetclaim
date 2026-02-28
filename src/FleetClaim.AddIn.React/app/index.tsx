@@ -114,12 +114,16 @@ if (typeof window !== 'undefined') {
             // Method 6: Check cookies
             console.log("FleetClaim: Cookies:", document.cookie?.substring(0, 500) || "none");
             
-            // Method 7: Try the standard getSession anyway and log the error details
+            // Method 7: Try the standard getSession - NOTE: only ONE callback, no error callback!
+            // getSession signature is getSession(callback, newSession?) where newSession is a boolean
             try {
-                (freshApi as any).getSession(function(session: any, server: any) {
-                    console.log("FleetClaim: getSession SUCCESS!", { session, server });
-                }, function(error: any) {
-                    console.log("FleetClaim: getSession error callback:", error);
+                (freshApi as any).getSession(function(credentials: any, server: any) {
+                    console.log("FleetClaim: getSession SUCCESS!", { 
+                        database: credentials?.database,
+                        userName: credentials?.userName,
+                        hasSessionId: !!credentials?.sessionId,
+                        server 
+                    });
                 });
             } catch (e) {
                 console.log("FleetClaim: getSession threw:", e);

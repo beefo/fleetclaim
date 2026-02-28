@@ -6,6 +6,9 @@ using Geotab.Checkmate;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
@@ -36,6 +39,12 @@ var pdfOptions = new PdfOptions
     CompanyName = builder.Configuration["PDF_COMPANY_NAME"] ?? "FleetClaim",
     GoogleMapsApiKey = builder.Configuration["GOOGLE_MAPS_API_KEY"]
 };
+
+// Access token signing key (for PDF download auth)
+var accessTokenKey = builder.Configuration["ACCESS_TOKEN_KEY"]
+    ?? Environment.GetEnvironmentVariable("ACCESS_TOKEN_KEY")
+    ?? throw new InvalidOperationException("ACCESS_TOKEN_KEY is required");
+var accessTokenKeyBytes = Encoding.UTF8.GetBytes(accessTokenKey);
 
 // Services
 builder.Services.AddMemoryCache();
@@ -246,19 +255,69 @@ app.MapPost("/api/pdf", async (
     }
 }).RequireRateLimiting("pdf");
 
-// Generate PDF using service account (for external Add-Ins that can't get sessionId)
-// Requires userName query param to verify user exists in the database
+// Issue access token - verifies user exists in database, returns signed time-limited token
+app.MapPost("/api/auth/token", async (
+    [FromBody] TokenRequest request,
+    [FromServices] IGeotabClientFactory clientFactory,
+    CancellationToken ct) =>
+{
+    // Input validation
+    if (string.IsNullOrWhiteSpace(request.Database) || !Regex.IsMatch(request.Database, @"^[a-zA-Z0-9_\-\.]+$"))
+    {
+        return Results.BadRequest(new { error = "Invalid database" });
+    }
+    if (string.IsNullOrWhiteSpace(request.UserName) || request.UserName.Length > 200)
+    {
+        return Results.BadRequest(new { error = "Invalid userName" });
+    }
+    
+    try
+    {
+        // Authenticate using service account credentials
+        var api = await clientFactory.CreateClientAsync(request.Database);
+        
+        // Verify the user exists in this database
+        var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
+            "Get", 
+            typeof(Geotab.Checkmate.ObjectModel.User), 
+            new { search = new { name = request.UserName } },
+            ct);
+        
+        if (users == null || users.Count == 0)
+        {
+            Console.WriteLine($"[Token] User '{request.UserName}' not found in database '{request.Database}'");
+            return Results.Unauthorized();
+        }
+        
+        // Generate signed token (valid for 1 hour)
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
+        var token = GenerateAccessToken(request.Database, request.UserName, expiresAt, accessTokenKeyBytes);
+        
+        return Results.Ok(new { token, expiresAt });
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("credentials"))
+    {
+        return Results.Problem(detail: $"Database '{request.Database}' is not configured", statusCode: 404);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Token] Error: {ex.Message}");
+        return Results.Problem(detail: "Error generating token", statusCode: 500);
+    }
+});
+
+// Generate PDF using access token (for external Add-Ins that can't get sessionId)
 app.MapGet("/api/pdf/{database}/{reportId}", async (
     string database,
     string reportId,
-    [FromQuery] string? userName,
+    [FromQuery] string? token,
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
     [FromServices] IMediaFileService mediaFileService,
     CancellationToken ct) =>
 {
-    // Input validation - prevent path traversal and injection
+    // Input validation
     if (!Regex.IsMatch(database, @"^[a-zA-Z0-9_\-\.]+$") || database.Length > 100)
     {
         return Results.BadRequest(new { error = "Invalid database name" });
@@ -267,28 +326,30 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     {
         return Results.BadRequest(new { error = "Invalid report ID" });
     }
-    if (string.IsNullOrWhiteSpace(userName) || userName.Length > 200)
+    if (string.IsNullOrWhiteSpace(token))
     {
-        return Results.BadRequest(new { error = "userName query parameter is required" });
+        return Results.BadRequest(new { error = "token query parameter is required" });
+    }
+    
+    // Verify token
+    var tokenData = VerifyAccessToken(token, accessTokenKeyBytes);
+    if (tokenData == null)
+    {
+        Console.WriteLine($"[PDF] Invalid or expired token");
+        return Results.Unauthorized();
+    }
+    
+    // Token must match the requested database
+    if (!string.Equals(tokenData.Value.Database, database, StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine($"[PDF] Token database mismatch: {tokenData.Value.Database} vs {database}");
+        return Results.Unauthorized();
     }
     
     try
     {
         // Authenticate using service account credentials
         var api = await clientFactory.CreateClientAsync(database);
-        
-        // Verify the user exists in this database (authorization check)
-        var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
-            "Get", 
-            typeof(Geotab.Checkmate.ObjectModel.User), 
-            new { search = new { name = userName } },
-            ct);
-        
-        if (users == null || users.Count == 0)
-        {
-            Console.WriteLine($"[PDF] User '{userName}' not found in database '{database}'");
-            return Results.Unauthorized();
-        }
         
         // Fetch the report
         var reports = await repository.GetReportsAsync(api, ct: ct);
@@ -471,3 +532,67 @@ static async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
     
     return photoData;
 }
+
+// Access token generation - creates a signed, time-limited token
+static string GenerateAccessToken(string database, string userName, long expiresAt, byte[] key)
+{
+    var payload = JsonSerializer.Serialize(new { d = database, u = userName, e = expiresAt });
+    var payloadBytes = Encoding.UTF8.GetBytes(payload);
+    
+    using var hmac = new HMACSHA256(key);
+    var signature = hmac.ComputeHash(payloadBytes);
+    
+    // Combine payload + signature, base64url encode
+    var combined = new byte[payloadBytes.Length + signature.Length];
+    Buffer.BlockCopy(payloadBytes, 0, combined, 0, payloadBytes.Length);
+    Buffer.BlockCopy(signature, 0, combined, payloadBytes.Length, signature.Length);
+    
+    return Convert.ToBase64String(combined)
+        .Replace('+', '-')
+        .Replace('/', '_')
+        .TrimEnd('=');
+}
+
+// Access token verification - returns decoded data if valid, null if invalid/expired
+static (string Database, string UserName, long ExpiresAt)? VerifyAccessToken(string token, byte[] key)
+{
+    try
+    {
+        // Base64url decode
+        var base64 = token.Replace('-', '+').Replace('_', '/');
+        var padding = (4 - base64.Length % 4) % 4;
+        base64 += new string('=', padding);
+        var combined = Convert.FromBase64String(base64);
+        
+        if (combined.Length <= 32) // Signature is 32 bytes (SHA256)
+            return null;
+        
+        var payloadBytes = combined[..^32];
+        var providedSignature = combined[^32..];
+        
+        // Verify signature
+        using var hmac = new HMACSHA256(key);
+        var expectedSignature = hmac.ComputeHash(payloadBytes);
+        
+        if (!CryptographicOperations.FixedTimeEquals(providedSignature, expectedSignature))
+            return null;
+        
+        // Parse payload
+        var payload = JsonSerializer.Deserialize<JsonElement>(Encoding.UTF8.GetString(payloadBytes));
+        var database = payload.GetProperty("d").GetString() ?? "";
+        var userName = payload.GetProperty("u").GetString() ?? "";
+        var expiresAt = payload.GetProperty("e").GetInt64();
+        
+        // Check expiry
+        if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() > expiresAt)
+            return null;
+        
+        return (database, userName, expiresAt);
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+public record TokenRequest(string Database, string UserName);

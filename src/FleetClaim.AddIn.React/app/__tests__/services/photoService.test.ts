@@ -62,6 +62,32 @@ describe('photoService', () => {
             expect(url).toContain('data:image/svg+xml');
         });
 
+        it('should return placeholder SVG when sessionId is undefined', () => {
+            const credsWithUndefined = {
+                database: 'test_db',
+                userName: 'test@example.com',
+                sessionId: undefined as any
+            };
+            
+            const url = getDownloadUrl('media-123', credsWithUndefined, 'my.geotab.com');
+            
+            expect(url).toContain('data:image/svg+xml');
+        });
+
+        it('should return valid URL when all credentials present', () => {
+            const validCreds = {
+                database: 'test_db',
+                userName: 'test@example.com',
+                sessionId: 'valid-session-id'
+            };
+            
+            const url = getDownloadUrl('media-123', validCreds, 'my.geotab.com');
+            
+            expect(url).not.toContain('data:image/svg+xml');
+            expect(url).toContain('DownloadMediaFile');
+            expect(url).toContain('valid-session-id');
+        });
+
         it('should use default host when not specified', () => {
             const url = getDownloadUrl('media-123', mockCredentials);
             

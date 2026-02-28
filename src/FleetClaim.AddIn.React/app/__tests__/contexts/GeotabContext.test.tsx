@@ -301,6 +301,140 @@ describe('GeotabContext', () => {
             expect(result.current.credentials?.database).toBe('test_db');
             expect(result.current.credentials?.sessionId).toBe('session-123');
         });
+
+        it('should include all required credential fields', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            // All fields required for MediaFile operations
+            expect(result.current.credentials).toHaveProperty('database');
+            expect(result.current.credentials).toHaveProperty('userName');
+            expect(result.current.credentials).toHaveProperty('sessionId');
+            expect(result.current.credentials?.database).toBeTruthy();
+            expect(result.current.credentials?.userName).toBeTruthy();
+            expect(result.current.credentials?.sessionId).toBeTruthy();
+        });
+
+        it('should require sessionId to be present in credentials', async () => {
+            // Create API that returns credentials without sessionId
+            const mockApi: GeotabApi = {
+                ...createMockApi(),
+                getSession: jest.fn((success) => {
+                    // Return credentials without sessionId - should not be stored
+                    if (success) success({ database: 'test_db', userName: 'test@test.com', sessionId: '' });
+                    return Promise.resolve();
+                })
+            };
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            // Should not have stored credentials with empty sessionId
+            expect(result.current.credentials?.sessionId).toBeFalsy();
+        });
+
+        it('should not re-capture if already have valid credentials', async () => {
+            const mockApi = createMockApi();
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            // First capture
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            const callCountAfterFirst = (mockApi.getSession as jest.Mock).mock.calls.length;
+
+            // Second capture - should be skipped
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            const callCountAfterSecond = (mockApi.getSession as jest.Mock).mock.calls.length;
+
+            // getSession should not be called again
+            expect(callCountAfterSecond).toBe(callCountAfterFirst);
+        });
+
+        it('should handle getSession with nested credentials object', async () => {
+            const mockApi: GeotabApi = {
+                ...createMockApi(),
+                getSession: jest.fn((success) => {
+                    // Some Geotab versions return { credentials: { ... }, server: '...' }
+                    if (success) success({
+                        credentials: {
+                            database: 'nested_db',
+                            userName: 'nested@test.com',
+                            sessionId: 'nested-session'
+                        },
+                        server: 'https://my123.geotab.com'
+                    });
+                    return Promise.resolve();
+                })
+            };
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => (
+                    <GeotabProvider initialApi={mockApi} initialState={mockState}>
+                        {children}
+                    </GeotabProvider>
+                )
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            expect(result.current.credentials?.database).toBe('nested_db');
+            expect(result.current.credentials?.sessionId).toBe('nested-session');
+            expect(result.current.geotabHost).toBe('my123.geotab.com');
+        });
     });
 
     describe('geotabHost', () => {

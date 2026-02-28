@@ -325,7 +325,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
                 />
                 <FiltersBar.Dropdown
                     id="dateRange"
-                    showInSidePanel
+                    showInSidePanel={false}
                     sidePanelTitle="Date Range"
                     state={{ selectedOption: [filters.dateRange] }}
                     props={{

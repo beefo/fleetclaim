@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy csproj files and restore
@@ -12,7 +12,7 @@ COPY src/FleetClaim.Api/ FleetClaim.Api/
 RUN dotnet publish FleetClaim.Api/FleetClaim.Api.csproj -c Release -o /app
 
 # Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app .
 

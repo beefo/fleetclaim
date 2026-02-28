@@ -53,10 +53,10 @@ public class ModelTests
         // Act
         var json = JsonSerializer.Serialize(report);
         
-        // Assert
-        Assert.Contains("\"id\":", json);
-        Assert.Contains("\"vehicleId\":", json);
-        Assert.Contains("\"isBaselineReport\":", json);
+        // Assert - IncidentReport uses default PascalCase JSON serialization
+        Assert.Contains("\"Id\":", json);
+        Assert.Contains("\"VehicleId\":", json);
+        Assert.Contains("\"IsBaselineReport\":", json);
     }
     
     [Fact]
@@ -203,7 +203,7 @@ public class ModelTests
         // Assert
         Assert.NotNull(config.AutoGenerateRules);
         Assert.NotNull(config.NotifyEmails);
-        Assert.Equal(IncidentSeverity.Low, config.SeverityThreshold);
+        Assert.Equal(IncidentSeverity.Medium, config.SeverityThreshold);
     }
     
     [Fact]

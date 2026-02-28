@@ -224,13 +224,17 @@ export async function downloadPdf(
 
 /**
  * Download PDF using service account credentials (for external Add-Ins)
- * Only requires database name and report ID - no user session needed
+ * Requires database, reportId, and userName for authorization verification
  */
 export async function downloadPdfSimple(
     database: string,
-    reportId: string
+    reportId: string,
+    userName: string
 ): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/pdf/${encodeURIComponent(database)}/${encodeURIComponent(reportId)}`, {
+    const url = new URL(`${API_BASE_URL}/api/pdf/${encodeURIComponent(database)}/${encodeURIComponent(reportId)}`);
+    url.searchParams.set('userName', userName);
+    
+    const response = await fetch(url.toString(), {
         method: 'GET'
     });
     

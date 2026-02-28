@@ -247,9 +247,11 @@ app.MapPost("/api/pdf", async (
 }).RequireRateLimiting("pdf");
 
 // Generate PDF using service account (for external Add-Ins that can't get sessionId)
+// Requires userName query param to verify user exists in the database
 app.MapGet("/api/pdf/{database}/{reportId}", async (
     string database,
     string reportId,
+    [FromQuery] string? userName,
     [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
@@ -265,11 +267,28 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     {
         return Results.BadRequest(new { error = "Invalid report ID" });
     }
+    if (string.IsNullOrWhiteSpace(userName) || userName.Length > 200)
+    {
+        return Results.BadRequest(new { error = "userName query parameter is required" });
+    }
     
     try
     {
         // Authenticate using service account credentials
         var api = await clientFactory.CreateClientAsync(database);
+        
+        // Verify the user exists in this database (authorization check)
+        var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
+            "Get", 
+            typeof(Geotab.Checkmate.ObjectModel.User), 
+            new { search = new { name = userName } },
+            ct);
+        
+        if (users == null || users.Count == 0)
+        {
+            Console.WriteLine($"[PDF] User '{userName}' not found in database '{database}'");
+            return Results.Unauthorized();
+        }
         
         // Fetch the report
         var reports = await repository.GetReportsAsync(api, ct: ct);

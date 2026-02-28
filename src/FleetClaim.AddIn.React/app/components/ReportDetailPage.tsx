@@ -63,8 +63,9 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     onDelete,
     toast
 }) => {
-    const { state, credentials, geotabHost } = useGeotab();
+    const { state, credentials, geotabHost, currentUser } = useGeotab();
     const database = (state?.getState()?.database as string) || credentials?.database || '';
+    const userName = currentUser?.name || credentials?.userName || '';
     
     const [activeTab, setActiveTab] = useState<TabId>('overview');
     const [isDeleting, setIsDeleting] = useState(false);
@@ -104,18 +105,18 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     const incidentLng = report.longitude ?? (gpsTrail.length > 0 ? gpsTrail[gpsTrail.length - 1].longitude : null);
 
     const handleDownloadPdf = useCallback(async () => {
-        if (!database) {
-            toast.error('Database not available. Please refresh.');
+        if (!database || !userName) {
+            toast.error('Session not available. Please refresh.');
             return;
         }
         try {
             toast.info('Generating PDF...');
-            await downloadPdfSimple(database, report.id);
+            await downloadPdfSimple(database, report.id, userName);
             toast.success('PDF downloaded');
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to download PDF');
         }
-    }, [report.id, database, toast]);
+    }, [report.id, database, userName, toast]);
 
     const handleDelete = useCallback(async () => {
         if (!confirm('Are you sure you want to delete this report?')) return;
@@ -194,7 +195,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                     {isBaseline && <Pill type="info">Baseline</Pill>}
                 </div>
                 <div className="detail-header-right">
-                    <Button type="secondary" onClick={handleDownloadPdf} disabled={!database}>
+                    <Button type="secondary" onClick={handleDownloadPdf} disabled={!database || !userName}>
                         <IconDownload /> Download PDF
                     </Button>
                     <Button 

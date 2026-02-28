@@ -4,40 +4,48 @@ Automated incident evidence packaging for Geotab fleets. Generates professional 
 
 ## Features
 
+- **MyGeotab Add-In**: React-based Add-In built with Geotab Zenith design system
 - **Automatic Incident Detection**: Polls Geotab for ExceptionEvents (harsh braking, collisions, speeding)
 - **Evidence Packaging**: Collects GPS trail, speed data, diagnostics, and weather conditions
+- **Photo Evidence**: Upload and attach photos to reports via Geotab MediaFile API
 - **Professional PDF Reports**: Generated using QuestPDF with customizable branding
-- **Shareable Links**: Stateless web viewer for reports without Geotab login
-- **Notifications**: Email (SendGrid/SMTP) and webhook support
+- **Email Sharing**: Send reports via email with PDF attachments
+- **Notifications**: Email (Gmail OAuth) and webhook support
 - **Multi-tenant**: Supports multiple Geotab databases from a single deployment
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Customer's Geotab                        │
-│  ┌──────────────┐  ┌────────────┐  ┌──────────────────────┐  │
-│  │ExceptionEvent│  │ LogRecord  │  │      AddInData       │  │
-│  │ (incidents)  │  │  (GPS)     │  │ (reports + config)   │  │
-│  └──────┬───────┘  └─────┬──────┘  └──────────┬───────────┘  │
-└─────────┼────────────────┼────────────────────┼──────────────┘
-          │                │                    ▲
-          ▼                ▼                    │
+│                     Customer's MyGeotab                      │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │              FleetClaim Add-In (React)                  │  │
+│  │   - View/manage incident reports                        │  │
+│  │   - Upload photo evidence                               │  │
+│  │   - Request on-demand reports                           │  │
+│  │   - Download PDFs, send emails                          │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                              │                                │
+│  ┌──────────────┐  ┌────────┴───────┐  ┌────────────────┐   │
+│  │ExceptionEvent│  │   AddInData    │  │   MediaFile    │   │
+│  │ (incidents)  │  │(reports/config)│  │ (photo storage)│   │
+│  └──────┬───────┘  └───────┬────────┘  └───────┬────────┘   │
+└─────────┼──────────────────┼───────────────────┼────────────┘
+          │                  │                   │
+          ▼                  ▼                   ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  FleetClaim Worker (GCP)                     │
-│  Cloud Run Job - Scheduled every 5 minutes                   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  Incident   │  │   Report    │  │    Notification     │  │
-│  │   Poller    │──▶│  Generator  │──▶│     Service         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                  FleetClaim API (GCP Cloud Run)              │
+│  - POST /api/pdf - Generate PDF with user credentials        │
+│  - POST /api/email - Send report via email                   │
+│  - GET /api/pdf/{db}/{id} - Service account PDF download     │
 └─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
+          │
+          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  FleetClaim API (GCP)                        │
-│  Cloud Run Service - Public share links                      │
-│  GET /r/{token} - Renders HTML report                        │
-│  GET /r/{token}/pdf - Downloads PDF                          │
+│                  FleetClaim Worker (GCP Cloud Run Job)       │
+│  - Scheduled polling for new incidents                       │
+│  - Automatic report generation                               │
+│  - Process on-demand report requests                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -45,29 +53,33 @@ Automated incident evidence packaging for Geotab fleets. Generates professional 
 
 | Project | Description |
 |---------|-------------|
+| `FleetClaim.AddIn.React` | MyGeotab Add-In (React + Zenith) |
 | `FleetClaim.Core` | Shared models, services, Geotab integration |
 | `FleetClaim.Worker` | Background job for polling and report generation |
-| `FleetClaim.Api` | Web API for shareable report links |
+| `FleetClaim.Api` | Web API for PDF generation and email |
+| `FleetClaim.Admin` | Admin dashboard (optional) |
 | `FleetClaim.Tests` | Unit tests |
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
+| Add-In Frontend | React 18, TypeScript, Geotab Zenith |
 | Runtime | .NET 8 |
 | PDF Generation | QuestPDF |
-| Email | SendGrid / SMTP |
+| Email | Gmail OAuth2 |
 | Weather | Open-Meteo (free API) |
 | Maps | Google Static Maps (optional) |
 | Hosting | GCP Cloud Run |
 | Secrets | GCP Secret Manager |
-| Scheduling | GCP Cloud Scheduler |
+| CI/CD | GitHub Actions (conditional deploys) |
 
 ## Quick Start
 
 ### Prerequisites
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Node.js 18+](https://nodejs.org/) (for Add-In development)
 - [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
 - A GCP project with billing enabled
 
@@ -79,21 +91,32 @@ cd fleetclaim
 dotnet restore
 dotnet build
 dotnet test
+
+# Build Add-In
+cd src/FleetClaim.AddIn.React
+npm install
+npm run build
+npm test
 ```
+
+### Local Add-In Development
+
+```bash
+cd src/FleetClaim.AddIn.React
+npm run dev
+```
+
+Then configure your MyGeotab Add-In to point to `http://localhost:9000`.
 
 ### Deploy to GCP
 
-```bash
-# Quick deployment using shell script
-cd infra
-./deploy.sh your-project-id us-central1
+The project uses GitHub Actions with conditional deployments - only changed components are deployed:
 
-# Or using Terraform
-cd infra
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your settings
-terraform init
-terraform apply
+```bash
+# Push to main triggers CI/CD
+git push origin main
+
+# Or manually trigger specific components via GitHub Actions
 ```
 
 ### Configure Geotab Credentials
@@ -116,165 +139,89 @@ gcloud secrets create fleetclaim-creds-customer_db_name \
     --data-file=creds.json \
     --project=your-project-id
 
-# Grant access to service account
-gcloud secrets add-iam-policy-binding fleetclaim-creds-customer_db_name \
-    --member="serviceAccount:fleetclaim@your-project-id.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
-
 # Clean up
 rm creds.json
 ```
 
-### Customer Configuration
+## Add-In Features
 
-Customers configure FleetClaim through AddInData in their Geotab database:
+### Reports Tab
+- View all incident reports with filtering (severity, date range, vehicle)
+- Date filter defaults to "Last 30 days"
+- Click any report to view details, photos, and damage assessment
+- Download PDF or send via email
 
-```json
-{
-  "addInId": "fleetClaim",
-  "data": {
-    "type": "config",
-    "notifyEmails": ["safety@company.com", "fleet@company.com"],
-    "notifyWebhook": "https://your-webhook.com/fleetclaim",
-    "severityThreshold": "medium",
-    "autoGenerateRules": ["HarshBraking", "Collision", "Speeding"]
-  }
-}
-```
+### Requests Tab
+- Submit on-demand report requests for specific vehicles/time ranges
+- Track request status (pending, processing, completed, failed)
+- "Force Report" option to generate reports even without detected incidents
+
+### Settings Tab
+- Configure notification preferences
+- Set severity thresholds
+- Manage webhook integrations
+
+## API Endpoints
+
+See [docs/API.md](docs/API.md) for full API documentation.
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /health` | None | Health check |
+| `POST /api/pdf` | X-Geotab-* headers | Generate PDF with user session |
+| `GET /api/pdf/{db}/{id}` | Query param | PDF via service account |
+| `POST /api/email` | X-Geotab-* headers | Send report via email |
 
 ## Configuration
-
-### Worker Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GCP_PROJECT_ID` | Yes | GCP project ID for Secret Manager |
-| `SHARE_LINK_SIGNING_KEY` | Yes | Secret key for signing share link tokens |
-| `SHARE_LINK_BASE_URL` | Yes | Base URL for share links (API URL) |
-| `PDF_COMPANY_NAME` | No | Company name in PDF header (default: FleetClaim) |
-| `GOOGLE_MAPS_API_KEY` | No | For static map images in PDFs |
-| `USE_SENDGRID` | No | Set to "true" to use SendGrid for email |
-| `SENDGRID_API_KEY` | No | SendGrid API key |
-| `SMTP_HOST` | No | SMTP server hostname |
-| `SMTP_PORT` | No | SMTP port (default: 587) |
-| `SMTP_USE_SSL` | No | Use SSL for SMTP (default: true) |
-| `SMTP_USERNAME` | No | SMTP username |
-| `SMTP_PASSWORD` | No | SMTP password |
-| `FROM_EMAIL` | No | From email address (default: noreply@fleetclaim.app) |
-| `FROM_NAME` | No | From name (default: FleetClaim) |
 
 ### API Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GCP_PROJECT_ID` | Yes | GCP project ID for Secret Manager |
-| `SHARE_LINK_SIGNING_KEY` | Yes | Must match worker's signing key |
+| `GMAIL_CLIENT_ID` | No | Gmail OAuth client ID |
+| `GMAIL_CLIENT_SECRET` | No | Gmail OAuth client secret |
+| `GMAIL_REFRESH_TOKEN` | No | Gmail OAuth refresh token |
+| `GMAIL_FROM_EMAIL` | No | From email address |
+| `PDF_COMPANY_NAME` | No | Company name in PDF header |
+| `GOOGLE_MAPS_API_KEY` | No | For static map images in PDFs |
 
-## Local Development
+### Worker Environment Variables
 
-```bash
-# Set up local secrets (for testing without GCP)
-export GCP_PROJECT_ID=your-dev-project
-export SHARE_LINK_SIGNING_KEY=dev-secret-key
-export SHARE_LINK_BASE_URL=http://localhost:5001
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GCP_PROJECT_ID` | Yes | GCP project ID for Secret Manager |
+| `POLL_INTERVAL_MINUTES` | No | Polling interval (default: 5) |
 
-# Run API
-cd src/FleetClaim.Api
-dotnet run
+## GitHub Actions
 
-# Run Worker (in another terminal)
-cd src/FleetClaim.Worker
-dotnet run
-```
+The project uses conditional deployments via `dorny/paths-filter`:
 
-## Data Flow
+- **API changes** (`src/FleetClaim.Api/**`, `src/FleetClaim.Core/**`) → Deploy API
+- **Add-In changes** (`src/FleetClaim.AddIn.React/**`) → Deploy Add-In
+- **Worker changes** (`src/FleetClaim.Worker/**`, `src/FleetClaim.Core/**`) → Deploy Worker
+- **Admin changes** (`src/FleetClaim.Admin/**`) → Deploy Admin
 
-### Automatic Processing (Normal Flow)
-
-1. Worker polls Geotab ExceptionEvents via GetFeed
-2. New incident detected → collect evidence (GPS, diagnostics, weather)
-3. Generate PDF report with QuestPDF
-4. Save report to customer's AddInData
-5. Send email/webhook notifications
-6. Report visible in MyGeotab Add-In
-
-### Manual Request (On-Demand)
-
-1. User clicks "Request Report" in MyGeotab Add-In
-2. Add-In writes ReportRequest to AddInData
-3. Worker picks up request on next poll
-4. Generates report → saves to AddInData
-5. Add-In shows report on refresh
-
-## AddInData Schema
-
-### Report
-
-```json
-{
-  "type": "report",
-  "payload": {
-    "id": "rpt_abc123",
-    "incidentId": "ExceptionEvent-xyz",
-    "vehicleId": "b123",
-    "vehicleName": "Truck 42",
-    "driverId": "d456",
-    "driverName": "John Smith",
-    "occurredAt": "2024-02-15T14:32:00Z",
-    "generatedAt": "2024-02-15T14:35:00Z",
-    "severity": "high",
-    "summary": "Hard braking event involving Truck 42 at 85 km/h (Rain conditions)",
-    "evidence": {
-      "gpsTrail": [...],
-      "maxSpeedKmh": 105,
-      "speedAtEventKmh": 45,
-      "decelerationMps2": -8.2,
-      "weatherCondition": "Rain",
-      "temperatureCelsius": 15,
-      "diagnostics": [...]
-    },
-    "pdfBase64": "...",
-    "shareUrl": "https://fleetclaim.app/r/abc123"
-  }
-}
-```
-
-### Report Request
-
-```json
-{
-  "type": "reportRequest",
-  "payload": {
-    "id": "req_xyz789",
-    "incidentId": "ExceptionEvent-xyz",
-    "requestedBy": "user@company.com",
-    "requestedAt": "2024-02-15T15:00:00Z",
-    "status": "pending"
-  }
-}
-```
-
-### Customer Config
-
-```json
-{
-  "type": "config",
-  "payload": {
-    "notifyEmails": ["safety@company.com"],
-    "notifyWebhook": "https://...",
-    "severityThreshold": "medium",
-    "autoGenerateRules": ["HarshBraking", "Collision", "Speeding"]
-  }
-}
-```
+Tests must pass before any deployment.
 
 ## Security
 
-- **Credential Isolation**: Each customer's Geotab credentials are stored in separate secrets
-- **Signed Share Links**: Share URLs contain HMAC-signed tokens that prevent tampering
-- **Stateless API**: Share link API fetches fresh data from Geotab on each request
-- **Short-lived Cache**: 5-minute cache to reduce API load, not for persistence
-- **No Cross-tenant Access**: Worker processes each database in isolation
+- **Session-based Auth**: API endpoints verify user credentials via Geotab GetSystemTime call
+- **X-Header Authentication**: Credentials passed via `X-Geotab-Database`, `X-Geotab-UserName`, `X-Geotab-SessionId`
+- **Credential Isolation**: Each customer's Geotab credentials stored in separate secrets
+- **Rate Limiting**: PDF (10/min) and email (5/min) endpoints are rate limited
+- **CORS Restricted**: Only allows requests from `*.geotab.com`, `*.geotab.ca`, and Cloud Run domains
+
+## Testing
+
+```bash
+# Run .NET tests
+dotnet test
+
+# Run Add-In tests (97 tests)
+cd src/FleetClaim.AddIn.React
+npm test
+```
 
 ## License
 

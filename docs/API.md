@@ -1,17 +1,30 @@
 # FleetClaim API Documentation
 
-The FleetClaim API provides public endpoints for viewing and downloading incident reports via shareable links.
+The FleetClaim API provides endpoints for PDF generation, email delivery, and report management.
 
 ## Base URL
 
-- **Production**: `https://fleetclaim-api-xxxxx-uc.a.run.app`
-- **Local Development**: `http://localhost:5001`
+- **Production**: `https://fleetclaim-api-589116575765.us-central1.run.app`
+- **Local Development**: `http://localhost:5000`
+
+## Authentication
+
+Most endpoints require Geotab session credentials passed via HTTP headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-Geotab-Database` | Geotab database name |
+| `X-Geotab-UserName` | User email address |
+| `X-Geotab-SessionId` | Session ID from `api.getSession()` |
+| `X-Geotab-Server` | Geotab server (default: `my.geotab.com`) |
+
+The API validates credentials by calling Geotab's `GetSystemTime` API.
+
+---
 
 ## Endpoints
 
 ### Health Check
-
-Check if the API is running.
 
 ```
 GET /health
@@ -21,147 +34,208 @@ GET /health
 ```json
 {
   "status": "healthy",
-  "timestamp": "2024-02-15T14:30:00Z"
+  "timestamp": "2026-02-28T12:00:00Z"
 }
 ```
 
 ---
 
-### View Report (HTML)
+### Generate PDF (Authenticated)
 
-Render an incident report as an interactive HTML page.
-
-```
-GET /r/{token}
-```
-
-**Parameters:**
-- `token` (path) - Signed share link token
-
-**Response:**
-- `200 OK` - HTML page with report details
-- `404 Not Found` - Invalid token or report not found
-
-**Example:**
-```
-GET /r/cnB0X2FiYzEyM3xteWRifGFiY2RlZmc
-```
-
-**Features of the HTML page:**
-- Severity badge and summary
-- Incident details (vehicle, driver, time, weather)
-- Speed metrics (speed at event, max speed, deceleration)
-- Interactive speed profile chart
-- GPS trail map (using Leaflet + OpenStreetMap)
-- Diagnostic codes table
-- PDF download link
-
----
-
-### Download Report (PDF)
-
-Download the incident report as a PDF file.
+Generate and download a PDF report using the user's Geotab session.
 
 ```
-GET /r/{token}/pdf
+POST /api/pdf
 ```
 
-**Parameters:**
-- `token` (path) - Signed share link token
+**Headers:**
+```
+Content-Type: application/json
+X-Geotab-Database: your_database
+X-Geotab-UserName: user@example.com
+X-Geotab-SessionId: abc123...
+X-Geotab-Server: my.geotab.com
+```
+
+**Request Body:**
+```json
+{
+  "reportId": "rpt_abc123"
+}
+```
 
 **Response:**
 - `200 OK` - PDF file download
   - Content-Type: `application/pdf`
-  - Content-Disposition: `attachment; filename="incident-report-{id}.pdf"`
-- `404 Not Found` - Invalid token or report not found
+  - Content-Disposition: `attachment; filename="incident-report-rpt_abc123.pdf"`
+- `401 Unauthorized` - Invalid or expired session
+- `404 Not Found` - Report not found
+- `429 Too Many Requests` - Rate limit exceeded (10/min)
+
+---
+
+### Generate PDF (Service Account)
+
+Download a PDF using service account credentials. Requires the user to exist in the target database.
+
+```
+GET /api/pdf/{database}/{reportId}?userName={userName}
+```
+
+**Parameters:**
+- `database` (path) - Geotab database name
+- `reportId` (path) - Report ID
+- `userName` (query) - User's email for authorization verification
+
+**Response:**
+- `200 OK` - PDF file download
+- `401 Unauthorized` - User not found in database
+- `404 Not Found` - Report not found or database not configured
+- `429 Too Many Requests` - Rate limit exceeded
 
 **Example:**
 ```
-GET /r/cnB0X2FiYzEyM3xteWRifGFiY2RlZmc/pdf
+GET /api/pdf/demo_fleetclaim/rpt_abc123?userName=steve@example.com
 ```
 
 ---
 
-## Share Link Tokens
+### Send Report via Email
 
-Share link tokens are signed to prevent tampering:
+Send a report to an email address with PDF attachment.
 
-1. Token format: `base64url(reportId|database|signature)`
-2. Signature is HMAC-SHA256 (truncated to 8 bytes)
-3. Tokens are stateless - the API fetches fresh data from Geotab on each request
-4. 5-minute cache to reduce API load
+```
+POST /api/email
+```
 
-**Security:**
-- Tokens cannot be forged without the signing key
-- Tokens cannot be modified to access different reports
-- Each deployment must use a secret signing key
+**Headers:**
+```
+Content-Type: application/json
+X-Geotab-Database: your_database
+X-Geotab-UserName: user@example.com
+X-Geotab-SessionId: abc123...
+```
+
+**Request Body:**
+```json
+{
+  "reportId": "rpt_abc123",
+  "email": "recipient@example.com",
+  "message": "Optional custom message"
+}
+```
+
+**Response:**
+- `200 OK`:
+  ```json
+  {
+    "success": true,
+    "message": "Email sent to recipient@example.com"
+  }
+  ```
+- `400 Bad Request` - Invalid email address or missing reportId
+- `401 Unauthorized` - Invalid or expired session
+- `404 Not Found` - Report not found
+- `429 Too Many Requests` - Rate limit exceeded (5/min)
+- `503 Service Unavailable` - Email service not configured
+
+---
+
+## Rate Limiting
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| `POST /api/pdf` | 10 requests | 1 minute |
+| `GET /api/pdf/{db}/{id}` | 10 requests | 1 minute |
+| `POST /api/email` | 5 requests | 1 minute |
+
+When rate limited, the API returns `429 Too Many Requests`:
+```json
+{
+  "error": "Too many requests. Please try again later."
+}
+```
+
+---
+
+## CORS
+
+The API allows requests from:
+- `*.geotab.com`
+- `*.geotab.ca`
+- `localhost`
+- `*.run.app` (GCP Cloud Run)
 
 ---
 
 ## Error Responses
 
+### 401 Unauthorized
+
+Returned when credentials are missing, invalid, or expired.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7235#section-3.1",
+  "title": "Unauthorized",
+  "status": 401
+}
+```
+
 ### 404 Not Found
 
-Returned when the share link is invalid or the report doesn't exist.
-
-```html
-<!DOCTYPE html>
-<html>
-  <body>
-    <h1>Oops!</h1>
-    <p>Invalid or expired link</p>
-  </body>
-</html>
+```json
+{
+  "error": "Report not found"
+}
 ```
 
 ### 500 Internal Server Error
-
-Returned when unable to fetch the report from Geotab.
 
 ```json
 {
   "type": "https://tools.ietf.org/html/rfc7231#section-6.6.1",
   "title": "Error",
   "status": 500,
-  "detail": "Unable to retrieve report"
+  "detail": "Error generating PDF: ..."
 }
 ```
 
 ---
 
-## Webhook Payload
+## Add-In Integration
 
-When notifications are configured, the worker sends this payload to the webhook URL:
+The FleetClaim Add-In uses these endpoints via the `reportService`:
+
+```typescript
+import { downloadPdf, sendReportEmail } from '@/services';
+
+// Download PDF (uses X-headers)
+await downloadPdf(reportId, credentials);
+
+// Send email
+await sendReportEmail(reportId, 'recipient@example.com', credentials, 'Custom message');
+```
+
+The credentials are captured from `api.getSession()` in the Add-In.
+
+---
+
+## Webhook Payload (Worker)
+
+When the worker generates a report and notifications are configured:
 
 ```json
 {
   "eventType": "incident.report.generated",
-  "timestamp": "2024-02-15T14:35:00Z",
+  "timestamp": "2026-02-28T14:35:00Z",
   "report": {
     "id": "rpt_abc123",
-    "incidentId": "ExceptionEvent-xyz",
-    "vehicleId": "b123",
     "vehicleName": "Truck 42",
-    "driverId": "d456",
     "driverName": "John Smith",
-    "occurredAt": "2024-02-15T14:32:00Z",
-    "generatedAt": "2024-02-15T14:35:00Z",
-    "severity": "High",
-    "summary": "Hard braking event involving Truck 42 at 85 km/h (Clear conditions)",
-    "shareUrl": "https://fleetclaim.app/r/abc123",
-    "evidence": {
-      "gpsPointCount": 120,
-      "maxSpeedKmh": 105,
-      "speedAtEventKmh": 45,
-      "decelerationMps2": -8.2,
-      "weatherCondition": "Clear",
-      "diagnosticCount": 3
-    }
+    "occurredAt": "2026-02-28T14:32:00Z",
+    "severity": "high",
+    "summary": "Hard braking event at 85 km/h"
   }
 }
 ```
-
-**Webhook behavior:**
-- POST request with JSON body
-- Expects 2xx response for success
-- No retries on failure (logged but not blocking)

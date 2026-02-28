@@ -1,5 +1,7 @@
 # FleetClaim
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 Automated incident evidence packaging for Geotab fleets. Generates professional PDF reports with GPS trails, speed analysis, diagnostics, and weather data for insurance claims and fleet management.
 
 ## Features
@@ -225,4 +227,9 @@ npm test
 
 ## License
 
-QuestPDF is used under the Community License. See [QuestPDF License](https://www.questpdf.com/license.html) for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+### Third-Party Licenses
+
+- **QuestPDF** - Used under the [Community License](https://www.questpdf.com/license.html) (free for companies with < $1M annual revenue)
+- **Geotab Zenith** - Geotab's design system, used under their SDK terms

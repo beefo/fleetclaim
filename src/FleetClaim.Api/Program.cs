@@ -62,7 +62,7 @@ if (!string.IsNullOrEmpty(gmailRefreshToken) && !string.IsNullOrEmpty(gmailClien
 else
 {
     Console.WriteLine("Warning: Gmail credentials not configured. Email features will be disabled.");
-    builder.Services.AddSingleton<IGmailEmailService?>(sp => null);
+    // Register a null instance - the endpoint checks for null before using
 }
 
 // Rate limiting
@@ -348,10 +348,11 @@ app.MapPost("/api/email", async (
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
     [FromServices] IMediaFileService mediaFileService,
-    [FromServices] IGmailEmailService? gmailService,
+    IServiceProvider serviceProvider,
     CancellationToken ct) =>
 {
     // Check if email service is configured
+    var gmailService = serviceProvider.GetService<IGmailEmailService>();
     if (gmailService == null)
     {
         return Results.Problem(

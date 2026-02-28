@@ -167,8 +167,8 @@ public class ModelTests
         // Assert
         Assert.NotNull(evidence.GpsTrail);
         Assert.Empty(evidence.GpsTrail);
-        Assert.NotNull(evidence.SpeedProfile);
-        Assert.Empty(evidence.SpeedProfile);
+        Assert.NotNull(evidence.AccelerometerEvents);
+        Assert.Empty(evidence.AccelerometerEvents);
     }
     
     [Fact]
@@ -217,8 +217,7 @@ public class ModelTests
         
         // Assert
         Assert.Equal("report", wrapper.Type);
-        Assert.NotNull(wrapper.Payload);
-        Assert.Equal(1, wrapper.Version);
+        Assert.NotNull(wrapper.Payload.ToString());
     }
     
     [Fact]

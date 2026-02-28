@@ -222,68 +222,25 @@ export async function downloadPdf(
     URL.revokeObjectURL(downloadUrl);
 }
 
-// Cache for access tokens (database -> { token, expiresAt })
-const tokenCache: Map<string, { token: string; expiresAt: number }> = new Map();
-
 /**
- * Get or refresh access token for a database
- */
-async function getAccessToken(database: string, userName: string): Promise<string> {
-    const cached = tokenCache.get(database);
-    const now = Math.floor(Date.now() / 1000);
-    
-    // Use cached token if valid (with 5 min buffer)
-    if (cached && cached.expiresAt > now + 300) {
-        return cached.token;
-    }
-    
-    // Request new token
-    const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ database, userName })
-    });
-    
-    if (!response.ok) {
-        if (response.status === 401) {
-            throw new Error('User not authorized for this database');
-        }
-        throw new Error(`Failed to get access token: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    tokenCache.set(database, { token: data.token, expiresAt: data.expiresAt });
-    return data.token;
-}
-
-/**
- * Download PDF using access token (for external Add-Ins)
- * Gets a signed token first, then downloads the PDF
+ * Download PDF using service account credentials (for external Add-Ins)
+ * Requires database, reportId, and userName for authorization verification
  */
 export async function downloadPdfSimple(
     database: string,
     reportId: string,
     userName: string
 ): Promise<void> {
-    // Get access token
-    const token = await getAccessToken(database, userName);
-    
-    // Download PDF with token
     const url = new URL(`${API_BASE_URL}/api/pdf/${encodeURIComponent(database)}/${encodeURIComponent(reportId)}`);
-    url.searchParams.set('token', token);
+    url.searchParams.set('userName', userName);
     
     const response = await fetch(url.toString(), {
         method: 'GET'
     });
     
     if (!response.ok) {
-        if (response.status === 401) {
-            // Token may have expired, clear cache and retry once
-            tokenCache.delete(database);
-            throw new Error('Session expired. Please try again.');
-        }
         if (response.status === 404) {
-            throw new Error('Report not found');
+            throw new Error('Report not found or database not configured');
         }
         throw new Error(`Failed to download PDF: ${response.status}`);
     }

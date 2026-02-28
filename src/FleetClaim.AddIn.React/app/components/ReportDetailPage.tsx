@@ -15,7 +15,7 @@ import {
 } from '@geotab/zenith';
 import { IncidentReport, Severity, Photo } from '@/types';
 import { useGeotab } from '@/contexts';
-import { downloadPdf, sendReportEmail } from '@/services';
+import { downloadPdfSimple, sendReportEmail } from '@/services';
 import { GpsMap } from './GpsMap';
 import { PhotosSection } from './PhotosSection';
 import { DamageAssessmentForm } from './DamageAssessmentForm';
@@ -104,23 +104,18 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     const incidentLng = report.longitude ?? (gpsTrail.length > 0 ? gpsTrail[gpsTrail.length - 1].longitude : null);
 
     const handleDownloadPdf = useCallback(async () => {
-        if (!credentials?.sessionId) {
-            toast.error('Session not available. Please refresh.');
+        if (!database) {
+            toast.error('Database not available. Please refresh.');
             return;
         }
         try {
             toast.info('Generating PDF...');
-            await downloadPdf(report.id, {
-                database: credentials.database,
-                userName: credentials.userName,
-                sessionId: credentials.sessionId,
-                server: geotabHost
-            });
+            await downloadPdfSimple(database, report.id);
             toast.success('PDF downloaded');
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to download PDF');
         }
-    }, [report.id, credentials, geotabHost, toast]);
+    }, [report.id, database, toast]);
 
     const handleDelete = useCallback(async () => {
         if (!confirm('Are you sure you want to delete this report?')) return;
@@ -199,7 +194,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                     {isBaseline && <Pill type="info">Baseline</Pill>}
                 </div>
                 <div className="detail-header-right">
-                    <Button type="secondary" onClick={handleDownloadPdf} disabled={!credentials?.sessionId}>
+                    <Button type="secondary" onClick={handleDownloadPdf} disabled={!database}>
                         <IconDownload /> Download PDF
                     </Button>
                     <Button 

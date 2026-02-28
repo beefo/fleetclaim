@@ -246,6 +246,83 @@ app.MapPost("/api/pdf", async (
     }
 }).RequireRateLimiting("pdf");
 
+// Generate PDF using service account (for external Add-Ins that can't get sessionId)
+app.MapGet("/api/pdf/{database}/{reportId}", async (
+    string database,
+    string reportId,
+    [FromServices] IGeotabClientFactory clientFactory,
+    [FromServices] IAddInDataRepository repository,
+    [FromServices] IPdfRenderer pdfRenderer,
+    [FromServices] IMediaFileService mediaFileService,
+    CancellationToken ct) =>
+{
+    // Input validation - prevent path traversal and injection
+    if (!Regex.IsMatch(database, @"^[a-zA-Z0-9_\-\.]+$") || database.Length > 100)
+    {
+        return Results.BadRequest(new { error = "Invalid database name" });
+    }
+    if (!Regex.IsMatch(reportId, @"^[a-zA-Z0-9_\-]+$") || reportId.Length > 50)
+    {
+        return Results.BadRequest(new { error = "Invalid report ID" });
+    }
+    
+    try
+    {
+        // Authenticate using service account credentials
+        var api = await clientFactory.CreateClientAsync(database);
+        
+        // Fetch the report
+        var reports = await repository.GetReportsAsync(api, ct: ct);
+        var report = reports.FirstOrDefault(r => r.Id == reportId);
+        
+        if (report == null)
+        {
+            return Results.NotFound(new { error = "Report not found" });
+        }
+        
+        byte[]? pdfBytes = null;
+        
+        // Try to download pre-generated PDF from MediaFile
+        if (!string.IsNullOrEmpty(report.PdfMediaFileId))
+        {
+            try
+            {
+                pdfBytes = await mediaFileService.DownloadFileAsync(api, report.PdfMediaFileId, ct);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[PDF] Failed to download pre-generated PDF: {ex.Message}");
+            }
+        }
+        
+        // Generate on-demand if no pre-generated PDF
+        if (pdfBytes == null || pdfBytes.Length == 0)
+        {
+            // Fetch photo data for embedding in PDF
+            var photoData = await FetchPhotoDataAsync(api, report, ct);
+            var base64Pdf = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
+            pdfBytes = Convert.FromBase64String(base64Pdf);
+        }
+        
+        return Results.File(
+            pdfBytes,
+            "application/pdf",
+            $"incident-report-{report.Id}.pdf");
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("credentials"))
+    {
+        return Results.Problem(
+            detail: $"Database '{database}' is not configured",
+            statusCode: 404);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: "Error generating PDF: " + ex.Message,
+            statusCode: 500);
+    }
+}).RequireRateLimiting("pdf");
+
 // Send report via email with credential verification
 app.MapPost("/api/email", async (
     [FromBody] EmailSendRequest request,

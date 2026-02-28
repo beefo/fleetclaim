@@ -223,6 +223,38 @@ export async function downloadPdf(
 }
 
 /**
+ * Download PDF using service account credentials (for external Add-Ins)
+ * Only requires database name and report ID - no user session needed
+ */
+export async function downloadPdfSimple(
+    database: string,
+    reportId: string
+): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/pdf/${encodeURIComponent(database)}/${encodeURIComponent(reportId)}`, {
+        method: 'GET'
+    });
+    
+    if (!response.ok) {
+        if (response.status === 404) {
+            throw new Error('Report not found or database not configured');
+        }
+        throw new Error(`Failed to download PDF: ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `FleetClaim-Report-${reportId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(downloadUrl);
+}
+
+/**
  * Send report via email (requires authenticated credentials)
  */
 export async function sendReportEmail(

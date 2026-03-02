@@ -45,7 +45,7 @@ describe('GpsMap', () => {
         const iframe = screen.getByTitle('GPS Trail Map') as HTMLIFrameElement;
         expect(iframe.src).toContain('openstreetmap.org/export/embed.html');
         expect(iframe.src).toContain('bbox=');
-        expect(iframe.src).toContain('marker=');
+        // Markers are now drawn on canvas overlay, not in URL
     });
 
     it('should show empty state when no location data', () => {
@@ -113,8 +113,8 @@ describe('GpsMap', () => {
         expect(iframe.style.borderRadius).toBe('8px');
     });
 
-    it('should include marker in URL with incident coordinates', () => {
-        render(
+    it('should render canvas overlay for drawing path and markers', () => {
+        const { container } = render(
             <GpsMap
                 gpsTrail={mockGpsTrail}
                 incidentLocation={mockIncidentLocation}
@@ -122,9 +122,9 @@ describe('GpsMap', () => {
             />
         );
 
-        const iframe = screen.getByTitle('GPS Trail Map') as HTMLIFrameElement;
-        // URL should contain the marker coordinates
-        expect(iframe.src).toContain('43.45');
-        expect(iframe.src).toContain('-79.68');
+        // Canvas should be rendered for drawing the GPS path
+        const canvas = container.querySelector('canvas');
+        expect(canvas).toBeInTheDocument();
+        expect(canvas?.style.pointerEvents).toBe('none'); // Canvas shouldn't block map interaction
     });
 });

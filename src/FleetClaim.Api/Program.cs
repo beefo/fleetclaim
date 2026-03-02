@@ -185,9 +185,14 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
     try
     {
         var server = creds.Server ?? "my.geotab.com";
-        if (!server.StartsWith("http"))
+        // Strip protocol if present - Geotab SDK expects just the hostname
+        if (server.StartsWith("https://"))
         {
-            server = $"https://{server}";
+            server = server.Substring(8);
+        }
+        else if (server.StartsWith("http://"))
+        {
+            server = server.Substring(7);
         }
         
         Console.WriteLine($"[VerifyCredentials] Creating API with server={server}");

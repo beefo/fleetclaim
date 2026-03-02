@@ -305,9 +305,16 @@ public class PhotoAttachment
     public string? Caption { get; set; }
     
     /// <summary>
-    /// Photo category for organization
+    /// Photo category for organization (stored as string for flexibility)
     /// </summary>
-    public PhotoCategory Category { get; set; } = PhotoCategory.General;
+    [System.Text.Json.Serialization.JsonPropertyName("category")]
+    public string? CategoryString { get; set; }
+    
+    /// <summary>
+    /// Parsed photo category (defaults to General if unknown)
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public PhotoCategory Category => Enum.TryParse<PhotoCategory>(CategoryString, true, out var cat) ? cat : PhotoCategory.General;
     
     /// <summary>
     /// When the photo was uploaded

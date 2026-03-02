@@ -39,10 +39,11 @@ var pdfOptions = new PdfOptions
 // Services
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<ICredentialStore>(new GcpCredentialStore(projectId));
+// Use factory to allow lazy initialization and testing
+builder.Services.AddSingleton<ICredentialStore>(sp => new GcpCredentialStore(projectId));
 builder.Services.AddSingleton<IGeotabClientFactory, GeotabClientFactory>();
 builder.Services.AddSingleton<IAddInDataRepository, AddInDataRepository>();
-builder.Services.AddSingleton<IPdfRenderer>(new QuestPdfRenderer(pdfOptions));
+builder.Services.AddSingleton<IPdfRenderer>(sp => new QuestPdfRenderer(pdfOptions));
 builder.Services.AddSingleton<IMediaFileService>(sp =>
     new MediaFileService(sp.GetService<IHttpClientFactory>()?.CreateClient()));
 

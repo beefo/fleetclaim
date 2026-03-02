@@ -1,23 +1,57 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Reflection;
 using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using FleetClaim.Core.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using Xunit;
 
 namespace FleetClaim.Tests;
 
 /// <summary>
+/// Custom WebApplicationFactory that mocks GCP services for testing
+/// </summary>
+public class FleetClaimWebApplicationFactory : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // Set required environment variables before app starts
+        Environment.SetEnvironmentVariable("GCP_PROJECT_ID", "test-project");
+        
+        builder.ConfigureServices(services =>
+        {
+            // Remove real GCP credential store (instantiates during startup)
+            services.RemoveAll<ICredentialStore>();
+            
+            // Add mock that doesn't need GCP credentials
+            var mockCredentialStore = new Mock<ICredentialStore>();
+            mockCredentialStore
+                .Setup(x => x.GetCredentialsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("Test: No credentials configured"));
+            services.AddSingleton(mockCredentialStore.Object);
+
+            // Remove and mock the Geotab client factory
+            services.RemoveAll<IGeotabClientFactory>();
+            var mockClientFactory = new Mock<IGeotabClientFactory>();
+            mockClientFactory
+                .Setup(x => x.CreateClientAsync(It.IsAny<string>()))
+                .ThrowsAsync(new InvalidOperationException("Test: No Geotab client"));
+            services.AddSingleton(mockClientFactory.Object);
+        });
+    }
+}
+
+/// <summary>
 /// Integration tests to verify all API endpoints (except /health) require authentication.
 /// These tests ensure we don't accidentally expose unauthenticated endpoints.
 /// </summary>
-public class ApiAuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
+public class ApiAuthenticationTests : IClassFixture<FleetClaimWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly FleetClaimWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
     // All API endpoints that should require authentication
@@ -35,35 +69,9 @@ public class ApiAuthenticationTests : IClassFixture<WebApplicationFactory<Progra
         "/health"
     };
 
-    public ApiAuthenticationTests(WebApplicationFactory<Program> factory)
+    public ApiAuthenticationTests(FleetClaimWebApplicationFactory factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                // Replace real services with mocks for testing
-                var mockCredentialStore = new Mock<ICredentialStore>();
-                mockCredentialStore
-                    .Setup(x => x.GetCredentialsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                    .ThrowsAsync(new InvalidOperationException("Test: No credentials configured"));
-
-                // Remove existing registrations and add mocks
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ICredentialStore));
-                if (descriptor != null) services.Remove(descriptor);
-                services.AddSingleton(mockCredentialStore.Object);
-
-                // Mock other services to prevent real API calls
-                var mockClientFactory = new Mock<IGeotabClientFactory>();
-                mockClientFactory
-                    .Setup(x => x.CreateClientAsync(It.IsAny<string>()))
-                    .ThrowsAsync(new InvalidOperationException("Test: No Geotab client"));
-
-                descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IGeotabClientFactory));
-                if (descriptor != null) services.Remove(descriptor);
-                services.AddSingleton(mockClientFactory.Object);
-            });
-        });
-
+        _factory = factory;
         _client = _factory.CreateClient();
     }
 

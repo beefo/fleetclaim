@@ -136,9 +136,12 @@ GeotabCredentialsRequest ExtractCredentials(HttpContext context, GeotabCredentia
     var sessionId = context.Request.Headers["X-Geotab-SessionId"].FirstOrDefault();
     var server = context.Request.Headers["X-Geotab-Server"].FirstOrDefault();
     
+    Console.WriteLine($"[ExtractCredentials] Headers: Database={database}, UserName={userName}, SessionId={sessionId?.Substring(0, Math.Min(8, sessionId?.Length ?? 0))}..., Server={server}");
+    
     // If headers have all required fields, use them
     if (!string.IsNullOrEmpty(database) && !string.IsNullOrEmpty(userName) && !string.IsNullOrEmpty(sessionId))
     {
+        Console.WriteLine($"[ExtractCredentials] Using headers");
         return new GeotabCredentialsRequest
         {
             Database = database,
@@ -149,6 +152,7 @@ GeotabCredentialsRequest ExtractCredentials(HttpContext context, GeotabCredentia
     }
     
     // Fall back to body credentials
+    Console.WriteLine($"[ExtractCredentials] Falling back to body credentials: {bodyCredentials != null}");
     return bodyCredentials ?? new GeotabCredentialsRequest();
 }
 
@@ -160,10 +164,13 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
     GeotabCredentialsRequest creds,
     CancellationToken ct)
 {
+    Console.WriteLine($"[VerifyCredentials] Database={creds.Database}, UserName={creds.UserName}, SessionId={creds.SessionId?.Substring(0, Math.Min(8, creds.SessionId?.Length ?? 0))}..., Server={creds.Server}");
+    
     if (string.IsNullOrEmpty(creds.Database) ||
         string.IsNullOrEmpty(creds.UserName) ||
         string.IsNullOrEmpty(creds.SessionId))
     {
+        Console.WriteLine($"[VerifyCredentials] FAIL: Missing required credentials");
         return (false, "Missing required credentials (database, userName, sessionId)", null);
     }
     
@@ -175,6 +182,8 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
             server = $"https://{server}";
         }
         
+        Console.WriteLine($"[VerifyCredentials] Creating API with server={server}");
+        
         var api = new API(
             creds.UserName,
             null,
@@ -183,12 +192,15 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
             server);
         
         // Verify by calling GetSystemTime - fails if credentials are invalid
-        await api.CallAsync<DateTime>("GetSystemTime", ct);
+        Console.WriteLine($"[VerifyCredentials] Calling GetSystemTime...");
+        var time = await api.CallAsync<DateTime>("GetSystemTime", ct);
+        Console.WriteLine($"[VerifyCredentials] SUCCESS: GetSystemTime returned {time}");
         
         return (true, null, api);
     }
     catch (Exception ex)
     {
+        Console.WriteLine($"[VerifyCredentials] FAIL: {ex.GetType().Name}: {ex.Message}");
         return (false, $"Invalid or expired credentials: {ex.Message}", null);
     }
 }

@@ -157,7 +157,7 @@ GeotabCredentialsRequest ExtractCredentials(HttpContext context, GeotabCredentia
 }
 
 /// <summary>
-/// Verify MyGeotab credentials by calling GetSystemTime API
+/// Verify MyGeotab credentials by calling GetSystemTimeUtc API
 /// Returns the authenticated API object if successful
 /// </summary>
 async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
@@ -197,10 +197,10 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
             server,
             timeout: 30000);
         
-        // Verify by calling GetSystemTime - fails if credentials are invalid
-        Console.WriteLine($"[VerifyCredentials] Calling GetSystemTime...");
-        var time = await api.CallAsync<DateTime>("GetSystemTime", ct);
-        Console.WriteLine($"[VerifyCredentials] SUCCESS: GetSystemTime returned {time}");
+        // Verify by calling GetSystemTimeUtc - fails if credentials are invalid
+        Console.WriteLine($"[VerifyCredentials] Calling GetSystemTimeUtc...");
+        var time = await api.CallAsync<DateTime>("GetSystemTimeUtc", ct);
+        Console.WriteLine($"[VerifyCredentials] SUCCESS: GetSystemTimeUtc returned {time}");
         
         return (true, null, api);
     }

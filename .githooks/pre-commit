@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# FleetClaim pre-commit hook
+# Runs tests before allowing commit
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Find dotnet
+DOTNET="dotnet"
+if ! command -v dotnet &> /dev/null; then
+    if [ -f "$HOME/.dotnet/dotnet" ]; then
+        DOTNET="$HOME/.dotnet/dotnet"
+    else
+        echo "⚠️  dotnet not found, skipping .NET tests"
+        DOTNET=""
+    fi
+fi
+
+# Run .NET tests if dotnet is available
+if [ -n "$DOTNET" ]; then
+    echo "🧪 Running .NET tests..."
+    if ! $DOTNET test --verbosity quiet --nologo; then
+        echo "❌ .NET tests failed. Commit aborted."
+        exit 1
+    fi
+    echo "✅ .NET tests passed"
+fi
+
+# Run Add-In tests if npm is available and node_modules exists
+ADDIN_DIR="src/FleetClaim.AddIn.React"
+if [ -d "$ADDIN_DIR/node_modules" ]; then
+    echo "🧪 Running Add-In tests..."
+    cd "$ADDIN_DIR"
+    if ! npm test -- --passWithNoTests --watchAll=false 2>/dev/null; then
+        echo "❌ Add-In tests failed. Commit aborted."
+        exit 1
+    fi
+    cd - > /dev/null
+    echo "✅ Add-In tests passed"
+fi
+
+echo "✅ All pre-commit checks passed!"

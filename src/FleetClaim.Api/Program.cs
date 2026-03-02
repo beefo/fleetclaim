@@ -423,19 +423,20 @@ app.MapPost("/api/email", async (
     IServiceProvider serviceProvider,
     CancellationToken ct) =>
 {
+    // SECURITY: Always verify credentials first before checking service availability
+    var creds = ExtractCredentials(context, request.Credentials);
+    var (success, error, api) = await VerifyCredentialsAsync(creds, ct);
+    if (!success || api == null)
+    {
+        return Results.Unauthorized();
+    }
+    
     var gmailService = serviceProvider.GetService<IGmailEmailService>();
     if (gmailService == null)
     {
         return Results.Problem(
             detail: "Email service not configured",
             statusCode: 503);
-    }
-    
-    var creds = ExtractCredentials(context, request.Credentials);
-    var (success, error, api) = await VerifyCredentialsAsync(creds, ct);
-    if (!success || api == null)
-    {
-        return Results.Unauthorized();
     }
     
     var emailRegex = new Regex(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");

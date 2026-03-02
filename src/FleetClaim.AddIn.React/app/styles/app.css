@@ -104,7 +104,8 @@
 }
 
 /* Override Zenith card max-width within overview grid */
-.overview-grid .zen-card-container--small {
+/* Double-class specificity to beat Zenith's .zen-card-container--small rule */
+.overview-grid .zen-card-container.zen-card-container--small {
     max-width: 100%;
     width: 100%;
 }

@@ -15433,15 +15433,21 @@ button.zen-summary__clickable {
     margin: 0;
 }
 
-/* Override Zenith card max-width within overview grid */
+/* Override Zenith card max-width within grids */
 /* Double-class specificity to beat Zenith's .zen-card-container--small rule */
-.overview-grid .zen-card-container.zen-card-container--small {
+.overview-grid .zen-card-container.zen-card-container--small,
+.photos-grid .zen-card-container.zen-card-container--small,
+.third-party-grid .zen-card-container.zen-card-container--small,
+.damage-form-grid .zen-card-container.zen-card-container--small {
     max-width: 100%;
     width: 100%;
 }
 
 @media (max-width: 1400px) {
-    .overview-grid {
+    .overview-grid,
+    .photos-grid,
+    .third-party-grid,
+    .damage-form-grid {
         max-width: 100%;
     }
 }
@@ -15617,8 +15623,9 @@ button.zen-summary__clickable {
 .third-party-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 12px;
     align-items: start;
+    max-width: 80%;
 }
 
 /* ============================================
@@ -15628,8 +15635,9 @@ button.zen-summary__clickable {
 .damage-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 12px;
     align-items: start;
+    max-width: 80%;
 }
 
 .damage-form-grid > * {
@@ -15870,8 +15878,9 @@ button.zen-summary__clickable {
 .photos-grid {
     display: grid;
     grid-template-columns: 250px 1fr;
-    gap: 8px;
+    gap: 12px;
     align-items: start;
+    max-width: 80%;
 }
 
 .photos-upload,
@@ -16052,4 +16061,4 @@ button.zen-summary__clickable {
 /* Force rebuild 20260302164319 */
 
 
-/*# sourceMappingURL=fleetclaim.93de948b.css.map*/
+/*# sourceMappingURL=fleetclaim.51962b0a.css.map*/

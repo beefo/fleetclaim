@@ -26,6 +26,7 @@ export interface GeotabContextValue {
     setGeotabApi: (api: GeotabApi, state: GeotabPageState) => void;
     refreshSession: () => Promise<void>;
     captureCredentials: () => Promise<void>;
+    refreshCredentials: () => Promise<GeotabCredentials | null>;
     call: <T = unknown>(method: string, params: object) => Promise<T>;
     multiCall: <T = unknown[]>(calls: Array<[string, object]>) => Promise<T>;
     loadDevices: (includeHistoric?: boolean) => Promise<void>;
@@ -148,6 +149,62 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
             credentialsCaptured.current = false;
         }
     }, [api, credentials?.sessionId]);
+
+    /**
+     * Force-refresh credentials from api.getSession().
+     * Use when a 401 indicates the cached session may be stale.
+     * Returns the fresh credentials or null on failure.
+     */
+    const refreshCredentials = useCallback(async (): Promise<GeotabCredentials | null> => {
+        if (!api) return null;
+        
+        // Reset the captured flag to force refresh
+        credentialsCaptured.current = false;
+        
+        let host = window.location.hostname || 'my.geotab.com';
+        
+        try {
+            return await new Promise<GeotabCredentials | null>((resolve, reject) => {
+                if (typeof api.getSession !== 'function') {
+                    reject(new Error('api.getSession not available'));
+                    return;
+                }
+                
+                api.getSession((cr: any, server?: string) => {
+                    const creds = cr.credentials || cr;
+                    
+                    if (!creds?.sessionId) {
+                        reject(new Error('No sessionId in credentials'));
+                        return;
+                    }
+                    
+                    const serverStr = server || cr.server;
+                    if (serverStr) {
+                        if (serverStr.startsWith('http')) {
+                            try { host = new URL(serverStr).hostname; } catch (e) { host = serverStr; }
+                        } else {
+                            host = serverStr;
+                        }
+                    }
+                    
+                    const freshCreds: GeotabCredentials = {
+                        database: creds.database,
+                        userName: creds.userName,
+                        sessionId: creds.sessionId
+                    };
+                    
+                    setGeotabHost(host);
+                    setCredentials(freshCreds);
+                    credentialsCaptured.current = true;
+                    
+                    resolve(freshCreds);
+                });
+            });
+        } catch (e) {
+            credentialsCaptured.current = false;
+            return null;
+        }
+    }, [api]);
 
     const call = useCallback(
         async function callGeotab<T>(method: string, params: object): Promise<T> {
@@ -318,6 +375,7 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         setGeotabApi,
         refreshSession,
         captureCredentials,
+        refreshCredentials,
         call,
         multiCall,
         loadDevices,

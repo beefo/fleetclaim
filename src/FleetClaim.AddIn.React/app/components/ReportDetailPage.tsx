@@ -63,7 +63,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     onDelete,
     toast
 }) => {
-    const { state, credentials, geotabHost, currentUser } = useGeotab();
+    const { state, credentials, refreshCredentials, geotabHost, currentUser } = useGeotab();
     const database = (state?.getState()?.database as string) || credentials?.database || '';
     const userName = currentUser?.name || credentials?.userName || '';
     
@@ -105,18 +105,34 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     const incidentLng = report.longitude ?? (gpsTrail.length > 0 ? gpsTrail[gpsTrail.length - 1].longitude : null);
 
     const handleDownloadPdf = useCallback(async () => {
-        if (!credentials?.database || !credentials?.sessionId) {
+        let creds = credentials;
+        if (!creds?.database || !creds?.sessionId) {
             toast.error('Session not available. Please refresh.');
             return;
         }
         try {
             toast.info('Generating PDF...');
-            await downloadPdf(report.id, credentials);
+            await downloadPdf(report.id, creds);
             toast.success('PDF downloaded');
         } catch (err) {
+            // If session expired, try refreshing credentials and retry once
+            if (err instanceof Error && err.message.includes('Session expired')) {
+                toast.info('Refreshing session...');
+                const freshCreds = await refreshCredentials();
+                if (freshCreds?.sessionId) {
+                    try {
+                        await downloadPdf(report.id, freshCreds);
+                        toast.success('PDF downloaded');
+                        return;
+                    } catch (retryErr) {
+                        toast.error(retryErr instanceof Error ? retryErr.message : 'Failed to download PDF');
+                        return;
+                    }
+                }
+            }
             toast.error(err instanceof Error ? err.message : 'Failed to download PDF');
         }
-    }, [report.id, credentials, toast]);
+    }, [report.id, credentials, refreshCredentials, toast]);
 
     const handleDelete = useCallback(async () => {
         if (!confirm('Are you sure you want to delete this report?')) return;

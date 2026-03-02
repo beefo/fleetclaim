@@ -446,4 +446,113 @@ describe('GeotabContext', () => {
             expect(result.current.geotabHost).toBe('my.geotab.com');
         });
     });
+
+    describe('refreshCredentials', () => {
+        it('should force-refresh credentials bypassing cache', async () => {
+            let callCount = 0;
+            const mockApi = {
+                ...createMockApi(),
+                getSession: jest.fn((callback) => {
+                    callCount++;
+                    const session = {
+                        database: 'test_db',
+                        userName: 'test@test.com',
+                        sessionId: `session-v${callCount}`  // Different session each time
+                    };
+                    if (callback) callback(session);
+                    return Promise.resolve(session);
+                })
+            };
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            await act(async () => {
+                result.current.setGeotabApi(mockApi, mockState);
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            // First capture
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            const afterFirstCapture = callCount;
+            const firstSessionId = result.current.credentials?.sessionId;
+
+            // Second capture - should be cached
+            await act(async () => {
+                await result.current.captureCredentials();
+            });
+
+            expect(callCount).toBe(afterFirstCapture);  // No new call - cached
+
+            // refreshCredentials - should force a new call
+            let freshCreds: any;
+            await act(async () => {
+                freshCreds = await result.current.refreshCredentials();
+            });
+
+            expect(callCount).toBe(afterFirstCapture + 1);  // New call made
+            expect(freshCreds?.sessionId).not.toBe(firstSessionId);  // Different session
+            expect(result.current.credentials?.sessionId).toBe(freshCreds?.sessionId);
+        });
+
+        it('should return fresh credentials on success', async () => {
+            const mockApi = {
+                ...createMockApi(),
+                getSession: jest.fn((callback) => {
+                    const session = {
+                        database: 'refreshed_db',
+                        userName: 'refreshed@test.com',
+                        sessionId: 'refreshed-session-456'
+                    };
+                    if (callback) callback(session);
+                    return Promise.resolve(session);
+                })
+            };
+            const mockState = createMockState();
+
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            await act(async () => {
+                result.current.setGeotabApi(mockApi, mockState);
+            });
+
+            await waitFor(() => {
+                expect(result.current.api).not.toBeNull();
+            });
+
+            let freshCreds: any;
+            await act(async () => {
+                freshCreds = await result.current.refreshCredentials();
+            });
+
+            expect(freshCreds).toEqual({
+                database: 'refreshed_db',
+                userName: 'refreshed@test.com',
+                sessionId: 'refreshed-session-456'
+            });
+        });
+
+        it('should return null when api is not available', async () => {
+            const { result } = renderHook(() => useGeotab(), {
+                wrapper: ({ children }) => <GeotabProvider>{children}</GeotabProvider>
+            });
+
+            let freshCreds: any;
+            await act(async () => {
+                freshCreds = await result.current.refreshCredentials();
+            });
+
+            expect(freshCreds).toBeNull();
+        });
+    });
 });

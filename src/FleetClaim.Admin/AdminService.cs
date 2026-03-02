@@ -177,6 +177,16 @@ public class AdminService
 
     public async Task<object> GetRecentLogsAsync(int limit = 100)
     {
+        return await GetCloudRunLogsAsync("cloud_run_job", "fleetclaim-worker", "job_name", limit);
+    }
+
+    public async Task<object> GetApiLogsAsync(int limit = 100)
+    {
+        return await GetCloudRunLogsAsync("cloud_run_revision", "fleetclaim-api", "service_name", limit);
+    }
+
+    private async Task<object> GetCloudRunLogsAsync(string resourceType, string serviceName, string labelName, int limit)
+    {
         try
         {
             var client = await LoggingServiceV2Client.CreateAsync();
@@ -184,7 +194,7 @@ public class AdminService
             var request = new ListLogEntriesRequest
             {
                 ResourceNames = { $"projects/{_config.ProjectId}" },
-                Filter = $"resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"fleetclaim-worker\" AND timestamp>=\"{DateTime.UtcNow.AddHours(-1):yyyy-MM-ddTHH:mm:ssZ}\"",
+                Filter = $"resource.type=\"{resourceType}\" AND resource.labels.{labelName}=\"{serviceName}\" AND timestamp>=\"{DateTime.UtcNow.AddHours(-1):yyyy-MM-ddTHH:mm:ssZ}\"",
                 OrderBy = "timestamp desc",
                 PageSize = limit
             };
@@ -199,6 +209,7 @@ public class AdminService
 
             return new
             {
+                service = serviceName,
                 count = entries.Count,
                 entries
             };

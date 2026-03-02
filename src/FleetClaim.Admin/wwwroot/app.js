@@ -252,26 +252,45 @@ async function loadLogs() {
     const container = document.getElementById('logs-list');
     
     try {
-        const data = await fetchApi('/admin/logs?limit=50');
+        // Load both worker and API logs in parallel
+        const [workerData, apiData] = await Promise.all([
+            fetchApi('/admin/logs?limit=30'),
+            fetchApi('/admin/api-logs?limit=30')
+        ]);
         
-        if (data.error) {
-            container.innerHTML = `<p>Error: ${data.error}</p>`;
-            return;
+        // Combine and sort by timestamp
+        const allEntries = [];
+        
+        if (workerData.entries) {
+            workerData.entries.forEach(e => allEntries.push({ ...e, source: 'worker' }));
+        }
+        if (apiData.entries) {
+            apiData.entries.forEach(e => allEntries.push({ ...e, source: 'api' }));
         }
         
-        if (!data.entries || !data.entries.length) {
+        // Sort by timestamp descending
+        allEntries.sort((a, b) => {
+            const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return tb - ta;
+        });
+        
+        if (!allEntries.length) {
             container.innerHTML = '<p>No recent logs</p>';
             return;
         }
         
-        container.innerHTML = data.entries.map(entry => {
+        container.innerHTML = allEntries.slice(0, 50).map(entry => {
             const severity = (entry.severity || 'INFO').toLowerCase();
             const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
             const message = entry.message || '-';
+            const source = entry.source || 'unknown';
+            const sourceClass = source === 'api' ? 'source-api' : 'source-worker';
             
             return `
                 <div class="log-entry ${severity}">
                     <span class="timestamp">${timestamp}</span>
+                    <span class="source ${sourceClass}">${source}</span>
                     <span class="message">${escapeHtml(message)}</span>
                 </div>
             `;

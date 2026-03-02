@@ -230,6 +230,25 @@ select {
     color: #f87171;
 }
 
+.log-entry .source {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.log-entry .source.source-api {
+    background: #1e3a5f;
+    color: #60a5fa;
+}
+
+.log-entry .source.source-worker {
+    background: #3d2e1f;
+    color: #fbbf24;
+}
+
 footer {
     margin-top: 40px;
     padding: 20px 0;

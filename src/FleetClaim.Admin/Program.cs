@@ -74,6 +74,9 @@ admin.MapGet("/jobs", async (AdminService svc, int limit = 20) =>
 admin.MapGet("/logs", async (AdminService svc, int limit = 100) => 
     await svc.GetRecentLogsAsync(limit));
 
+admin.MapGet("/api-logs", async (AdminService svc, int limit = 100) => 
+    await svc.GetApiLogsAsync(limit));
+
 // Database onboarding
 admin.MapPost("/databases", async (OnboardDatabaseRequest request, AdminService svc) =>
 {

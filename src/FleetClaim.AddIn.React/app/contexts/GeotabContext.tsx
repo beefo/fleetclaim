@@ -103,11 +103,6 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         // Skip if we already have valid credentials
         if (credentialsCaptured.current && credentials?.sessionId) return;
         
-        // Extract host from URL
-        // Use window.location.hostname as the authoritative server - this is where
-        // the Add-In is actually running (my.geotab.com, alpha.geotab.com, etc.)
-        const host = window.location.hostname || 'my.geotab.com';
-        
         // Use api.getSession() to get credentials
         // NOTE: getSession signature is getSession(callback, newSession?) where newSession is a BOOLEAN!
         try {
@@ -127,8 +122,19 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                         return;
                     }
                     
-                    // Note: We ignore server from getSession and use window.location.hostname
-                    // because the API call needs to go to the same server where we're running
+                    // Get server from getSession callback or credentials object
+                    // Add-In runs in iframe from Cloud Run, so window.location.hostname is wrong
+                    // We must use the server from the Geotab API
+                    let host = server || cr.server || creds.server || 'my.geotab.com';
+                    
+                    // Strip protocol if present
+                    if (host.startsWith('https://')) {
+                        host = host.substring(8);
+                    } else if (host.startsWith('http://')) {
+                        host = host.substring(7);
+                    }
+                    
+                    console.log('[GeotabContext] Captured credentials - server:', host, 'database:', creds.database);
                     
                     setGeotabHost(host);
                     setCredentials({
@@ -159,9 +165,6 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
         // Reset the captured flag to force refresh
         credentialsCaptured.current = false;
         
-        // Use window.location.hostname as the authoritative server
-        const host = window.location.hostname || 'my.geotab.com';
-        
         try {
             return await new Promise<GeotabCredentials | null>((resolve, reject) => {
                 if (typeof api.getSession !== 'function') {
@@ -177,7 +180,13 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                         return;
                     }
                     
-                    // Note: We use window.location.hostname, not server from getSession
+                    // Get server from getSession callback
+                    let host = server || cr.server || creds.server || 'my.geotab.com';
+                    if (host.startsWith('https://')) {
+                        host = host.substring(8);
+                    } else if (host.startsWith('http://')) {
+                        host = host.substring(7);
+                    }
                     
                     const freshCreds: GeotabCredentials = {
                         database: creds.database,

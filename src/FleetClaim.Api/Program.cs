@@ -197,10 +197,21 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
             server,
             timeout: 30000);
         
-        // Verify by calling GetSystemTimeUtc - fails if credentials are invalid
-        Console.WriteLine($"[VerifyCredentials] Calling GetSystemTimeUtc...");
-        var time = await api.CallAsync<DateTime>("GetSystemTimeUtc", ct);
-        Console.WriteLine($"[VerifyCredentials] SUCCESS: GetSystemTimeUtc returned {time}");
+        // Verify by fetching the user - confirms session is valid for this specific user
+        Console.WriteLine($"[VerifyCredentials] Calling Get User for {creds.UserName}...");
+        var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
+            "Get",
+            typeof(Geotab.Checkmate.ObjectModel.User),
+            new { search = new { name = creds.UserName } },
+            ct);
+        
+        if (users == null || users.Count == 0)
+        {
+            Console.WriteLine($"[VerifyCredentials] FAIL: User not found");
+            return (false, "User not found", null);
+        }
+        
+        Console.WriteLine($"[VerifyCredentials] SUCCESS: Found user {users[0].Name}");
         
         return (true, null, api);
     }

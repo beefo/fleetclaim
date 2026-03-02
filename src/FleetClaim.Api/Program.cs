@@ -202,7 +202,11 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
         var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
             "Get",
             typeof(Geotab.Checkmate.ObjectModel.User),
-            new { search = new { name = creds.UserName } },
+            new 
+            { 
+                search = new { name = creds.UserName },
+                propertySelector = new { fields = new[] { "id", "name" } }
+            },
             ct);
         
         if (users == null || users.Count == 0)
@@ -211,7 +215,7 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
             return (false, "User not found", null);
         }
         
-        Console.WriteLine($"[VerifyCredentials] SUCCESS: Found user {users[0].Name}");
+        Console.WriteLine($"[VerifyCredentials] SUCCESS: Found user {users[0].Name} (id: {users[0].Id})");
         
         return (true, null, api);
     }

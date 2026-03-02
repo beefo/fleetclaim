@@ -15777,10 +15777,10 @@ button.zen-summary__clickable {
    Misc Components
    ============================================ */
 
-/* Toast container */
+/* Toast container - positioned below MyGeotab header */
 .toast-container {
     position: fixed;
-    top: 16px;
+    top: 70px;
     right: 16px;
     z-index: 9999;
     display: flex;
@@ -16064,4 +16064,4 @@ button.zen-summary__clickable {
 /* Force rebuild 20260302164319 */
 
 
-/*# sourceMappingURL=fleetclaim.b9e5c87e.css.map*/
+/*# sourceMappingURL=fleetclaim.32b6f09e.css.map*/

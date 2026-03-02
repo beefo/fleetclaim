@@ -447,10 +447,10 @@
    Misc Components
    ============================================ */
 
-/* Toast container */
+/* Toast container - positioned below MyGeotab header */
 .toast-container {
     position: fixed;
-    top: 16px;
+    top: 70px;
     right: 16px;
     z-index: 9999;
     display: flex;

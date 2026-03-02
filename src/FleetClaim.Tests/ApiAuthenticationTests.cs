@@ -1,0 +1,210 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Reflection;
+using FleetClaim.Core.Geotab;
+using FleetClaim.Core.Models;
+using FleetClaim.Core.Services;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+using Xunit;
+
+namespace FleetClaim.Tests;
+
+/// <summary>
+/// Integration tests to verify all API endpoints (except /health) require authentication.
+/// These tests ensure we don't accidentally expose unauthenticated endpoints.
+/// </summary>
+public class ApiAuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly WebApplicationFactory<Program> _factory;
+    private readonly HttpClient _client;
+
+    // All API endpoints that should require authentication
+    // Add new endpoints here to ensure they're tested
+    private static readonly (string Method, string Path)[] ProtectedEndpoints = new[]
+    {
+        ("POST", "/api/pdf"),
+        ("GET", "/api/pdf/test_db/rpt_123"),
+        ("POST", "/api/email"),
+    };
+
+    // Endpoints that are intentionally public
+    private static readonly string[] PublicEndpoints = new[]
+    {
+        "/health"
+    };
+
+    public ApiAuthenticationTests(WebApplicationFactory<Program> factory)
+    {
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                // Replace real services with mocks for testing
+                var mockCredentialStore = new Mock<ICredentialStore>();
+                mockCredentialStore
+                    .Setup(x => x.GetCredentialsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                    .ThrowsAsync(new InvalidOperationException("Test: No credentials configured"));
+
+                // Remove existing registrations and add mocks
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ICredentialStore));
+                if (descriptor != null) services.Remove(descriptor);
+                services.AddSingleton(mockCredentialStore.Object);
+
+                // Mock other services to prevent real API calls
+                var mockClientFactory = new Mock<IGeotabClientFactory>();
+                mockClientFactory
+                    .Setup(x => x.CreateClientAsync(It.IsAny<string>()))
+                    .ThrowsAsync(new InvalidOperationException("Test: No Geotab client"));
+
+                descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IGeotabClientFactory));
+                if (descriptor != null) services.Remove(descriptor);
+                services.AddSingleton(mockClientFactory.Object);
+            });
+        });
+
+        _client = _factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task HealthEndpoint_NoAuth_ReturnsOk()
+    {
+        // Arrange & Act
+        var response = await _client.GetAsync("/health");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/pdf")]
+    [InlineData("GET", "/api/pdf/test_db/rpt_123")]
+    [InlineData("POST", "/api/email")]
+    public async Task ProtectedEndpoint_NoCredentials_ReturnsUnauthorized(string method, string path)
+    {
+        // Arrange
+        HttpRequestMessage request;
+        
+        if (method == "POST")
+        {
+            request = new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = JsonContent.Create(new { reportId = "test" })
+            };
+        }
+        else
+        {
+            request = new HttpRequestMessage(HttpMethod.Get, path);
+        }
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Should be Unauthorized (401) or BadRequest (400) for missing credentials
+        // Both indicate the endpoint is checking for credentials
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Unauthorized || 
+            response.StatusCode == HttpStatusCode.BadRequest,
+            $"Expected 401 or 400, got {(int)response.StatusCode} {response.StatusCode} for {method} {path}");
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/pdf")]
+    [InlineData("GET", "/api/pdf/test_db/rpt_123")]
+    [InlineData("POST", "/api/email")]
+    public async Task ProtectedEndpoint_InvalidCredentials_ReturnsUnauthorized(string method, string path)
+    {
+        // Arrange
+        HttpRequestMessage request;
+        
+        if (method == "POST")
+        {
+            request = new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = JsonContent.Create(new { reportId = "test" })
+            };
+        }
+        else
+        {
+            request = new HttpRequestMessage(HttpMethod.Get, path);
+        }
+
+        // Add invalid credentials
+        request.Headers.Add("X-Geotab-Database", "fake_db");
+        request.Headers.Add("X-Geotab-UserName", "fake@user.com");
+        request.Headers.Add("X-Geotab-SessionId", "invalid-session-id");
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert - Should be Unauthorized (401) because credentials are invalid
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AllApiEndpoints_ExceptHealth_RequireAuthentication()
+    {
+        // This test documents and verifies all protected endpoints
+        // If you add a new endpoint, add it to ProtectedEndpoints array above
+        
+        foreach (var (method, path) in ProtectedEndpoints)
+        {
+            HttpRequestMessage request;
+            
+            if (method == "POST")
+            {
+                request = new HttpRequestMessage(HttpMethod.Post, path)
+                {
+                    Content = JsonContent.Create(new { reportId = "test", email = "test@test.com" })
+                };
+            }
+            else
+            {
+                request = new HttpRequestMessage(HttpMethod.Get, path);
+            }
+
+            var response = await _client.SendAsync(request);
+
+            // Assert - endpoint rejects unauthenticated requests
+            Assert.True(
+                response.StatusCode == HttpStatusCode.Unauthorized || 
+                response.StatusCode == HttpStatusCode.BadRequest,
+                $"SECURITY: Endpoint {method} {path} returned {(int)response.StatusCode} without credentials. " +
+                "All API endpoints (except /health) must require authentication!");
+        }
+    }
+
+    [Fact]
+    public void ProtectedEndpointsList_IsComplete()
+    {
+        // This test reminds developers to add new endpoints to the test list
+        // When you add a new API endpoint, add it to ProtectedEndpoints above
+        
+        // Current count of protected endpoints (update when adding new endpoints)
+        const int ExpectedProtectedEndpointCount = 3;
+        
+        Assert.Equal(ExpectedProtectedEndpointCount, ProtectedEndpoints.Length);
+    }
+}
+
+/// <summary>
+/// Test to ensure new API endpoints are added to the authentication test list.
+/// This serves as a reminder during code review.
+/// </summary>
+public class ApiEndpointRegistrationTests
+{
+    [Fact]
+    public void NewEndpoints_MustBeAddedToAuthTests()
+    {
+        // This test exists as a reminder:
+        // When adding new API endpoints to Program.cs, you MUST:
+        // 1. Add credential verification (use VerifyCredentialsAsync or ExtractCredentials + verify)
+        // 2. Add the endpoint to ProtectedEndpoints in ApiAuthenticationTests
+        // 3. Run these tests to verify authentication works
+        
+        // The test always passes - it's documentation
+        Assert.True(true, 
+            "Remember: All new API endpoints must be added to ApiAuthenticationTests.ProtectedEndpoints");
+    }
+}

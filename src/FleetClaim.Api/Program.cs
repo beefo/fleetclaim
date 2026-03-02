@@ -326,12 +326,11 @@ app.MapPost("/api/pdf", async (
     }
 }).RequireRateLimiting("pdf");
 
-// Generate PDF using service account (for external Add-Ins that can't get sessionId)
+// Generate PDF with path parameters (requires X-header credential verification)
 app.MapGet("/api/pdf/{database}/{reportId}", async (
+    HttpContext context,
     string database,
     string reportId,
-    [FromQuery] string? userName,
-    [FromServices] IGeotabClientFactory clientFactory,
     [FromServices] IAddInDataRepository repository,
     [FromServices] IPdfRenderer pdfRenderer,
     [FromServices] IMediaFileService mediaFileService,
@@ -346,27 +345,25 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     {
         return Results.BadRequest(new { error = "Invalid report ID" });
     }
-    if (string.IsNullOrWhiteSpace(userName) || userName.Length > 200)
+    
+    // Verify credentials via X-headers
+    var creds = ExtractCredentials(context);
+    
+    // Override database from path if credentials are for a different db
+    if (!string.IsNullOrEmpty(creds.Database) && creds.Database != database)
     {
-        return Results.BadRequest(new { error = "userName query parameter is required" });
+        return Results.BadRequest(new { error = "Database in credentials must match path parameter" });
+    }
+    creds.Database = database;
+    
+    var (success, error, api) = await VerifyCredentialsAsync(creds, ct);
+    if (!success || api == null)
+    {
+        return Results.Unauthorized();
     }
     
     try
     {
-        var api = await clientFactory.CreateClientAsync(database);
-        
-        // Verify user exists in database
-        var users = await api.CallAsync<List<Geotab.Checkmate.ObjectModel.User>>(
-            "Get", 
-            typeof(Geotab.Checkmate.ObjectModel.User), 
-            new { search = new { name = userName } },
-            ct);
-        
-        if (users == null || users.Count == 0)
-        {
-            return Results.Unauthorized();
-        }
-        
         var reports = await repository.GetReportsAsync(api, ct: ct);
         var report = reports.FirstOrDefault(r => r.Id == reportId);
         
@@ -397,12 +394,6 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
             pdfBytes,
             "application/pdf",
             $"incident-report-{report.Id}.pdf");
-    }
-    catch (InvalidOperationException ex) when (ex.Message.Contains("credentials"))
-    {
-        return Results.Problem(
-            detail: $"Database '{database}' is not configured",
-            statusCode: 404);
     }
     catch (Exception ex)
     {
@@ -472,3 +463,6 @@ app.MapPost("/api/email", async (
 }).RequireRateLimiting("email");
 
 app.Run();
+
+// Make Program class accessible for integration testing
+public partial class Program { }

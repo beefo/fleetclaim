@@ -354,6 +354,8 @@ app.MapPost("/api/pdf", async (
     }
     catch (Exception ex)
     {
+        Console.WriteLine($"[PDF POST] ERROR: {ex.GetType().Name}: {ex.Message}");
+        Console.WriteLine($"[PDF POST] Stack: {ex.StackTrace}");
         return Results.Problem(
             detail: "Error generating PDF: " + ex.Message,
             statusCode: 500);

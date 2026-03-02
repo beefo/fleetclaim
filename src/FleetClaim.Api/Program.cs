@@ -347,14 +347,22 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     }
     
     // Verify credentials via X-headers
-    var creds = ExtractCredentials(context);
+    var headerCreds = ExtractCredentials(context);
     
-    // Override database from path if credentials are for a different db
-    if (!string.IsNullOrEmpty(creds.Database) && creds.Database != database)
+    // Database in credentials must match path parameter (or be empty to use path)
+    if (!string.IsNullOrEmpty(headerCreds.Database) && headerCreds.Database != database)
     {
         return Results.BadRequest(new { error = "Database in credentials must match path parameter" });
     }
-    creds.Database = database;
+    
+    // Create new credentials with database from path
+    var creds = new GeotabCredentialsRequest
+    {
+        Database = database,
+        UserName = headerCreds.UserName,
+        SessionId = headerCreds.SessionId,
+        Server = headerCreds.Server
+    };
     
     var (success, error, api) = await VerifyCredentialsAsync(creds, ct);
     if (!success || api == null)

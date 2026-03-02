@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { GpsPoint } from '@/types';
 
 interface GpsMapProps {
@@ -12,8 +14,8 @@ interface GpsMapProps {
 }
 
 /**
- * GPS Map component using OpenStreetMap tiles with canvas overlay for path
- * Draws the full GPS trail as a polyline on top of the map
+ * GPS Map component using Leaflet with OpenStreetMap tiles
+ * Draws the full GPS trail as a polyline with proper markers
  */
 export const GpsMap: React.FC<GpsMapProps> = ({
     gpsTrail,
@@ -21,183 +23,137 @@ export const GpsMap: React.FC<GpsMapProps> = ({
     occurredAt,
     height = 250
 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const mapRef = useRef<HTMLDivElement>(null);
+    const leafletMapRef = useRef<L.Map | null>(null);
 
     // Safety check for missing location data
     const hasValidLocation = incidentLocation?.latitude != null && incidentLocation?.longitude != null;
+    const hasValidTrail = gpsTrail && gpsTrail.length > 0 && gpsTrail.some(p => p.latitude != null && p.longitude != null);
     
     // Early return if no valid location data
-    if (!hasValidLocation && (!gpsTrail || gpsTrail.length === 0)) {
+    if (!hasValidLocation && !hasValidTrail) {
         return (
             <div className="gps-map gps-map-empty">
                 <p>📍 Location data not available</p>
             </div>
         );
     }
-    
+
     // Calculate bounds including all GPS points and incident location
     const bounds = useMemo(() => {
-        const points: { latitude: number; longitude: number }[] = [];
+        const points: [number, number][] = [];
         
-        if (gpsTrail && gpsTrail.length > 0) {
-            points.push(...gpsTrail.filter(p => p.latitude != null && p.longitude != null));
+        if (hasValidTrail) {
+            gpsTrail
+                .filter(p => p.latitude != null && p.longitude != null)
+                .forEach(p => points.push([p.latitude, p.longitude]));
         }
         
         if (hasValidLocation) {
-            points.push({ latitude: incidentLocation.latitude, longitude: incidentLocation.longitude });
+            points.push([incidentLocation.latitude, incidentLocation.longitude]);
         }
         
         if (points.length === 0) {
-            return { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 };
+            return null;
         }
         
-        const lats = points.map(p => p.latitude);
-        const lngs = points.map(p => p.longitude);
-        
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-        const minLng = Math.min(...lngs);
-        const maxLng = Math.max(...lngs);
-        
-        // Add padding (20% or minimum for single point)
-        const latPadding = Math.max((maxLat - minLat) * 0.2, 0.002);
-        const lngPadding = Math.max((maxLng - minLng) * 0.2, 0.002);
-        
-        return {
-            minLat: minLat - latPadding,
-            maxLat: maxLat + latPadding,
-            minLng: minLng - lngPadding,
-            maxLng: maxLng + lngPadding
-        };
-    }, [gpsTrail, incidentLocation, hasValidLocation]);
+        return L.latLngBounds(points);
+    }, [gpsTrail, incidentLocation, hasValidLocation, hasValidTrail]);
 
-    const centerLat = (bounds.minLat + bounds.maxLat) / 2;
-    const centerLng = (bounds.minLng + bounds.maxLng) / 2;
-
-    // Convert lat/lng to canvas pixel coordinates
-    const toPixel = (lat: number, lng: number, width: number, height: number) => {
-        const x = ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * width;
-        const y = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * height; // Y is inverted
-        return { x, y };
-    };
-
-    // Draw the path on canvas when map loads
+    // Initialize map
     useEffect(() => {
-        const canvas = canvasRef.current;
-        const container = containerRef.current;
-        if (!canvas || !container) return;
+        if (!mapRef.current || !bounds) return;
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        // Cleanup existing map
+        if (leafletMapRef.current) {
+            leafletMapRef.current.remove();
+            leafletMapRef.current = null;
+        }
 
-        // Set canvas size to match container
-        const rect = container.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+        // Create map
+        const map = L.map(mapRef.current, {
+            zoomControl: true,
+            attributionControl: true
+        });
 
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
 
-        // Draw GPS trail as a polyline
-        if (gpsTrail && gpsTrail.length > 1) {
-            ctx.beginPath();
-            ctx.strokeStyle = '#0066ff';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+        // Fit to bounds with padding
+        map.fitBounds(bounds, { padding: [20, 20] });
 
-            const validPoints = gpsTrail.filter(p => p.latitude != null && p.longitude != null);
-            
-            if (validPoints.length > 0) {
-                const first = toPixel(validPoints[0].latitude, validPoints[0].longitude, canvas.width, canvas.height);
-                ctx.moveTo(first.x, first.y);
+        // Draw GPS trail as polyline
+        if (hasValidTrail) {
+            const validPoints = gpsTrail
+                .filter(p => p.latitude != null && p.longitude != null)
+                .map(p => [p.latitude, p.longitude] as [number, number]);
 
-                for (let i = 1; i < validPoints.length; i++) {
-                    const pt = toPixel(validPoints[i].latitude, validPoints[i].longitude, canvas.width, canvas.height);
-                    ctx.lineTo(pt.x, pt.y);
+            if (validPoints.length > 1) {
+                // Draw the path
+                L.polyline(validPoints, {
+                    color: '#0066ff',
+                    weight: 4,
+                    opacity: 0.8
+                }).addTo(map);
+
+                // Start marker (green)
+                const startIcon = L.divIcon({
+                    className: 'gps-marker-start',
+                    html: '<div style="width:12px;height:12px;background:#22c55e;border:2px solid white;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                });
+                L.marker(validPoints[0], { icon: startIcon }).addTo(map);
+
+                // End marker (orange) - only if different from start
+                if (validPoints.length > 1) {
+                    const endIcon = L.divIcon({
+                        className: 'gps-marker-end',
+                        html: '<div style="width:12px;height:12px;background:#f97316;border:2px solid white;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    });
+                    L.marker(validPoints[validPoints.length - 1], { icon: endIcon }).addTo(map);
                 }
-                ctx.stroke();
-
-                // Draw start point (green circle)
-                ctx.beginPath();
-                ctx.fillStyle = '#22c55e';
-                ctx.arc(first.x, first.y, 6, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-
-                // Draw end point (last point in trail, orange)
-                const last = toPixel(validPoints[validPoints.length - 1].latitude, validPoints[validPoints.length - 1].longitude, canvas.width, canvas.height);
-                ctx.beginPath();
-                ctx.fillStyle = '#f97316';
-                ctx.arc(last.x, last.y, 6, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
             }
         }
 
-        // Draw incident location marker (red)
+        // Incident location marker (red pin)
         if (hasValidLocation) {
-            const incident = toPixel(incidentLocation.latitude, incidentLocation.longitude, canvas.width, canvas.height);
-            
-            // Draw a pin-style marker
-            ctx.beginPath();
-            ctx.fillStyle = '#ef4444';
-            ctx.arc(incident.x, incident.y, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // Inner dot
-            ctx.beginPath();
-            ctx.fillStyle = '#fff';
-            ctx.arc(incident.x, incident.y, 3, 0, Math.PI * 2);
-            ctx.fill();
+            const incidentIcon = L.divIcon({
+                className: 'gps-marker-incident',
+                html: '<div style="width:16px;height:16px;background:#ef4444;border:2px solid white;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><div style="width:6px;height:6px;background:white;border-radius:50%;"></div></div>',
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+            L.marker([incidentLocation.latitude, incidentLocation.longitude], { icon: incidentIcon })
+                .bindPopup(`<b>Incident Location</b><br/>${new Date(occurredAt).toLocaleString()}`)
+                .addTo(map);
         }
-    }, [gpsTrail, incidentLocation, bounds, hasValidLocation]);
 
-    // Use OpenStreetMap embed with bounding box
-    const osmEmbedUrl = useMemo(() => {
-        const bbox = `${bounds.minLng},${bounds.minLat},${bounds.maxLng},${bounds.maxLat}`;
-        return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik`;
-    }, [bounds]);
+        leafletMapRef.current = map;
+
+        // Cleanup on unmount
+        return () => {
+            if (leafletMapRef.current) {
+                leafletMapRef.current.remove();
+                leafletMapRef.current = null;
+            }
+        };
+    }, [bounds, gpsTrail, incidentLocation, hasValidLocation, hasValidTrail, occurredAt]);
 
     return (
         <div 
-            ref={containerRef}
-            className="gps-map-container"
-            style={{ position: 'relative', width: '100%', height: '100%' }}
-        >
-            <iframe 
-                className="gps-map-iframe"
-                src={osmEmbedUrl}
-                title="GPS Trail Map"
-                loading="lazy"
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    borderRadius: '8px',
-                    display: 'block'
-                }}
-            />
-            <canvas
-                ref={canvasRef}
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    pointerEvents: 'none',
-                    borderRadius: '8px'
-                }}
-            />
-        </div>
+            ref={mapRef}
+            className="gps-map-leaflet"
+            style={{ 
+                width: '100%', 
+                height: typeof height === 'number' ? `${height}px` : height,
+                minHeight: '200px',
+                borderRadius: '8px'
+            }}
+        />
     );
 };

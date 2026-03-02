@@ -1,11 +1,38 @@
 /**
- * Tests for GpsMap component
+ * Tests for GpsMap component using Leaflet
  */
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { GpsMap } from '@/components/GpsMap';
 import { GpsPoint } from '@/types';
+
+// Mock Leaflet since it requires DOM APIs not available in jsdom
+jest.mock('leaflet', () => ({
+    map: jest.fn(() => ({
+        fitBounds: jest.fn(),
+        remove: jest.fn()
+    })),
+    tileLayer: jest.fn(() => ({
+        addTo: jest.fn()
+    })),
+    polyline: jest.fn(() => ({
+        addTo: jest.fn()
+    })),
+    marker: jest.fn(() => ({
+        addTo: jest.fn(),
+        bindPopup: jest.fn(() => ({
+            addTo: jest.fn()
+        }))
+    })),
+    divIcon: jest.fn(() => ({})),
+    latLngBounds: jest.fn((points) => ({
+        isValid: () => points.length > 0
+    }))
+}));
+
+// Mock leaflet CSS
+jest.mock('leaflet/dist/leaflet.css', () => ({}));
 
 describe('GpsMap', () => {
     const mockIncidentLocation = {
@@ -19,22 +46,12 @@ describe('GpsMap', () => {
         { latitude: 43.46, longitude: -79.69, timestamp: '2024-01-01T10:02:00Z', speedKmh: 40 }
     ];
 
-    it('should render iframe with OpenStreetMap embed', () => {
-        render(
-            <GpsMap
-                gpsTrail={mockGpsTrail}
-                incidentLocation={mockIncidentLocation}
-                occurredAt="2024-01-01T10:00:00Z"
-            />
-        );
-
-        const iframe = screen.getByTitle('GPS Trail Map');
-        expect(iframe).toBeInTheDocument();
-        expect(iframe.tagName).toBe('IFRAME');
+    beforeEach(() => {
+        jest.clearAllMocks();
     });
 
-    it('should include correct OSM embed URL', () => {
-        render(
+    it('should render map container', () => {
+        const { container } = render(
             <GpsMap
                 gpsTrail={mockGpsTrail}
                 incidentLocation={mockIncidentLocation}
@@ -42,10 +59,8 @@ describe('GpsMap', () => {
             />
         );
 
-        const iframe = screen.getByTitle('GPS Trail Map') as HTMLIFrameElement;
-        expect(iframe.src).toContain('openstreetmap.org/export/embed.html');
-        expect(iframe.src).toContain('bbox=');
-        // Markers are now drawn on canvas overlay, not in URL
+        const mapDiv = container.querySelector('.gps-map-leaflet');
+        expect(mapDiv).toBeInTheDocument();
     });
 
     it('should show empty state when no location data', () => {
@@ -61,7 +76,7 @@ describe('GpsMap', () => {
     });
 
     it('should render with only incident location (no GPS trail)', () => {
-        render(
+        const { container } = render(
             <GpsMap
                 gpsTrail={[]}
                 incidentLocation={mockIncidentLocation}
@@ -69,12 +84,12 @@ describe('GpsMap', () => {
             />
         );
 
-        const iframe = screen.getByTitle('GPS Trail Map');
-        expect(iframe).toBeInTheDocument();
+        const mapDiv = container.querySelector('.gps-map-leaflet');
+        expect(mapDiv).toBeInTheDocument();
     });
 
     it('should render with only GPS trail (no incident location)', () => {
-        render(
+        const { container } = render(
             <GpsMap
                 gpsTrail={mockGpsTrail}
                 incidentLocation={{ latitude: null as any, longitude: null as any }}
@@ -82,38 +97,11 @@ describe('GpsMap', () => {
             />
         );
 
-        const iframe = screen.getByTitle('GPS Trail Map');
-        expect(iframe).toBeInTheDocument();
+        const mapDiv = container.querySelector('.gps-map-leaflet');
+        expect(mapDiv).toBeInTheDocument();
     });
 
-    it('should have lazy loading attribute on iframe', () => {
-        render(
-            <GpsMap
-                gpsTrail={mockGpsTrail}
-                incidentLocation={mockIncidentLocation}
-                occurredAt="2024-01-01T10:00:00Z"
-            />
-        );
-
-        const iframe = screen.getByTitle('GPS Trail Map') as HTMLIFrameElement;
-        // Check the attribute directly since JSDOM doesn't support the loading property
-        expect(iframe.getAttribute('loading')).toBe('lazy');
-    });
-
-    it('should have border-radius style', () => {
-        render(
-            <GpsMap
-                gpsTrail={mockGpsTrail}
-                incidentLocation={mockIncidentLocation}
-                occurredAt="2024-01-01T10:00:00Z"
-            />
-        );
-
-        const iframe = screen.getByTitle('GPS Trail Map') as HTMLIFrameElement;
-        expect(iframe.style.borderRadius).toBe('8px');
-    });
-
-    it('should render canvas overlay for drawing path and markers', () => {
+    it('should have proper styling', () => {
         const { container } = render(
             <GpsMap
                 gpsTrail={mockGpsTrail}
@@ -122,9 +110,69 @@ describe('GpsMap', () => {
             />
         );
 
-        // Canvas should be rendered for drawing the GPS path
-        const canvas = container.querySelector('canvas');
-        expect(canvas).toBeInTheDocument();
-        expect(canvas?.style.pointerEvents).toBe('none'); // Canvas shouldn't block map interaction
+        const mapDiv = container.querySelector('.gps-map-leaflet') as HTMLDivElement;
+        expect(mapDiv.style.borderRadius).toBe('8px');
+        expect(mapDiv.style.width).toBe('100%');
+    });
+
+    it('should accept custom height', () => {
+        const { container } = render(
+            <GpsMap
+                gpsTrail={mockGpsTrail}
+                incidentLocation={mockIncidentLocation}
+                occurredAt="2024-01-01T10:00:00Z"
+                height={400}
+            />
+        );
+
+        const mapDiv = container.querySelector('.gps-map-leaflet') as HTMLDivElement;
+        expect(mapDiv.style.height).toBe('400px');
+    });
+
+    it('should initialize Leaflet map with GPS data', () => {
+        const L = require('leaflet');
+        
+        render(
+            <GpsMap
+                gpsTrail={mockGpsTrail}
+                incidentLocation={mockIncidentLocation}
+                occurredAt="2024-01-01T10:00:00Z"
+            />
+        );
+
+        // Leaflet should be initialized
+        expect(L.map).toHaveBeenCalled();
+        expect(L.tileLayer).toHaveBeenCalled();
+    });
+
+    it('should draw polyline for GPS trail', () => {
+        const L = require('leaflet');
+        
+        render(
+            <GpsMap
+                gpsTrail={mockGpsTrail}
+                incidentLocation={mockIncidentLocation}
+                occurredAt="2024-01-01T10:00:00Z"
+            />
+        );
+
+        // Should create polyline for the trail
+        expect(L.polyline).toHaveBeenCalled();
+    });
+
+    it('should create markers for trail start, end, and incident', () => {
+        const L = require('leaflet');
+        
+        render(
+            <GpsMap
+                gpsTrail={mockGpsTrail}
+                incidentLocation={mockIncidentLocation}
+                occurredAt="2024-01-01T10:00:00Z"
+            />
+        );
+
+        // Should create multiple markers
+        expect(L.marker).toHaveBeenCalled();
+        expect(L.divIcon).toHaveBeenCalled();
     });
 });

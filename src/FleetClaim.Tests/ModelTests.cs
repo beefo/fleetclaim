@@ -253,4 +253,75 @@ public class ModelTests
         Assert.Equal("rpt_001", deserialized.Id);
         Assert.Equal("Test Vehicle", deserialized.VehicleName);
     }
+    
+    [Theory]
+    [InlineData("General", PhotoCategory.General)]
+    [InlineData("VehicleDamage", PhotoCategory.VehicleDamage)]
+    [InlineData("SceneOverview", PhotoCategory.SceneOverview)]
+    [InlineData("general", PhotoCategory.General)]  // lowercase
+    [InlineData("VEHICLEDAMAGE", PhotoCategory.VehicleDamage)]  // uppercase
+    [InlineData("vehicledamage", PhotoCategory.VehicleDamage)]  // lowercase
+    public void PhotoAttachment_Category_ParsesKnownValues(string categoryString, PhotoCategory expected)
+    {
+        // Arrange
+        var json = $$"""{"category":"{{categoryString}}","mediaFileId":"test","fileName":"test.jpg"}""";
+        
+        // Act
+        var photo = JsonSerializer.Deserialize<PhotoAttachment>(json);
+        
+        // Assert
+        Assert.NotNull(photo);
+        Assert.Equal(expected, photo.Category);
+        Assert.Equal(categoryString, photo.CategoryString);
+    }
+    
+    [Theory]
+    [InlineData("UnknownCategory")]
+    [InlineData("SomeNewCategory")]
+    [InlineData("invalid")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void PhotoAttachment_Category_DefaultsToGeneralForUnknownValues(string? categoryString)
+    {
+        // Arrange - this test ensures unknown enum values don't throw exceptions
+        // This was a bug where JSON with unknown category values caused deserialization to fail
+        var json = categoryString != null 
+            ? $$"""{"category":"{{categoryString}}","mediaFileId":"test","fileName":"test.jpg"}"""
+            : """{"mediaFileId":"test","fileName":"test.jpg"}""";
+        
+        // Act - should NOT throw
+        var photo = JsonSerializer.Deserialize<PhotoAttachment>(json);
+        
+        // Assert
+        Assert.NotNull(photo);
+        Assert.Equal(PhotoCategory.General, photo.Category);
+    }
+    
+    [Fact]
+    public void PhotoAttachment_WithUnknownCategory_DeserializesInReport()
+    {
+        // Arrange - simulate real-world JSON with unknown category
+        // This was the actual bug: reports with photos containing unknown categories
+        // caused "The JSON value could not be converted to PhotoCategory" error
+        var json = """
+        {
+            "Id": "rpt_001",
+            "Evidence": {
+                "Photos": [
+                    {"category": "UnknownFutureCategory", "mediaFileId": "m1", "fileName": "photo.jpg"}
+                ]
+            }
+        }
+        """;
+        
+        // Act - should NOT throw
+        var report = JsonSerializer.Deserialize<IncidentReport>(json);
+        
+        // Assert
+        Assert.NotNull(report);
+        Assert.NotNull(report.Evidence);
+        Assert.Single(report.Evidence.Photos);
+        Assert.Equal(PhotoCategory.General, report.Evidence.Photos[0].Category);
+        Assert.Equal("UnknownFutureCategory", report.Evidence.Photos[0].CategoryString);
+    }
 }

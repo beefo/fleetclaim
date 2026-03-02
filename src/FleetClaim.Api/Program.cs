@@ -11,14 +11,6 @@ using System.Threading.RateLimiting;
 // FleetClaim solution ID for MediaFile storage
 const string FLEETCLAIM_SOLUTION_ID = "aji_jHQGE8k2TDodR8tZrpw";
 
-// Shared HTTP handler for Geotab API connections - prevents socket exhaustion
-var geotabHttpHandler = new SocketsHttpHandler
-{
-    PooledConnectionLifetime = TimeSpan.FromMinutes(15),
-    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-    MaxConnectionsPerServer = 10
-};
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
@@ -203,8 +195,7 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
             creds.SessionId,
             creds.Database,
             server,
-            timeout: 30000,
-            handler: geotabHttpHandler);
+            timeout: 30000);
         
         // Verify by calling GetSystemTime - fails if credentials are invalid
         Console.WriteLine($"[VerifyCredentials] Calling GetSystemTime...");

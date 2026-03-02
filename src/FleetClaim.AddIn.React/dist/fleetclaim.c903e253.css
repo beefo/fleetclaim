@@ -15888,13 +15888,17 @@ button.zen-summary__clickable {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 0; /* Prevent overflow from grid */
+    overflow: hidden;
 }
 
-/* Ensure cards auto-size */
+/* Ensure cards auto-size and stay within grid */
 .photos-upload [class*="Card"],
 .photos-gallery [class*="Card"] {
     height: auto !important;
     min-height: 0;
+    max-width: 100%;
+    width: 100%;
 }
 
 .photo-thumbnails {
@@ -16061,4 +16065,4 @@ button.zen-summary__clickable {
 /* Force rebuild 20260302164319 */
 
 
-/*# sourceMappingURL=fleetclaim.51962b0a.css.map*/
+/*# sourceMappingURL=fleetclaim.c903e253.css.map*/

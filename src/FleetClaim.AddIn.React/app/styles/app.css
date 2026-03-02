@@ -558,13 +558,17 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 0; /* Prevent overflow from grid */
+    overflow: hidden;
 }
 
-/* Ensure cards auto-size */
+/* Ensure cards auto-size and stay within grid */
 .photos-upload [class*="Card"],
 .photos-gallery [class*="Card"] {
     height: auto !important;
     min-height: 0;
+    max-width: 100%;
+    width: 100%;
 }
 
 .photo-thumbnails {

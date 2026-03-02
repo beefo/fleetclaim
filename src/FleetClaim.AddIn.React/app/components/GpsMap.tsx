@@ -30,6 +30,12 @@ export const GpsMap: React.FC<GpsMapProps> = ({
     const hasValidLocation = incidentLocation?.latitude != null && incidentLocation?.longitude != null;
     const hasValidTrail = gpsTrail && gpsTrail.length > 0 && gpsTrail.some(p => p.latitude != null && p.longitude != null);
     
+    // Debug logging
+    console.log('[GpsMap] gpsTrail length:', gpsTrail?.length, 'hasValidTrail:', hasValidTrail, 'hasValidLocation:', hasValidLocation);
+    if (gpsTrail?.length > 0) {
+        console.log('[GpsMap] First point:', gpsTrail[0], 'Last point:', gpsTrail[gpsTrail.length - 1]);
+    }
+    
     // Early return if no valid location data
     if (!hasValidLocation && !hasValidTrail) {
         return (

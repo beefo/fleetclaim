@@ -559,7 +559,6 @@
     flex-direction: column;
     gap: 8px;
     min-width: 0; /* Prevent overflow from grid */
-    overflow: hidden;
 }
 
 /* Ensure cards auto-size and stay within grid */

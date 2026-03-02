@@ -15889,7 +15889,6 @@ button.zen-summary__clickable {
     flex-direction: column;
     gap: 8px;
     min-width: 0; /* Prevent overflow from grid */
-    overflow: hidden;
 }
 
 /* Ensure cards auto-size and stay within grid */
@@ -16065,4 +16064,4 @@ button.zen-summary__clickable {
 /* Force rebuild 20260302164319 */
 
 
-/*# sourceMappingURL=fleetclaim.c903e253.css.map*/
+/*# sourceMappingURL=fleetclaim.4a23f9b7.css.map*/

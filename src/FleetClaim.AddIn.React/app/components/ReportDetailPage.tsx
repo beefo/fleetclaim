@@ -15,7 +15,7 @@ import {
 } from '@geotab/zenith';
 import { IncidentReport, Severity, Photo } from '@/types';
 import { useGeotab } from '@/contexts';
-import { downloadPdfSimple, sendReportEmail } from '@/services';
+import { downloadPdf, sendReportEmail } from '@/services';
 import { GpsMap } from './GpsMap';
 import { PhotosSection } from './PhotosSection';
 import { DamageAssessmentForm } from './DamageAssessmentForm';
@@ -105,18 +105,18 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     const incidentLng = report.longitude ?? (gpsTrail.length > 0 ? gpsTrail[gpsTrail.length - 1].longitude : null);
 
     const handleDownloadPdf = useCallback(async () => {
-        if (!database || !userName) {
+        if (!credentials?.database || !credentials?.sessionId) {
             toast.error('Session not available. Please refresh.');
             return;
         }
         try {
             toast.info('Generating PDF...');
-            await downloadPdfSimple(database, report.id, userName);
+            await downloadPdf(report.id, credentials);
             toast.success('PDF downloaded');
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to download PDF');
         }
-    }, [report.id, database, userName, toast]);
+    }, [report.id, credentials, toast]);
 
     const handleDelete = useCallback(async () => {
         if (!confirm('Are you sure you want to delete this report?')) return;

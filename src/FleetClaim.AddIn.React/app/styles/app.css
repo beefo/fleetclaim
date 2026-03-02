@@ -78,16 +78,17 @@
 
 .overview-grid {
     display: grid;
-    grid-template-columns: minmax(300px, 1fr) minmax(400px, 1.4fr);
-    gap: 8px;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
     align-items: start;
+    max-width: 80%;
 }
 
 .overview-left,
 .overview-right {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 12px;
 }
 
 /* Tighter card spacing in overview */
@@ -100,6 +101,18 @@
 .overview-grid [class*="Card"],
 .overview-grid .zen-card {
     margin: 0;
+}
+
+/* Override Zenith card max-width within overview grid */
+.overview-grid .zen-card-container--small {
+    max-width: 100%;
+    width: 100%;
+}
+
+@media (max-width: 1400px) {
+    .overview-grid {
+        max-width: 100%;
+    }
 }
 
 /* ============================================

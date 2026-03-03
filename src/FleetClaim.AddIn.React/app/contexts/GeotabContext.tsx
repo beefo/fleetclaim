@@ -126,47 +126,12 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                         return;
                     }
                     
-                    // Debug: log all potential server sources
-                    console.log('[GeotabContext] Server sources:', {
-                        callbackServer: server,
-                        crServer: cr.server,
-                        credsServer: creds.server,
-                        parentHostname: window.parent !== window ? 'unavailable (cross-origin)' : null,
-                        topHostname: window.top !== window ? 'unavailable (cross-origin)' : null
-                    });
-                    
-                    // Get server from getSession callback or credentials object
-                    // Add-In runs in iframe from Cloud Run, so window.location.hostname is wrong
-                    // We must use the server from the Geotab API
-                    // Priority: callback server > cr.server > creds.server > try to extract from referrer
-                    let host = server || cr.server || creds.server;
-                    
-                    // Fallback: try to get from document.referrer (the parent frame URL)
-                    if (!host && document.referrer) {
-                        try {
-                            const referrerUrl = new URL(document.referrer);
-                            if (referrerUrl.hostname.includes('geotab.com')) {
-                                host = referrerUrl.hostname;
-                                console.log('[GeotabContext] Using referrer hostname:', host);
-                            }
-                        } catch (e) {
-                            // Invalid referrer URL
-                        }
-                    }
-                    
-                    // Final fallback
-                    if (!host) {
-                        host = 'my.geotab.com';
-                        console.warn('[GeotabContext] WARNING: No server found, falling back to my.geotab.com');
-                    }
-                    
-                    // Strip protocol if present
-                    if (host.startsWith('https://')) {
-                        host = host.substring(8);
-                    } else if (host.startsWith('http://')) {
-                        host = host.substring(7);
-                    }
-                    
+                    // Use window.location.hostname as the server — the add-in runs
+                    // directly in the MyGeotab page so this is the actual host
+                    // (e.g. alpha.geotab.com, my.geotab.com). getSession returns the
+                    // federation server which may differ and cause 401s.
+                    const host = window.location.hostname;
+
                     console.log('[GeotabContext] Captured credentials - server:', host, 'database:', creds.database);
                     
                     setGeotabHost(host);
@@ -213,32 +178,7 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                         return;
                     }
                     
-                    // Get server from getSession callback or credentials object
-                    let host = server || cr.server || creds.server;
-                    
-                    // Fallback: try to get from document.referrer (the parent frame URL)
-                    if (!host && document.referrer) {
-                        try {
-                            const referrerUrl = new URL(document.referrer);
-                            if (referrerUrl.hostname.includes('geotab.com')) {
-                                host = referrerUrl.hostname;
-                            }
-                        } catch (e) {
-                            // Invalid referrer URL
-                        }
-                    }
-                    
-                    // Final fallback
-                    if (!host) {
-                        host = 'my.geotab.com';
-                        console.warn('[GeotabContext] WARNING: No server found in refreshCredentials');
-                    }
-                    
-                    if (host.startsWith('https://')) {
-                        host = host.substring(8);
-                    } else if (host.startsWith('http://')) {
-                        host = host.substring(7);
-                    }
+                    const host = window.location.hostname;
                     
                     const freshCreds: GeotabCredentials = {
                         database: creds.database,

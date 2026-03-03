@@ -433,8 +433,8 @@ describe('GeotabContext', () => {
 
             expect(result.current.credentials?.database).toBe('nested_db');
             expect(result.current.credentials?.sessionId).toBe('nested-session');
-            // geotabHost comes from getSession server (stripped of https://)
-            expect(result.current.geotabHost).toBe('my123.geotab.com');
+            // geotabHost comes from window.location.hostname (localhost in jsdom)
+            expect(result.current.geotabHost).toBe('localhost');
         });
     });
 
@@ -541,7 +541,7 @@ describe('GeotabContext', () => {
                 database: 'refreshed_db',
                 userName: 'refreshed@test.com',
                 sessionId: 'refreshed-session-456',
-                server: 'alpha.geotab.com'  // from getSession mock
+                server: 'localhost'  // window.location.hostname in jsdom
             });
         });
 

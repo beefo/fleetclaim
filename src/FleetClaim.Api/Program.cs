@@ -232,19 +232,22 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
 async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
     API api,
     IncidentReport report,
+    string server,
     CancellationToken ct)
 {
     var photoData = new Dictionary<string, byte[]>();
-    
+
     if (report.Evidence?.Photos == null || report.Evidence.Photos.Count == 0)
         return photoData;
-    
+
     var credentials = api.LoginResult?.Credentials;
     if (credentials == null)
         return photoData;
-    
+
+    var apiUrl = $"https://{server}/apiv1/";
+
     using var httpClient = new HttpClient();
-    
+
     foreach (var photo in report.Evidence.Photos.Take(10))
     {
         try
@@ -263,11 +266,11 @@ async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
                     mediaFile = new { id = photo.MediaFileId }
                 }
             });
-            
+
             using var formContent = new MultipartFormDataContent();
             formContent.Add(new StringContent(jsonRpc), "JSON-RPC");
-            
-            var response = await httpClient.PostAsync("https://my.geotab.com/apiv1/", formContent, ct);
+
+            var response = await httpClient.PostAsync(apiUrl, formContent, ct);
             
             if (response.IsSuccessStatusCode)
             {
@@ -342,7 +345,7 @@ app.MapPost("/api/pdf", async (
         // Generate on-demand if no pre-generated PDF
         if (pdfBytes == null || pdfBytes.Length == 0)
         {
-            var photoData = await FetchPhotoDataAsync(api, report, ct);
+            var photoData = await FetchPhotoDataAsync(api, report, creds.Server ?? "my.geotab.com", ct);
             var base64Pdf = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
             pdfBytes = Convert.FromBase64String(base64Pdf);
         }
@@ -429,7 +432,7 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
         
         if (pdfBytes == null || pdfBytes.Length == 0)
         {
-            var photoData = await FetchPhotoDataAsync(api, report, ct);
+            var photoData = await FetchPhotoDataAsync(api, report, creds.Server ?? "my.geotab.com", ct);
             var base64Pdf = await pdfRenderer.RenderPdfAsync(report, photoData, ct);
             pdfBytes = Convert.FromBase64String(base64Pdf);
         }

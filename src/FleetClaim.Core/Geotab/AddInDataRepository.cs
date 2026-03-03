@@ -12,6 +12,9 @@ public interface IAddInDataRepository
     Task<List<ReportRequest>> GetStaleRequestsAsync(API api, TimeSpan timeout, CancellationToken ct = default);
     Task<CustomerConfig?> GetConfigAsync(API api, CancellationToken ct = default);
     
+    Task<WorkerState?> GetWorkerStateAsync(API api, string database, CancellationToken ct = default);
+    Task SaveWorkerStateAsync(API api, string database, WorkerState state, CancellationToken ct = default);
+
     Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default);
     Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default);
     Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
@@ -77,12 +80,39 @@ public class AddInDataRepository : IAddInDataRepository
     public async Task<CustomerConfig?> GetConfigAsync(API api, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
-        
+
         return allData
             .FirstOrDefault(r => r.Wrapper.Type == "config")
             ?.Wrapper.GetPayload<CustomerConfig>();
     }
-    
+
+    public async Task<WorkerState?> GetWorkerStateAsync(API api, string database, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+
+        return allData
+            .FirstOrDefault(r => r.Wrapper.Type == "workerState")
+            ?.Wrapper.GetPayload<WorkerState>();
+    }
+
+    public async Task SaveWorkerStateAsync(API api, string database, WorkerState state, CancellationToken ct = default)
+    {
+        state.LastPolledAt = DateTime.UtcNow;
+        var allData = await GetAllAddInDataAsync(api, ct);
+        var existing = allData.FirstOrDefault(r => r.Wrapper.Type == "workerState");
+
+        var wrapper = AddInDataWrapper.ForWorkerState(state);
+
+        if (existing != null)
+        {
+            await UpdateExistingRecordAsync(api, existing.GeotabId, wrapper, ct);
+        }
+        else
+        {
+            await AddNewRecordAsync(api, wrapper, ct);
+        }
+    }
+
     public async Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default)
     {
         // Compact the report to fit within AddInData 10KB limit

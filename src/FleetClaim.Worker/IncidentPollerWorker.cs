@@ -24,9 +24,6 @@ public class IncidentPollerWorker : BackgroundService
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ILogger<IncidentPollerWorker> _logger;
     
-    // Track last poll version per database (in production, persist this)
-    private readonly Dictionary<string, long> _feedVersions = new();
-    
     // Stock Geotab rule IDs for collision detection (consistent across all databases)
     private static readonly HashSet<string> CollisionRuleIds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -118,24 +115,34 @@ public class IncidentPollerWorker : BackgroundService
     private async Task ProcessNewIncidentsAsync(
         API api, string database, CustomerConfig config, CancellationToken ct)
     {
-        // Get feed version for incremental polling
-        _feedVersions.TryGetValue(database, out var fromVersion);
-        
+        // Load persisted feed version from AddInData
+        var workerState = await _repository.GetWorkerStateAsync(api, database, ct) ?? new WorkerState();
+        var fromVersion = workerState.FeedVersion;
+
+        _logger.LogInformation("Polling {Database} with feed version {Version} (last polled: {LastPolled})",
+            database, fromVersion > 0 ? fromVersion : "initial", workerState.LastPolledAt?.ToString("u") ?? "never");
+
         // Use GetFeed for efficient incremental polling
         var feedResult = await api.CallAsync<FeedResult<ExceptionEvent>>("GetFeed", typeof(ExceptionEvent), new
         {
             fromVersion = fromVersion > 0 ? fromVersion : (long?)null,
             resultsLimit = 1000
         }, ct);
-        
+
         if (feedResult?.Data == null || feedResult.Data.Count == 0)
         {
+            // Still save the version so we don't re-query the same empty range
+            if (feedResult?.ToVersion != null && feedResult.ToVersion != fromVersion)
+            {
+                workerState.FeedVersion = feedResult.ToVersion.Value;
+                await _repository.SaveWorkerStateAsync(api, database, workerState, ct);
+            }
             _logger.LogDebug("No new incidents for {Database}", database);
             return;
         }
-        
+
         // Update version for next poll
-        _feedVersions[database] = feedResult.ToVersion ?? 0;
+        workerState.FeedVersion = feedResult.ToVersion ?? 0;
         
         _logger.LogInformation("Found {Count} new incidents for {Database}", 
             feedResult.Data.Count, database);
@@ -163,8 +170,12 @@ public class IncidentPollerWorker : BackgroundService
                 _logger.LogError(ex, "Error generating report for incident {Id}", incident.Id);
             }
         }
+
+        // Persist the feed version so the next Cloud Run Job invocation continues from here
+        await _repository.SaveWorkerStateAsync(api, database, workerState, ct);
+        _logger.LogInformation("Saved feed version {Version} for {Database}", workerState.FeedVersion, database);
     }
-    
+
     private static readonly TimeSpan StaleRequestTimeout = TimeSpan.FromMinutes(10);
     
     private async Task HandleStaleRequestsAsync(API api, CancellationToken ct)

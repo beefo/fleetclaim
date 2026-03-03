@@ -238,20 +238,65 @@ public class ModelTests
     public void AddInDataWrapper_GetPayload_DeserializesCorrectly()
     {
         // Arrange
-        var report = new IncidentReport 
-        { 
+        var report = new IncidentReport
+        {
             Id = "rpt_001",
             VehicleName = "Test Vehicle"
         };
         var wrapper = AddInDataWrapper.ForReport(report);
-        
+
         // Act
         var deserialized = wrapper.GetPayload<IncidentReport>();
-        
+
         // Assert
         Assert.NotNull(deserialized);
         Assert.Equal("rpt_001", deserialized.Id);
         Assert.Equal("Test Vehicle", deserialized.VehicleName);
+    }
+
+    [Fact]
+    public void AddInDataWrapper_ForWorkerState_CreatesCorrectType()
+    {
+        // Arrange
+        var state = new WorkerState { FeedVersion = 12345, LastPolledAt = DateTime.UtcNow };
+
+        // Act
+        var wrapper = AddInDataWrapper.ForWorkerState(state);
+
+        // Assert
+        Assert.Equal("workerState", wrapper.Type);
+        Assert.NotEqual(default, wrapper.Payload);
+    }
+
+    [Fact]
+    public void AddInDataWrapper_ForWorkerState_RoundTrip()
+    {
+        // Arrange
+        var state = new WorkerState
+        {
+            FeedVersion = 987654321,
+            LastPolledAt = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc)
+        };
+        var wrapper = AddInDataWrapper.ForWorkerState(state);
+
+        // Act
+        var deserialized = wrapper.GetPayload<WorkerState>();
+
+        // Assert
+        Assert.NotNull(deserialized);
+        Assert.Equal(987654321, deserialized.FeedVersion);
+        Assert.Equal(state.LastPolledAt, deserialized.LastPolledAt);
+    }
+
+    [Fact]
+    public void WorkerState_DefaultValues()
+    {
+        // Act
+        var state = new WorkerState();
+
+        // Assert
+        Assert.Equal(0, state.FeedVersion);
+        Assert.Null(state.LastPolledAt);
     }
     
     [Theory]

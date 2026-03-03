@@ -39,6 +39,12 @@ public class AddInDataWrapper
         Type = "config",
         Payload = JsonSerializer.SerializeToElement(config, SerializerOptions)
     };
+
+    public static AddInDataWrapper ForWorkerState(WorkerState state) => new()
+    {
+        Type = "workerState",
+        Payload = JsonSerializer.SerializeToElement(state, SerializerOptions)
+    };
     
     public T? GetPayload<T>() => Payload.Deserialize<T>(SerializerOptions);
 }

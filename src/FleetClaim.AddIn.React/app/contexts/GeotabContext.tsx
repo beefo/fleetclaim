@@ -98,10 +98,14 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
      * Uses api.getSession() which returns credentials after API warmup.
      */
     const captureCredentials = useCallback(async () => {
+        console.log('[GeotabContext] captureCredentials called, api:', !!api, 'alreadyCaptured:', credentialsCaptured.current);
         if (!api) return;
         
         // Skip if we already have valid credentials
-        if (credentialsCaptured.current && credentials?.sessionId) return;
+        if (credentialsCaptured.current && credentials?.sessionId) {
+            console.log('[GeotabContext] Skipping - already captured');
+            return;
+        }
         
         // Use api.getSession() to get credentials
         // NOTE: getSession signature is getSession(callback, newSession?) where newSession is a BOOLEAN!

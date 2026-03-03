@@ -68,23 +68,21 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
                     await captureCredentials();
                     // NOTE: getSession signature is getSession(callback, newSession?) where newSession is a BOOLEAN!
                     // Passing a function as second arg causes logout/MethodNotSupported error
-                    const freshSession = await new Promise<any>((resolve, reject) => {
+                    const { creds: freshSession, server: freshServer } = await new Promise<{ creds: any; server?: string }>((resolve, reject) => {
                         try {
-                            api.getSession((s: any) => resolve(s));
+                            api.getSession((s: any, srv?: string) => resolve({ creds: s.credentials || s, server: srv }));
                         } catch (e) {
                             reject(e);
                         }
                     });
+                    const host = freshServer || freshSession.server || 'my.geotab.com';
+                    uploadHost = host.startsWith('http') ? new URL(host).hostname : host;
                     uploadCredentials = {
                         database: freshSession.database,
                         userName: freshSession.userName,
-                        sessionId: freshSession.sessionId
+                        sessionId: freshSession.sessionId,
+                        server: uploadHost
                     };
-                    if (freshSession.server) {
-                        uploadHost = freshSession.server.startsWith('http') 
-                            ? new URL(freshSession.server).hostname 
-                            : freshSession.server;
-                    }
                 } catch (credErr) {
                     throw new Error('Could not get session credentials. Please try again.');
                 }

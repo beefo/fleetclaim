@@ -2,6 +2,7 @@ export { default as App } from './App';
 export { ReportsTab } from './ReportsTab';
 export { RequestsTab } from './RequestsTab';
 export { SettingsTab } from './SettingsTab';
+export { AboutTab } from './AboutTab';
 export { ReportDetailModal } from './ReportDetailModal';
 export { ReportDetailPage } from './ReportDetailPage';
 export { NewRequestModal } from './NewRequestModal';

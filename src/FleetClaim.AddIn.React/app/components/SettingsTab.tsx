@@ -33,7 +33,7 @@ const defaultSettings: Settings = {
 };
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({ toast }) => {
-    const { session, loadDevices } = useGeotab();
+    const { loadDevices } = useGeotab();
     const [settings, setSettings] = useState<Settings>(defaultSettings);
     const [hasChanges, setHasChanges] = useState(false);
 
@@ -158,37 +158,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ toast }) => {
                     </Card.Content>
                 </Card>
                 
-                <Card size="M" title="About">
-                    <Card.Content>
-                        <div className="about-section">
-                            <h3>FleetClaim</h3>
-                            <p>Automated incident evidence reports for fleet management</p>
-                            <div className="about-details">
-                                <div><strong>Version:</strong> 2.0.0 (React + Zenith)</div>
-                                <div><strong>Database:</strong> {session?.database || 'N/A'}</div>
-                                <div><strong>User:</strong> {session?.userName || 'N/A'}</div>
-                            </div>
-                            <div className="about-links">
-                                <a 
-                                    href="https://github.com/beefo/fleetclaim" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="zen-link"
-                                >
-                                    GitHub Repository
-                                </a>
-                                <a 
-                                    href="https://github.com/beefo/fleetclaim/issues" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="zen-link"
-                                >
-                                    Report an Issue
-                                </a>
-                            </div>
-                        </div>
-                    </Card.Content>
-                </Card>
             </Cards>
 
         </div>

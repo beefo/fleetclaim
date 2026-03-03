@@ -361,7 +361,8 @@
 
 .reports-tab,
 .requests-tab,
-.settings-tab {
+.settings-tab,
+.about-tab {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -419,6 +420,59 @@
 .setting-description {
     font-size: 12px;
     color: var(--zen-color-text-secondary);
+}
+
+/* ============================================
+   About Tab
+   ============================================ */
+
+.about-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.about-description {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--zen-color-text-primary);
+}
+
+.about-description h4 {
+    margin: 16px 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.about-description p {
+    margin: 0 0 8px;
+}
+
+.about-description ul {
+    margin: 0 0 8px;
+    padding-left: 20px;
+}
+
+.about-description li {
+    margin-bottom: 6px;
+}
+
+.about-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.about-links {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.about-links a {
+    font-size: 13px;
 }
 
 /* ============================================

@@ -12,11 +12,12 @@ import { useToast } from '@/hooks';
 import { ReportsTab } from './ReportsTab';
 import { RequestsTab } from './RequestsTab';
 import { SettingsTab } from './SettingsTab';
+import { AboutTab } from './AboutTab';
 import { ToastContainer } from './ToastContainer';
 import { NewRequestModal } from './NewRequestModal';
 import '../styles/app.css';
 
-type TabId = 'reports' | 'requests' | 'settings';
+type TabId = 'reports' | 'requests' | 'settings' | 'about';
 
 const App: React.FC = () => {
     const isMobile = useMobile();
@@ -64,7 +65,8 @@ const App: React.FC = () => {
     const tabs = [
         { id: 'reports', name: 'Reports' },
         { id: 'requests', name: 'Requests' },
-        { id: 'settings', name: 'Settings' }
+        { id: 'settings', name: 'Settings' },
+        { id: 'about', name: 'About' }
     ];
 
     return (
@@ -108,6 +110,9 @@ const App: React.FC = () => {
                 )}
                 {activeTab === 'settings' && (
                     <SettingsTab toast={toast} />
+                )}
+                {activeTab === 'about' && (
+                    <AboutTab />
                 )}
             </div>
             

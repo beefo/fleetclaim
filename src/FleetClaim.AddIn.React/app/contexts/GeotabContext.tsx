@@ -119,21 +119,21 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                 api.getSession((cr: any, server?: string) => {
                     // Handle both cr.credentials and cr directly (following Geotab mg-media-files pattern)
                     const creds = cr.credentials || cr;
-                    
+
                     // Validate we got actual credentials
                     if (!creds?.sessionId) {
                         reject(new Error('No sessionId in credentials'));
                         return;
                     }
-                    
-                    // Use window.location.hostname as the server — the add-in runs
-                    // directly in the MyGeotab page so this is the actual host
-                    // (e.g. alpha.geotab.com, my.geotab.com). getSession returns the
-                    // federation server which may differ and cause 401s.
-                    const host = window.location.hostname;
+
+                    // Use the server from getSession() — this is the correct federation
+                    // host (e.g. "my.geotab.com", "alpha.geotab.com").
+                    // DO NOT use window.location.hostname — the add-in runs in an iframe
+                    // from Cloud Run, so that returns the Cloud Run URL, not the Geotab server.
+                    const host = server || creds.server || 'my.geotab.com';
 
                     console.log('[GeotabContext] Captured credentials - server:', host, 'database:', creds.database);
-                    
+
                     setGeotabHost(host);
                     setCredentials({
                         database: creds.database,
@@ -172,21 +172,21 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                 
                 api.getSession((cr: any, server?: string) => {
                     const creds = cr.credentials || cr;
-                    
+
                     if (!creds?.sessionId) {
                         reject(new Error('No sessionId in credentials'));
                         return;
                     }
-                    
-                    const host = window.location.hostname;
-                    
+
+                    const host = server || creds.server || 'my.geotab.com';
+
                     const freshCreds: GeotabCredentials = {
                         database: creds.database,
                         userName: creds.userName,
                         sessionId: creds.sessionId,
                         server: host
                     };
-                    
+
                     setGeotabHost(host);
                     setCredentials(freshCreds);
                     credentialsCaptured.current = true;
@@ -344,7 +344,7 @@ export const GeotabProvider: React.FC<GeotabProviderProps> = ({
                     database: dbFromUrl,
                     userName: '',
                     sessionId: '',
-                    server: window.location.hostname
+                    server: ''
                 });
             }
             

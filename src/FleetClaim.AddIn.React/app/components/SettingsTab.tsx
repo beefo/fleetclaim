@@ -191,28 +191,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ toast }) => {
                 </Card>
             </Cards>
 
-            <Card size="L" title="Keyboard Shortcuts">
-                <Card.Content>
-                    <div className="shortcuts-list">
-                        <div className="shortcut-item">
-                            <kbd>R</kbd>
-                            <span>Refresh data</span>
-                        </div>
-                        <div className="shortcut-item">
-                            <kbd>N</kbd>
-                            <span>New report request</span>
-                        </div>
-                        <div className="shortcut-item">
-                            <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>
-                            <span>Switch tabs</span>
-                        </div>
-                        <div className="shortcut-item">
-                            <kbd>Esc</kbd>
-                            <span>Close modals</span>
-                        </div>
-                    </div>
-                </Card.Content>
-            </Card>
         </div>
     );
 };

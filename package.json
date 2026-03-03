@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "prepare": "git config core.hooksPath scripts/hooks"
+  },
   "devDependencies": {
     "puppeteer": "^24.37.3"
   },

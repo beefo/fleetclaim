@@ -1,0 +1,23 @@
+#!/bin/bash
+# Pre-commit hook: ensure dist/ is rebuilt when Add-In source changes
+
+ADDIN_SRC="src/FleetClaim.AddIn.React/app/"
+ADDIN_DIST="src/FleetClaim.AddIn.React/dist/"
+
+# Get staged files
+staged_src=$(git diff --cached --name-only -- "$ADDIN_SRC")
+staged_dist=$(git diff --cached --name-only -- "$ADDIN_DIST")
+
+if [ -n "$staged_src" ] && [ -z "$staged_dist" ]; then
+    echo ""
+    echo "ERROR: Add-In source files changed but dist/ was not updated."
+    echo ""
+    echo "Changed source files:"
+    echo "$staged_src" | sed 's/^/  /'
+    echo ""
+    echo "Run this to rebuild:"
+    echo "  cd src/FleetClaim.AddIn.React && NODE_OPTIONS=\"\" npm run build"
+    echo "  git add src/FleetClaim.AddIn.React/dist/"
+    echo ""
+    exit 1
+fi

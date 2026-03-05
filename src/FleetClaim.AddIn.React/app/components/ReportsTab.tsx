@@ -106,6 +106,16 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         window.history.back();
     }, []);
 
+    // Close detail view after delete - replaces history state instead of going back
+    // This prevents going back to a previous page when deleting from detail view
+    const handleCloseAfterDelete = useCallback(() => {
+        // Replace the current history state (which is the detail view state we pushed)
+        // with the original state, effectively removing our pushed entry
+        window.history.replaceState(null, '', window.location.href);
+        setSelectedReport(null);
+        setSelectedReportId(null);
+    }, []);
+
     // Handle browser back button to return to list from detail view
     useEffect(() => {
         const handlePopState = () => {
@@ -124,11 +134,11 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         try {
             await remove(reportId);
             toast.success('Report deleted');
-            handleCloseModal();
+            handleCloseAfterDelete();
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to delete report');
         }
-    }, [remove, toast, handleCloseModal]);
+    }, [remove, toast, handleCloseAfterDelete]);
 
     const handleUpdateReport = useCallback(async (reportId: string, updates: Partial<IncidentReport>) => {
         try {

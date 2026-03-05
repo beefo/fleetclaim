@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     Card,
     FiltersBar,
@@ -93,14 +93,32 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
     }, [setFilters]);
 
     const handleViewReport = useCallback((report: IncidentReport) => {
+        // Push a history state so browser back button returns to list
+        window.history.pushState({ reportDetail: true, reportId: report.id }, '', window.location.href);
         setSelectedReport(report);
         setSelectedReportId(report.id);
     }, []);
 
+    // Close detail view - called by UI back button
     const handleCloseModal = useCallback(() => {
-        setSelectedReport(null);
-        setSelectedReportId(null);
+        // Use history.back() to properly unwind the history state we pushed
+        // The popstate handler will clear the selected report state
+        window.history.back();
     }, []);
+
+    // Handle browser back button to return to list from detail view
+    useEffect(() => {
+        const handlePopState = () => {
+            // When back is pressed (browser or via history.back()), close the detail view
+            if (selectedReport) {
+                setSelectedReport(null);
+                setSelectedReportId(null);
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [selectedReport]);
 
     const handleDeleteReport = useCallback(async (reportId: string) => {
         try {

@@ -163,7 +163,7 @@ public class IncidentPollerWorker : BackgroundService
             
             try
             {
-                await GenerateAndSaveReportAsync(api, incident, database, config, ct);
+                await GenerateAndSaveReportAsync(api, incident, database, config, ReportSource.Automatic, ct);
             }
             catch (Exception ex)
             {
@@ -286,7 +286,7 @@ public class IncidentPollerWorker : BackgroundService
                 {
                     try
                     {
-                        await GenerateAndSaveReportAsync(api, incident, api.Database ?? "unknown", config, ct);
+                        await GenerateAndSaveReportAsync(api, incident, api.Database ?? "unknown", config, ReportSource.Manual, ct);
                         reportsGenerated++;
                     }
                     catch (Exception ex)
@@ -373,6 +373,7 @@ public class IncidentPollerWorker : BackgroundService
             GeneratedAt = DateTime.UtcNow,
             Severity = IncidentSeverity.Low,  // Baseline reports are informational
             IsBaselineReport = true,
+            Source = ReportSource.Manual,  // Baseline reports are always manual requests
             Summary = $"Baseline report for {device?.Name ?? request.DeviceId} ({request.FromDate:g} to {request.ToDate:g}). " +
                       $"No collision event detected. This report was manually requested for documentation purposes.",
             Evidence = new EvidencePackage
@@ -411,14 +412,16 @@ public class IncidentPollerWorker : BackgroundService
         ExceptionEvent incident, 
         string database,
         CustomerConfig config,
+        ReportSource source,
         CancellationToken ct)
     {
         var ruleId = incident.Rule?.Id?.ToString() ?? "";
         var ruleName = RuleIdToName.GetValueOrDefault(ruleId, incident.Rule?.Name ?? "Unknown");
-        _logger.LogInformation("Generating report for incident {Id} ({RuleId}: {RuleName})",
-            incident.Id, ruleId, ruleName);
+        _logger.LogInformation("Generating report for incident {Id} ({RuleId}: {RuleName}), source={Source}",
+            incident.Id, ruleId, ruleName, source);
         
         var report = await _reportGenerator.GenerateReportAsync(api, incident, database, ct);
+        report.Source = source;  // Set the source based on how the report was triggered
         
         await _repository.SaveReportAsync(api, report, ct);
         

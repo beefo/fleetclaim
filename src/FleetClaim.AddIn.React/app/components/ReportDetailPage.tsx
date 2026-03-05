@@ -258,6 +258,14 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                                             </div>
                                         )}
                                         <div className="detail-row">
+                                            <span className="detail-label">Source</span>
+                                            <span className="detail-value">
+                                                <Pill type={report.source?.toLowerCase() === 'manual' ? 'info' : 'success'}>
+                                                    {report.source?.toLowerCase() === 'manual' ? '👤 Manual Request' : '🤖 Automatic Detection'}
+                                                </Pill>
+                                            </span>
+                                        </div>
+                                        <div className="detail-row">
                                             <span className="detail-label">Driver</span>
                                             <span className="detail-value">{report.driverName || 'Unknown'}</span>
                                         </div>

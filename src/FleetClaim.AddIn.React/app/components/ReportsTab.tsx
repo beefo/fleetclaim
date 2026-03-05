@@ -198,6 +198,22 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
             }
         },
         {
+            id: 'source',
+            title: 'Source',
+            meta: { defaultWidth: 90 },
+            columnComponent: {
+                render: (entity) => {
+                    const source = entity.report.source?.toLowerCase() || 'automatic';
+                    return (
+                        <Pill type={source === 'manual' ? 'info' : 'success'}>
+                            {source === 'manual' ? '👤 Manual' : '🤖 Auto'}
+                        </Pill>
+                    );
+                },
+                renderHeader: (title) => title
+            }
+        },
+        {
             id: 'status',
             title: 'Status',
             meta: { defaultWidth: 100 },

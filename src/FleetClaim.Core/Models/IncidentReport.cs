@@ -79,6 +79,11 @@ public class IncidentReport
     public bool IsBaselineReport { get; set; } = false;
     
     /// <summary>
+    /// How this report was generated (automatic from feed monitoring or manual request).
+    /// </summary>
+    public ReportSource Source { get; set; } = ReportSource.Automatic;
+    
+    /// <summary>
     /// User-provided notes about the incident. Added by fleet managers to provide 
     /// context for insurance claims (driver statement, circumstances, etc.)
     /// </summary>
@@ -347,4 +352,20 @@ public enum PhotoCategory
     WitnessInfo,
     PoliceReport,
     InsuranceDocument
+}
+
+/// <summary>
+/// How the report was generated
+/// </summary>
+public enum ReportSource
+{
+    /// <summary>
+    /// Generated automatically by the worker monitoring the collision feed
+    /// </summary>
+    Automatic,
+    
+    /// <summary>
+    /// Generated manually via a user request from the Add-In
+    /// </summary>
+    Manual
 }

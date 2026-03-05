@@ -4,6 +4,7 @@
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 export type RequestStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type ReportSource = 'automatic' | 'manual';
 
 export interface GpsPoint {
     latitude: number;
@@ -116,6 +117,7 @@ export interface IncidentReport {
     severity: Severity;
     summary?: string;
     isBaselineReport?: boolean;
+    source?: ReportSource;  // 'automatic' (from feed monitoring) or 'manual' (user request)
     incidentDetails?: IncidentDetails;
     
     // Evidence data (from backend)

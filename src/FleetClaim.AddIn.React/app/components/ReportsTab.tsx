@@ -9,6 +9,7 @@ import {
     IconCheck,
     IconWarning,
     IconCloseCircle,
+    IconDelete,
     getEmptySelection,
     getSortableValue,
     IListColumn,
@@ -238,21 +239,37 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         {
             id: 'actions',
             title: '',
-            meta: { defaultWidth: 80 },
+            meta: { defaultWidth: 120 },
             sortable: false,
             columnComponent: {
                 render: (entity) => (
-                    <Button 
-                        type="tertiary"
-                        htmlType="button"
-                        onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setSelectedReport(entity.report);
-                        }}
-                    >
-                        View
-                    </Button>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                        <Button 
+                            type="tertiary"
+                            htmlType="button"
+                            onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setSelectedReport(entity.report);
+                            }}
+                        >
+                            View
+                        </Button>
+                        <Button
+                            type="tertiary"
+                            htmlType="button"
+                            onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                if (confirm('Are you sure you want to delete this report?')) {
+                                    handleDeleteReport(entity.report.id);
+                                }
+                            }}
+                            title="Delete report"
+                        >
+                            <IconDelete />
+                        </Button>
+                    </div>
                 ),
                 renderHeader: () => null
             }

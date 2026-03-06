@@ -1,6 +1,6 @@
 # CLAUDE.md - FleetClaim Project Guide
 
-This file provides context for AI agents working in the FleetClaim codebase.
+**This is an open-source public repository.** Never commit secrets, internal URLs, GCP project numbers, service account emails, or database names into this file or any tracked file.
 
 ## Project Overview
 
@@ -9,90 +9,146 @@ This file provides context for AI agents working in the FleetClaim codebase.
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        MyGeotab Portal                          │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                  FleetClaim Add-In (iframe)               │  │
-│  │                    React + TypeScript                      │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    FleetClaim API (Cloud Run)                   │
-│                         .NET 10                                  │
-│  • PDF Generation (QuestPDF)                                    │
-│  • Session Verification                                          │
-│  • Report Management                                             │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-        ┌──────────┐   ┌──────────────┐  ┌──────────┐
-        │  Geotab  │   │ FleetClaim   │  │  GCP     │
-        │   API    │   │   Worker     │  │ Services │
-        └──────────┘   │ (Cloud Run)  │  │          │
-                       └──────────────┘  └──────────┘
+MyGeotab Portal (iframe)
+  └─ FleetClaim Add-In (React + TypeScript, served by nginx on Cloud Run)
+       │
+       ▼
+  FleetClaim API (Cloud Run, .NET 10, Minimal APIs)
+  • PDF generation (QuestPDF)      • Session verification
+  • Email reports (Gmail OAuth)     • Rate limiting (10/min PDF, 5/min email)
+       │
+       ├── Geotab API (AddInData, MediaFile, ExceptionEvents)
+       ├── FleetClaim Worker (Cloud Run Job, .NET 10) — polls for collisions, generates reports
+       └── GCP Services (Secret Manager, Artifact Registry, Cloud Build)
 ```
 
 ### Key Components
 
 | Component | Path | Tech | Purpose |
 |-----------|------|------|---------|
-| **Add-In** | `src/FleetClaim.AddIn.React/` | React, TypeScript, Webpack | UI in MyGeotab iframe |
-| **API** | `src/FleetClaim.Api/` | .NET 10, Minimal APIs | PDF generation, auth |
-| **Worker** | `src/FleetClaim.Worker/` | .NET 10, Background Service | Async report generation |
-| **Core** | `src/FleetClaim.Core/` | .NET 10 Class Library | Shared business logic |
-| **Admin** | `src/FleetClaim.Admin/` | .NET 10, Razor | Admin portal |
-| **Tests** | `src/FleetClaim.Tests/` | xUnit | Unit tests |
+| **Add-In** | `src/FleetClaim.AddIn.React/` | React 18, TypeScript 5.5, Webpack 5, Zenith 1.15 | UI in MyGeotab iframe |
+| **API** | `src/FleetClaim.Api/` | .NET 10, Minimal APIs | PDF generation, email, auth |
+| **Worker** | `src/FleetClaim.Worker/` | .NET 10, Cloud Run Job | Feed-based collision polling, report generation |
+| **Core** | `src/FleetClaim.Core/` | .NET 10 Class Library | Models, Geotab integration, PDF renderer, services |
+| **Admin** | `src/FleetClaim.Admin/` | .NET 10, Razor Pages | Admin portal |
+| **Tests** | `src/FleetClaim.Tests/` | xUnit, Moq | 116 unit tests |
 
 ---
 
 ## Critical Rules
 
-### 🔴 Rule 0: Every Bug Fix Needs a Test
+### Every Bug Fix Needs a Test
 
-**Before committing any bug fix:**
-1. Write a test that would have caught the bug
-2. Verify the test fails without the fix
-3. Apply the fix
-4. Verify the test passes
+Before committing any bug fix: write a test that catches the bug, verify it fails without the fix, apply the fix, verify it passes. No exceptions.
 
-This prevents regressions. No exceptions.
-
-### 🔴 Rule 1: Never Commit Secrets
+### Never Commit Secrets
 
 - **NEVER** hardcode passwords, API keys, or credentials
 - Use `.secrets/` directories (gitignored) for local dev
 - Use GCP Secret Manager for production
-- Run `grep -r "password\|secret\|apikey" --include="*.cs" --include="*.ts"` before committing
 
-### 🔴 Rule 2: Tests Must Pass Before Deploy
+### Rebuild dist/ Before Committing Add-In Changes
 
-The pre-commit hook runs:
-1. .NET tests (113+ tests)
-2. Add-In Jest tests (101+ tests)
+The active pre-commit hook (`scripts/hooks/pre-commit`) checks that `dist/` is rebuilt when Add-In source files change. It does NOT run tests automatically.
 
-If tests fail, the commit is rejected.
+```bash
+cd src/FleetClaim.AddIn.React && NODE_OPTIONS="" npm run build
+git add src/FleetClaim.AddIn.React/dist/
+```
+
+---
+
+## Geotab Development Guidelines
+
+### Use Zenith Design System
+
+All Add-In UI must use [Geotab Zenith](https://developers.geotab.com/zenith-storybook/?path=/docs/introduction--docs) React components (`@geotab/zenith`). This ensures consistent look-and-feel with the MyGeotab portal. Never use raw HTML elements or third-party UI libraries when a Zenith component exists for the same purpose (buttons, modals, inputs, tables, tabs, toasts, etc.).
+
+### Use generator-addin for Local Dev & Testing
+
+The [generator-addin](https://github.com/Geotab/generator-addin) scaffolding tool enables local development with mocked Geotab API objects, so you can run and debug the Add-In without deploying to a test database. Use it to manually test UI changes and write web tests.
+
+### Use Property Selectors for Device and User
+
+Device and User objects are large. Always use `propertySelector` to request only the fields you need. This reduces payload size and server load significantly.
+
+```typescript
+// Add-In: only fetch id and name for device dropdowns
+const devices = await call('Get', {
+    typeName: 'Device',
+    propertySelector: { fields: ['id', 'name'], isIncluded: true }
+});
+```
+
+```csharp
+// API: verify session with minimal User fields
+await api.CallAsync<User[]>("Get", typeof(User), new {
+    search = new { name = userName },
+    propertySelector = new { fields = new[] { "id", "name" } }
+});
+```
+
+### Respect MyGeotab Rate and Result Limits
+
+The Geotab API has default result limits. When fetching large datasets, use paging with `resultsLimit` and `fromVersion`/`toVersion` (for `GetFeed`) or result offsets. Never assume all results fit in a single call.
+
+### AddInData Storage Best Practices
+
+Store data in Geotab's AddInData rather than managing a separate database. Key rules:
+
+1. **Separate items, not lists** — Store each record as its own AddInData entry. The naive approach of storing arrays in a single record is problematic: to remove one item you must delete the entire record and re-add it. Separate entries allow individual CRUD.
+2. **10KB per record** — Each AddInData record is limited to 10,000 characters. Compact large objects (see compaction strategy in `AddInDataRepository`).
+3. **Static GUID as AddInId** — The AddInId must be a static, pre-generated GUID (not dynamic). This project uses `aji_jHQGE8k2TDodR8tZrpw` everywhere. The documentation doesn't make this obvious but it must be consistent across all components.
+4. **Data merging on update** — `Set` merges properties, it doesn't replace the record. Old properties persist unless explicitly overwritten.
+
+See [AddInData docs](https://developers.geotab.com/myGeotab/addIns/addInStorage/).
+
+---
+
+## File Structure
+
+```
+fleetclaim/
+├── .github/workflows/          # CI (ci.yml) and deploy (deploy.yml)
+├── .githooks/                  # Alternate hook (runs tests, not currently active)
+├── docs/                       # Design docs, security audit, roadmap
+├── infra/                      # Terraform (main.tf, variables.tf)
+├── scripts/
+│   └── hooks/pre-commit        # ACTIVE hook: checks dist/ is rebuilt
+├── src/
+│   ├── FleetClaim.AddIn.React/
+│   │   └── app/
+│   │       ├── components/     # 14 React components (App, ReportsTab, ReportDetailPage, etc.)
+│   │       ├── contexts/       # GeotabContext (session, credentials, devices, users)
+│   │       ├── hooks/          # useReports, useRequests, useToast
+│   │       ├── services/       # reportService (CRUD, PDF, email), photoService (MediaFile upload)
+│   │       ├── types/          # geotab.ts, report.ts
+│   │       └── __tests__/      # 9 Jest test files
+│   ├── FleetClaim.Api/
+│   │   └── Program.cs          # Minimal API (517 lines): /health, /api/pdf, /api/email
+│   ├── FleetClaim.Core/
+│   │   ├── Models/             # IncidentReport, AddInDataWrapper, ReportRequest, CustomerConfig
+│   │   ├── Geotab/             # AddInDataRepository, GcpCredentialStore, GeotabClientFactory
+│   │   └── Services/           # QuestPdfRenderer (1800+ lines), ReportGenerator, IncidentCollector, etc.
+│   ├── FleetClaim.Worker/
+│   │   ├── Program.cs          # DI setup
+│   │   └── IncidentPollerWorker.cs  # Feed polling, collision detection, request processing
+│   ├── FleetClaim.Admin/       # Razor Pages admin portal
+│   └── FleetClaim.Tests/       # 10 test files, 116 tests
+└── fleetclaim.sln              # Solution file (5 .NET projects)
+```
 
 ---
 
 ## Geotab SDK Gotchas
 
-### Server Hostname
+### Server Hostname (Critical)
 
-The Add-In runs in an iframe from Cloud Run. `window.location.hostname` returns the Cloud Run URL, **not** the Geotab server.
+The Add-In runs in an iframe from Cloud Run. `window.location.hostname` returns the Cloud Run URL, **not** the Geotab server. Always get the server from `api.getSession()`:
 
-**Wrong:**
 ```typescript
-const server = window.location.hostname; // Returns Cloud Run URL!
-```
-
-**Right:**
-```typescript
-// Get server from api.getSession() callback
 api.getSession((creds, server) => {
-  const host = server || creds.server; // e.g., "my.geotab.com" or "alpha.geotab.com"
+  const host = server || creds.server; // "my.geotab.com", "alpha.geotab.com", etc.
 });
 ```
 
@@ -100,62 +156,89 @@ api.getSession((creds, server) => {
 
 The SDK expects hostname only, **not** a full URL:
 
-**Wrong:**
 ```csharp
-new API("username", "sessionId", "password", "https://my.geotab.com"); // NO!
-```
-
-**Right:**
-```csharp
-new API("username", "sessionId", null, "my.geotab.com"); // Just hostname
+// Wrong: new API("user", "sessionId", null, "https://my.geotab.com");
+// Right:
+new API("user", "sessionId", null, "my.geotab.com");
 ```
 
 ### api.getSession() Signature
 
 ```typescript
 // getSession(callback, newSession?)
-// - callback: (credentials, server?) => void
-// - newSession: BOOLEAN (not an error callback!)
+// - newSession is a BOOLEAN (not an error callback!)
 api.getSession((creds, server) => {
   // creds.database, creds.userName, creds.sessionId
   // server: "my.geotab.com" or similar
 });
 ```
 
+### Credential Warmup
+
+Credentials must be captured AFTER the first Geotab API call. Before warmup, `sessionId` may be empty. The GeotabContext handles this by calling `captureCredentials()` after API initialization.
+
 ### Federation Mismatch
 
-Databases exist in specific federations:
-- `my.geotab.com` - Production
-- `alpha.geotab.com` - Alpha/staging (e.g., `g560` database)
-- `gov.geotab.com` - Government
-
-Calling the wrong server returns **401** or federation errors. Always use the server from `api.getSession()`.
+Databases exist in specific federations (`my.geotab.com`, `alpha.geotab.com`, `gov.geotab.com`). Calling the wrong server returns 401 or federation errors. Always use the server from `api.getSession()`.
 
 ---
 
-## API Authentication
+## API Endpoints & Authentication
 
-All API endpoints require X-header authentication:
+### Endpoints
+
+| Method | Path | Auth | Rate Limit | Purpose |
+|--------|------|------|------------|---------|
+| GET | `/health` | None | None | Health check |
+| POST | `/api/pdf` | X-headers or body | 10/min | Generate PDF |
+| GET | `/api/pdf/{database}/{reportId}` | X-headers | 10/min | Generate PDF by path |
+| POST | `/api/email` | X-headers | 5/min | Email report |
+
+### X-Header Authentication
+
+All authenticated endpoints require these headers:
 
 ```
-X-Geotab-Database: demo_fleetclaim
-X-Geotab-UserName: user@example.com
-X-Geotab-SessionId: abc123...
-X-Geotab-Server: my.geotab.com
+X-Geotab-Database: <database>
+X-Geotab-UserName: <userName>
+X-Geotab-SessionId: <sessionId>
+X-Geotab-Server: <server>
 ```
 
-The API validates sessions by calling Geotab's `Get User` method with a `propertySelector` for efficiency.
+The API verifies sessions by calling Geotab's `Get User` method with a `propertySelector` for efficiency.
+
+### CORS
+
+Allowed origins: `*.geotab.com`, `*.geotab.ca`, `localhost`, `*.run.app`
 
 ---
 
-## Common Patterns
+## Key Implementation Patterns
 
-### JSON Serialization (AddInDataWrapper)
+### AddInData Storage & 10KB Limit
 
-Reports are stored in Geotab's AddInData as JSON. The `AddInDataWrapper` handles serialization:
+Reports are stored in Geotab's AddInData as JSON via `AddInDataWrapper`:
 
 ```csharp
-// Uses camelCase and JsonStringEnumConverter
+// Type-discriminated wrapper: type = "report" | "reportRequest" | "config" | "workerState"
+{ "type": "report", "payload": { /* IncidentReport */ } }
+```
+
+**Critical constraint:** AddInData has a **10KB limit per record**. The `AddInDataRepository` compacts reports before saving:
+- GPS trail: max 20 points (sampled to include start, end, incident point)
+- Hard events: max 5 before incident
+- Accelerometer: max 5 around incident
+- Diagnostics: max 10
+- PdfBase64: never stored (generated on-demand)
+
+### Photos via MediaFile
+
+Photos are stored as Geotab MediaFile entities (not base64 in AddInData). Reports reference photos by MediaFile ID. The Add-In uploads via XMLHttpRequest FormData following Geotab's official pattern (see `photoService.ts`).
+
+### JSON Serialization
+
+```csharp
+// camelCase with string enums
 private static readonly JsonSerializerOptions SerializerOptions = new()
 {
     PropertyNameCaseInsensitive = true,
@@ -164,22 +247,58 @@ private static readonly JsonSerializerOptions SerializerOptions = new()
 };
 ```
 
-**Gotcha:** Enum values must be strings in JSON. Unknown enum values should default gracefully (see `PhotoCategory` pattern).
-
 ### Flexible Enum Handling
 
 For enums that might have unknown values in stored data:
 
 ```csharp
-// Store as string, parse on access
 [JsonPropertyName("category")]
 public string? CategoryString { get; set; }
 
 [JsonIgnore]
-public PhotoCategory Category => 
-    Enum.TryParse<PhotoCategory>(CategoryString, true, out var cat) 
+public PhotoCategory Category =>
+    Enum.TryParse<PhotoCategory>(CategoryString, true, out var cat)
     ? cat : PhotoCategory.General;
 ```
+
+### Worker: Feed-Based Collision Polling
+
+The Worker runs as a single-execution Cloud Run Job:
+1. Loads database credentials from GCP Secret Manager
+2. Uses Geotab `GetFeed` API for incremental ExceptionEvent polling
+3. Filters to stock collision rule IDs: `RuleAccidentId`, `RuleEnhancedMajorCollisionId`, `RuleEnhancedMinorCollisionId`
+4. Generates reports via `ReportGenerator` → compacts → saves to AddInData
+5. Processes manual `ReportRequest`s (marks stale ones as failed after 10 min)
+6. Saves feed version to AddInData for next poll
+
+---
+
+## Testing
+
+### Run Tests
+
+```bash
+# .NET tests (116 tests)
+dotnet test
+
+# Add-In tests (requires jest-environment-jsdom)
+cd src/FleetClaim.AddIn.React && npm test
+```
+
+### Test Files (.NET)
+
+| File | Coverage |
+|------|----------|
+| ApiAuthenticationTests | X-header validation |
+| ApiEndpointTests | Endpoint integration |
+| ModelTests | Serialization, enum handling |
+| QuestPdfRendererTests | PDF generation |
+| AddInDataRepositoryTests | AddInData CRUD, compaction |
+| ReportGeneratorTests | Report data collection |
+| IncidentCollectorTests | GPS, diagnostics, weather |
+| NotificationServiceTests | Email/webhook |
+| OpenMeteoWeatherServiceTests | Weather API |
+| ShareLinkServiceTests | Secure share links |
 
 ---
 
@@ -187,51 +306,27 @@ public PhotoCategory Category =>
 
 ### Automatic (GitHub Actions)
 
-Pushes to `main` trigger conditional deploys:
-- Changes in `src/FleetClaim.Api/` or `src/FleetClaim.Core/` → Deploy API
-- Changes in `src/FleetClaim.AddIn.React/` → Deploy Add-In
-- Changes in `src/FleetClaim.Worker/` → Deploy Worker
-- Changes in `src/FleetClaim.Admin/` → Deploy Admin
+Pushes to `main` trigger conditional deploys via `dorny/paths-filter@v3`:
+- `src/FleetClaim.Api/**` or `src/FleetClaim.Core/**` → Deploy API
+- `src/FleetClaim.AddIn.React/**` → Deploy Add-In
+- `src/FleetClaim.Worker/**` or `src/FleetClaim.Core/**` → Deploy Worker
+- `src/FleetClaim.Admin/**` → Deploy Admin
+
+Authentication: GCP Workload Identity Federation
 
 ### Manual Deploy
 
 ```bash
-# Deploy specific component
 gcloud builds submit --config=cloudbuild-api.yaml
 gcloud builds submit --config=cloudbuild-addin.yaml
+gcloud builds submit --config=cloudbuild-worker.yaml
 ```
 
-### Verify Deployment
+### Docker Images
 
-```bash
-# Check latest revision
-gcloud run revisions list --service fleetclaim-api --region us-central1 --limit 3
-
-# Check logs
-gcloud run services logs read fleetclaim-api --region us-central1 --limit 50
-```
-
----
-
-## Testing
-
-### Run Tests Locally
-
-```bash
-# .NET tests
-dotnet test
-
-# Add-In tests
-cd src/FleetClaim.AddIn.React
-npm test
-```
-
-### Test Coverage Areas
-
-- **ApiAuthenticationTests** - X-header validation
-- **ModelTests** - Serialization, enum handling
-- **QuestPdfRendererTests** - PDF generation
-- **AddInDataRepositoryTests** - Geotab data operations
+- API/Worker: multi-stage `mcr.microsoft.com/dotnet/sdk:10.0` → `aspnet:10.0`
+- Add-In: `nginx:alpine` serving static build from `dist/`
+- Registry: GCP Artifact Registry (`us-central1-docker.pkg.dev`)
 
 ---
 
@@ -241,67 +336,44 @@ npm test
 |----------|-------|
 | GCP Project | `fleetclaim` |
 | Region | `us-central1` |
-| API URL | `https://fleetclaim-api-589116575765.us-central1.run.app` |
+| API URL | `https://fleetclaim-api-<project-number>.us-central1.run.app` |
+| Add-In URL | `https://fleetclaim-addin-react-<project-number>.us-central1.run.app` |
 | Add-In Solution ID | `aji_jHQGE8k2TDodR8tZrpw` |
-| Demo Database | `demo_fleetclaim` on `my.geotab.com` |
+| Demo Database | See `.secrets/` for database and server details |
+
+### Key Environment Variables
+
+**API**: `GCP_PROJECT_ID`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GOOGLE_MAPS_API_KEY` (optional)
+
+**Worker**: `GCP_PROJECT_ID`, `SHARE_LINK_BASE_URL`, `SHARE_LINK_SIGNING_KEY`
 
 ---
 
-## Known Issues / Tech Debt
+## Add-In Component Map
 
-1. **SkiaSharp warnings** - Obsolete API usage in QuestPdfRenderer (cosmetic, works fine)
-2. **System.Text.Json warning** - NU1510 about unnecessary package (can ignore)
-3. **GPS Map path** - Leaflet integration works in PDF but needs verification in Add-In
-
----
-
-## File Structure Conventions
-
-```
-src/
-├── FleetClaim.AddIn.React/
-│   └── app/
-│       ├── components/     # React components
-│       ├── contexts/       # React contexts (GeotabContext)
-│       ├── hooks/          # Custom hooks
-│       ├── services/       # API services
-│       ├── types/          # TypeScript types
-│       └── __tests__/      # Jest tests
-├── FleetClaim.Api/
-│   └── Program.cs          # Minimal API endpoints
-├── FleetClaim.Core/
-│   ├── Models/             # Shared models (IncidentReport, etc.)
-│   ├── Geotab/             # Geotab integration
-│   └── Services/           # Business logic
-└── FleetClaim.Tests/       # xUnit tests
-```
+| Component | Purpose |
+|-----------|---------|
+| App | Root: tabbed interface (Reports, Requests, Settings, About) |
+| ReportsTab | Report list with filters (search, severity, date range, vehicle) |
+| ReportDetailPage | Full-page report view with edit capabilities |
+| ReportDetailModal | Quick-view modal for report preview |
+| RequestsTab | Manual report request management |
+| NewRequestModal | Form to create new report requests |
+| SettingsTab | Configuration UI |
+| AboutTab | Add-In info and description |
+| PhotosSection | Photo upload/download via MediaFile |
+| GpsMap | GPS trail visualization (Leaflet) |
+| DamageAssessmentForm | Damage details input |
+| ThirdPartyInfoForm | Other-party information |
+| ToastContainer | Toast notification system |
 
 ---
 
-## Quick Reference
+## Commit Message Prefixes
 
-### Commit Message Prefixes
+`feat:` `fix:` `test:` `chore:` `docs:` `perf:`
 
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `test:` - Adding/updating tests
-- `chore:` - Maintenance, cleanup
-- `docs:` - Documentation
-- `perf:` - Performance improvement
-- `debug:` - Temporary debugging (remove before merge)
+## Known Warnings (Safe to Ignore)
 
-### Useful Commands
-
-```bash
-# Check for secrets before committing
-grep -rn "password\|secret\|apikey" src/ --include="*.cs" --include="*.ts" --include="*.tsx"
-
-# Find usages
-grep -rn "searchTerm" src/ --include="*.cs"
-
-# Check API logs
-gcloud run services logs read fleetclaim-api --region us-central1 --limit 50
-
-# View recent deploys
-gcloud run revisions list --service fleetclaim-api --region us-central1 --limit 5
-```
+1. **NU1510** - System.Text.Json unnecessary package warning
+2. **SkiaSharp** - Obsolete API usage in QuestPdfRenderer (cosmetic)

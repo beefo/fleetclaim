@@ -12,7 +12,8 @@ import {
     IconLoader,
     IconChevronLeft,
     IconDownload,
-    IconDelete
+    IconDelete,
+    IconDisk
 } from '@geotab/zenith';
 import { IncidentReport, Severity, Photo } from '@/types';
 import { useGeotab } from '@/contexts';
@@ -220,13 +221,12 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                         onClick={handleSaveAll} 
                         disabled={!hasUnsavedChanges || isSaving}
                     >
-                        {isSaving ? 'Saving...' : '💾 Save'}
+                        <IconDisk /> {isSaving ? 'Saving...' : 'Save'}
                     </Button>
                     <Button
-                        type="tertiary"
+                        type="tertiary-destructive"
                         onClick={handleDelete}
                         disabled={isDeleting}
-                        title="Delete report"
                     >
                         <IconDelete /> {isDeleting ? 'Deleting...' : 'Delete'}
                     </Button>

@@ -2,12 +2,13 @@ import React, { useState, useCallback, useRef } from 'react';
 import { Button, Card, Select, Banner, Modal } from '@geotab/zenith';
 import { Photo } from '@/types';
 import { useGeotab } from '@/contexts';
-import { uploadPhoto, getThumbnailUrl, getFullImageUrl, deletePhoto as deletePhotoApi, formatPhotoCategory } from '@/services';
+import { uploadPhoto, getThumbnailUrl, getFullImageUrl, deletePhoto as deletePhotoApi, formatPhotoCategory, auditPhotoAdded, auditPhotoRemoved } from '@/services';
 
 interface PhotosSectionProps {
     photos: Photo[];
     reportId: string;
     deviceId: string;
+    vehicleName: string;
     onUpdate: (photos: Photo[]) => Promise<void>;
     toast: {
         success: (msg: string) => void;
@@ -22,6 +23,7 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
     photos,
     reportId,
     deviceId,
+    vehicleName,
     onUpdate,
     toast
 }) => {
@@ -96,6 +98,10 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
             const result = await uploadPhoto(api, uploadCredentials, uploadHost, file, deviceId, reportId, selectedCategory);
             const updatedPhotos = [...photos, result.photo];
             await onUpdate(updatedPhotos);
+            
+            // Audit the photo upload (best-effort, don't block)
+            auditPhotoAdded(api, reportId, vehicleName, 1);
+            
             toast.success('Photo uploaded');
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Upload failed');
@@ -111,13 +117,17 @@ export const PhotosSection: React.FC<PhotosSectionProps> = ({
         try {
             await deletePhotoApi(api, photo.mediaFileId);
             await onUpdate(photos.filter(p => p.id !== photo.id));
+            
+            // Audit the photo removal (best-effort, don't block)
+            auditPhotoRemoved(api, reportId, vehicleName);
+            
             toast.success('Photo deleted');
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Failed to delete');
         } finally {
             setDeletingPhotoId(null);
         }
-    }, [api, photos, onUpdate, toast]);
+    }, [api, photos, onUpdate, toast, reportId, vehicleName]);
 
     const groupedPhotos = React.useMemo(() => {
         const groups: Record<PhotoCategory, Photo[]> = { damage: [], scene: [], other: [] };

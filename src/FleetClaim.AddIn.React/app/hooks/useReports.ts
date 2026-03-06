@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useGeotab } from '@/contexts';
 import { IncidentReport, Severity } from '@/types';
-import { loadReports, updateReport, deleteReport, ReportRecord } from '@/services';
+import { loadReports, updateReport, deleteReport, ReportRecord, auditReportEdited, auditReportDeleted } from '@/services';
 
 export interface ReportFilters {
     search: string;
@@ -174,6 +174,19 @@ export function useReports() {
         
         await updateReport(api, record.addInDataId, updatedReport);
         
+        // Audit the edit (best-effort, don't block)
+        const changes: string[] = [];
+        if (updates.notes !== undefined) changes.push('notes');
+        if (updates.damageAssessment !== undefined) changes.push('damage assessment');
+        if (updates.thirdPartyInfo !== undefined) changes.push('third party info');
+        if (updates.evidence?.photos !== undefined) changes.push('photos');
+        auditReportEdited(
+            api, 
+            reportId, 
+            record.report.vehicleName || record.report.deviceName || 'Unknown',
+            changes
+        );
+        
         // Update local state
         setReports(prev => prev.map(r => 
             r.report.id === reportId 
@@ -190,7 +203,13 @@ export function useReports() {
             throw new Error('Report not found');
         }
         
+        // Capture vehicle name before deletion for audit
+        const vehicleName = record.report.vehicleName || record.report.deviceName || 'Unknown';
+        
         await deleteReport(api, record.addInDataId);
+        
+        // Audit the deletion (best-effort, don't block)
+        auditReportDeleted(api, reportId, vehicleName);
         
         // Update local state
         setReports(prev => prev.filter(r => r.report.id !== reportId));

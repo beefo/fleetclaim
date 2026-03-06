@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGeotab } from '@/contexts';
 import { ReportRequest } from '@/types';
-import { loadRequests, submitReportRequest, deleteRequest, RequestRecord } from '@/services';
+import { loadRequests, submitReportRequest, deleteRequest, RequestRecord, auditReportRequested } from '@/services';
 
 export function useRequests() {
     const { api, session, currentUser, credentials } = useGeotab();
@@ -56,6 +56,10 @@ export function useRequests() {
         };
         
         const addInDataId = await submitReportRequest(api, request);
+        
+        // Audit the request (best-effort, don't block)
+        const dateRange = `${rangeStart.toLocaleDateString()} - ${rangeEnd.toLocaleDateString()}`;
+        auditReportRequested(api, deviceName, dateRange, forceReport);
         
         // Add to local state
         const newRecord: RequestRecord = {

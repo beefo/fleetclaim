@@ -430,6 +430,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                         photos={photos}
                         reportId={report.id}
                         deviceId={vehicleId}
+                        vehicleName={vehicleName}
                         onUpdate={handleUpdatePhotos}
                         toast={toast}
                     />

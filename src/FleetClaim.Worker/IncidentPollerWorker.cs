@@ -275,6 +275,11 @@ public class IncidentPollerWorker : BackgroundService
                     
                     await _repository.UpdateRequestStatusAsync(api, request.Id,
                         ReportRequestStatus.Completed, incidentsFound: 0, reportsGenerated: reportsGenerated, ct: ct);
+                    
+                    // Audit the baseline report
+                    await AddAuditAsync(api, "FleetClaim_BaselineReportGenerated", 
+                        $"Generated baseline report for {request.DeviceName} ({request.FromDate:g} to {request.ToDate:g})",
+                        request.RequestedBy, ct);
                     continue;
                 }
                 
@@ -301,6 +306,12 @@ public class IncidentPollerWorker : BackgroundService
                     incidentsFound: collisionIncidents.Count, 
                     reportsGenerated: reportsGenerated, 
                     ct: ct);
+                
+                // Audit the completed request
+                var auditComment = reportsGenerated > 0
+                    ? $"Generated {reportsGenerated} report(s) for {request.DeviceName} ({request.FromDate:g} to {request.ToDate:g})"
+                    : $"No incidents found for {request.DeviceName} ({request.FromDate:g} to {request.ToDate:g})";
+                await AddAuditAsync(api, "FleetClaim_ReportGenerated", auditComment, request.RequestedBy, ct);
             }
             catch (Exception ex)
             {
@@ -441,6 +452,36 @@ public class IncidentPollerWorker : BackgroundService
                 _logger.LogWarning(ex, "Failed to send notifications for report {ReportId}", report.Id);
                 // Don't fail the report generation if notifications fail
             }
+        }
+    }
+    
+    /// <summary>
+    /// Add an audit entry to MyGeotab to track FleetClaim actions
+    /// </summary>
+    private async Task AddAuditAsync(
+        API api, 
+        string auditName, 
+        string comment, 
+        string? userName = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var audit = new
+            {
+                name = auditName,
+                comment = comment,
+                dateTime = DateTime.UtcNow,
+                userName = userName
+            };
+            
+            await api.CallAsync<object>("Add", typeof(Audit), new { entity = audit }, ct);
+            _logger.LogDebug("Added audit: {AuditName} - {Comment}", auditName, comment);
+        }
+        catch (Exception ex)
+        {
+            // Audits are best-effort, don't fail the main operation
+            _logger.LogWarning(ex, "Failed to add audit: {AuditName}", auditName);
         }
     }
 }

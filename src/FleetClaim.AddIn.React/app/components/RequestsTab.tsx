@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import {
     Card,
     Table,
@@ -152,10 +152,40 @@ export const RequestsTab: React.FC<RequestsTabProps> = ({ onRefresh, toast }) =>
         }
     ];
 
-    const entities = useMemo(() => 
-        requests.map(r => ({ id: r.request.id, request: r.request })),
-        [requests]
-    );
+    const entities = useMemo(() => {
+        const mapped = requests.map(r => ({ id: r.request.id, request: r.request }));
+        
+        // Apply sorting based on sortValue
+        const sortColumn = sortValue.sortColumn;
+        const sortDirection = sortValue.sortDirection;
+        
+        if (sortColumn) {
+            mapped.sort((a, b) => {
+                let comparison = 0;
+                
+                switch (sortColumn) {
+                    case 'requestedAt':
+                        comparison = new Date(a.request.requestedAt).getTime() - new Date(b.request.requestedAt).getTime();
+                        break;
+                    case 'deviceName':
+                        comparison = (a.request.deviceName || '').localeCompare(b.request.deviceName || '');
+                        break;
+                    case 'requestedBy':
+                        comparison = (a.request.requestedBy || '').localeCompare(b.request.requestedBy || '');
+                        break;
+                    case 'status':
+                        comparison = (a.request.status || '').localeCompare(b.request.status || '');
+                        break;
+                    default:
+                        comparison = 0;
+                }
+                
+                return sortDirection === ColumnSortDirection.Descending ? -comparison : comparison;
+            });
+        }
+        
+        return mapped;
+    }, [requests, sortValue]);
 
     if (error) {
         return (

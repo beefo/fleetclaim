@@ -9,7 +9,6 @@ import {
     IconCheck,
     IconWarning,
     IconCloseCircle,
-    IconDelete,
     getEmptySelection,
     getSortableValue,
     IListColumn,
@@ -267,47 +266,72 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         {
             id: 'actions',
             title: '',
-            meta: { defaultWidth: 120 },
+            meta: { defaultWidth: 80 },
             sortable: false,
             columnComponent: {
                 render: (entity) => (
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                        <Button 
-                            type="tertiary"
-                            htmlType="button"
-                            onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                setSelectedReport(entity.report);
-                            }}
-                        >
-                            View
-                        </Button>
-                        <Button
-                            type="tertiary"
-                            htmlType="button"
-                            onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                if (confirm('Are you sure you want to delete this report?')) {
-                                    handleDeleteReport(entity.report.id);
-                                }
-                            }}
-                            title="Delete report"
-                        >
-                            <IconDelete />
-                        </Button>
-                    </div>
+                    <Button
+                        type="tertiary"
+                        htmlType="button"
+                        onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            if (confirm('Are you sure you want to delete this report?')) {
+                                handleDeleteReport(entity.report.id);
+                            }
+                        }}
+                    >
+                        Delete
+                    </Button>
                 ),
                 renderHeader: () => null
             }
         }
     ];
 
-    const entities = useMemo(() => 
-        reports.map(r => ({ id: r.report.id, report: r.report })),
-        [reports]
-    );
+    const entities = useMemo(() => {
+        const mapped = reports.map(r => ({ id: r.report.id, report: r.report }));
+        
+        // Apply sorting based on sortValue
+        const sortColumn = sortValue.sortColumn;
+        const sortDirection = sortValue.sortDirection;
+        
+        if (sortColumn) {
+            mapped.sort((a, b) => {
+                let comparison = 0;
+                
+                switch (sortColumn) {
+                    case 'occurredAt':
+                        comparison = new Date(a.report.occurredAt).getTime() - new Date(b.report.occurredAt).getTime();
+                        break;
+                    case 'vehicleName':
+                        comparison = (a.report.vehicleName || a.report.deviceName || '').localeCompare(b.report.vehicleName || b.report.deviceName || '');
+                        break;
+                    case 'driverName':
+                        comparison = (a.report.driverName || '').localeCompare(b.report.driverName || '');
+                        break;
+                    case 'location':
+                        const locA = [a.report.incidentCity, a.report.incidentState].filter(Boolean).join(', ');
+                        const locB = [b.report.incidentCity, b.report.incidentState].filter(Boolean).join(', ');
+                        comparison = locA.localeCompare(locB);
+                        break;
+                    case 'severity':
+                        const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+                        comparison = (severityOrder[a.report.severity] || 0) - (severityOrder[b.report.severity] || 0);
+                        break;
+                    case 'source':
+                        comparison = (a.report.source || '').localeCompare(b.report.source || '');
+                        break;
+                    default:
+                        comparison = 0;
+                }
+                
+                return sortDirection === ColumnSortDirection.Descending ? -comparison : comparison;
+            });
+        }
+        
+        return mapped;
+    }, [reports, sortValue]);
 
     if (error) {
         return (

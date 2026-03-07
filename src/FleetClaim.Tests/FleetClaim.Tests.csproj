@@ -27,6 +27,7 @@
     <ProjectReference Include="..\FleetClaim.Core\FleetClaim.Core.csproj" />
     <ProjectReference Include="..\FleetClaim.Api\FleetClaim.Api.csproj" />
     <ProjectReference Include="..\FleetClaim.Worker\FleetClaim.Worker.csproj" />
+    <ProjectReference Include="..\FleetClaim.Admin\FleetClaim.Admin.csproj" />
   </ItemGroup>
 
 </Project>

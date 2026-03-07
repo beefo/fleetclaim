@@ -513,4 +513,4 @@ app.MapPost("/api/email", async (
 app.Run();
 
 // Make Program class accessible for integration testing
-public partial class Program { }
+namespace FleetClaim.Api { public partial class Program { } }

@@ -122,3 +122,5 @@ public record OnboardDatabaseRequest(
     string Username, 
     string Password, 
     string? Server = "my.geotab.com");
+
+namespace FleetClaim.Admin { public partial class Program { } }

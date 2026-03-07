@@ -15,7 +15,7 @@ namespace FleetClaim.Tests;
 /// <summary>
 /// Custom WebApplicationFactory that mocks GCP services for testing
 /// </summary>
-public class FleetClaimWebApplicationFactory : WebApplicationFactory<Program>
+public class FleetClaimWebApplicationFactory : WebApplicationFactory<FleetClaim.Api.Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

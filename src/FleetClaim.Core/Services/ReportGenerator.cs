@@ -1,5 +1,5 @@
+using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
-using Geotab.Checkmate;
 using Geotab.Checkmate.ObjectModel;
 using Geotab.Checkmate.ObjectModel.Exceptions;
 
@@ -8,7 +8,7 @@ namespace FleetClaim.Core.Services;
 public interface IReportGenerator
 {
     Task<IncidentReport> GenerateReportAsync(
-        API api,
+        IGeotabApi api,
         ExceptionEvent incident,
         string database,
         CancellationToken ct = default);
@@ -44,7 +44,7 @@ public class ReportGenerator : IReportGenerator
     }
     
     public async Task<IncidentReport> GenerateReportAsync(
-        API api,
+        IGeotabApi api,
         ExceptionEvent incident,
         string database,
         CancellationToken ct = default)

@@ -1,11 +1,11 @@
 using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
 using FleetClaim.Core.Services;
-using Geotab.Checkmate;
 using Geotab.Checkmate.ObjectModel;
 using Geotab.Checkmate.ObjectModel.Exceptions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FleetClaim.Worker;
 
@@ -22,6 +22,7 @@ public class IncidentPollerWorker : BackgroundService
     private readonly IShareLinkService _shareLinkService;
     private readonly INotificationService _notificationService;
     private readonly IHostApplicationLifetime _hostLifetime;
+    private readonly PollerOptions _options;
     private readonly ILogger<IncidentPollerWorker> _logger;
     
     // Stock Geotab rule IDs for collision detection (consistent across all databases)
@@ -48,6 +49,7 @@ public class IncidentPollerWorker : BackgroundService
         IShareLinkService shareLinkService,
         INotificationService notificationService,
         IHostApplicationLifetime hostLifetime,
+        IOptions<PollerOptions> options,
         ILogger<IncidentPollerWorker> logger)
     {
         _credentialStore = credentialStore;
@@ -57,6 +59,7 @@ public class IncidentPollerWorker : BackgroundService
         _shareLinkService = shareLinkService;
         _notificationService = notificationService;
         _hostLifetime = hostLifetime;
+        _options = options.Value;
         _logger = logger;
     }
     
@@ -113,7 +116,7 @@ public class IncidentPollerWorker : BackgroundService
     }
     
     private async Task ProcessNewIncidentsAsync(
-        API api, string database, CustomerConfig config, CancellationToken ct)
+        IGeotabApi api, string database, CustomerConfig config, CancellationToken ct)
     {
         // Load persisted feed version from AddInData
         var workerState = await _repository.GetWorkerStateAsync(api, database, ct) ?? new WorkerState();
@@ -122,76 +125,100 @@ public class IncidentPollerWorker : BackgroundService
         _logger.LogInformation("Polling {Database} with feed version {Version} (last polled: {LastPolled})",
             database, fromVersion > 0 ? fromVersion : "initial", workerState.LastPolledAt?.ToString("u") ?? "never");
 
-        // Use GetFeed for efficient incremental polling
-        var feedResult = await api.CallAsync<FeedResult<ExceptionEvent>>("GetFeed", typeof(ExceptionEvent), new
+        var resultsLimit = _options.ResultsLimit;
+        var maxIterations = _options.MaxIterations;
+        int iteration = 0;
+        int totalProcessed = 0;
+        
+        FeedResult<ExceptionEvent>? feedResult;
+        
+        // Drain loop: keep fetching until we get fewer results than the limit
+        do
         {
-            fromVersion = fromVersion > 0 ? fromVersion : (long?)null,
-            resultsLimit = 1000
-        }, ct);
-
-        if (feedResult?.Data == null || feedResult.Data.Count == 0)
-        {
-            // Still save the version so we don't re-query the same empty range
-            if (feedResult?.ToVersion != null && feedResult.ToVersion != fromVersion)
+            iteration++;
+            
+            // Use GetFeed for efficient incremental polling
+            feedResult = await api.CallAsync<FeedResult<ExceptionEvent>>("GetFeed", typeof(ExceptionEvent), new
             {
-                workerState.FeedVersion = feedResult.ToVersion.Value;
-                await _repository.SaveWorkerStateAsync(api, database, workerState, ct);
+                fromVersion = fromVersion > 0 ? fromVersion : (long?)null,
+                resultsLimit
+            }, ct);
+
+            if (feedResult?.Data == null || feedResult.Data.Count == 0)
+            {
+                // Still save the version so we don't re-query the same empty range
+                if (feedResult?.ToVersion != null && feedResult.ToVersion != fromVersion)
+                {
+                    workerState.FeedVersion = feedResult.ToVersion.Value;
+                    workerState.LastPolledAt = DateTime.UtcNow;
+                    await _repository.SaveWorkerStateAsync(api, database, workerState, ct);
+                }
+                break;
             }
-            _logger.LogDebug("No new incidents for {Database}", database);
-            return;
+
+            // Update version for next iteration
+            fromVersion = feedResult.ToVersion ?? 0;
+            workerState.FeedVersion = fromVersion;
+            
+            _logger.LogInformation("Batch {Iteration}: Found {Count} incidents for {Database} (total so far: {Total})", 
+                iteration, feedResult.Data.Count, database, totalProcessed + feedResult.Data.Count);
+            
+            foreach (var incident in feedResult.Data)
+            {
+                // Filter by collision rule IDs (Rule.Name is not populated in ExceptionEvent)
+                var ruleId = incident.Rule?.Id?.ToString() ?? "";
+                if (!CollisionRuleIds.Contains(ruleId))
+                {
+                    _logger.LogDebug("Skipping incident {Id} - rule {RuleId} not a collision rule", 
+                        incident.Id, ruleId);
+                    continue;
+                }
+                
+                _logger.LogInformation("Processing collision incident {Id} with rule {RuleId} ({RuleName})", 
+                    incident.Id, ruleId, RuleIdToName.GetValueOrDefault(ruleId, "Unknown"));
+                
+                try
+                {
+                    await GenerateAndSaveReportAsync(api, incident, database, config, ReportSource.Automatic, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error generating report for incident {Id}", incident.Id);
+                }
+            }
+
+            totalProcessed += feedResult.Data.Count;
+
+            // Persist after each batch so we don't reprocess on failure
+            workerState.LastPolledAt = DateTime.UtcNow;
+            await _repository.SaveWorkerStateAsync(api, database, workerState, ct);
+            
+        } while (feedResult.Data.Count >= resultsLimit && iteration < maxIterations && !ct.IsCancellationRequested);
+
+        if (iteration >= maxIterations)
+        {
+            _logger.LogWarning("Hit max iterations ({Max}) for {Database} - may still have pending exceptions", 
+                maxIterations, database);
         }
 
-        // Update version for next poll
-        workerState.FeedVersion = feedResult.ToVersion ?? 0;
-        
-        _logger.LogInformation("Found {Count} new incidents for {Database}", 
-            feedResult.Data.Count, database);
-        
-        foreach (var incident in feedResult.Data)
-        {
-            // Filter by collision rule IDs (Rule.Name is not populated in ExceptionEvent)
-            var ruleId = incident.Rule?.Id?.ToString() ?? "";
-            if (!CollisionRuleIds.Contains(ruleId))
-            {
-                _logger.LogDebug("Skipping incident {Id} - rule {RuleId} not a collision rule", 
-                    incident.Id, ruleId);
-                continue;
-            }
-            
-            _logger.LogInformation("Processing collision incident {Id} with rule {RuleId} ({RuleName})", 
-                incident.Id, ruleId, RuleIdToName.GetValueOrDefault(ruleId, "Unknown"));
-            
-            try
-            {
-                await GenerateAndSaveReportAsync(api, incident, database, config, ReportSource.Automatic, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error generating report for incident {Id}", incident.Id);
-            }
-        }
-
-        // Persist the feed version so the next Cloud Run Job invocation continues from here
-        await _repository.SaveWorkerStateAsync(api, database, workerState, ct);
-        _logger.LogInformation("Saved feed version {Version} for {Database}", workerState.FeedVersion, database);
+        _logger.LogInformation("Completed polling {Database}: {Total} incidents processed in {Iterations} batch(es), feed version now {Version}",
+            database, totalProcessed, iteration, workerState.FeedVersion);
     }
 
-    private static readonly TimeSpan StaleRequestTimeout = TimeSpan.FromMinutes(10);
-    
-    private async Task HandleStaleRequestsAsync(API api, CancellationToken ct)
+    private async Task HandleStaleRequestsAsync(IGeotabApi api, CancellationToken ct)
     {
         try
         {
-            var staleRequests = await _repository.GetStaleRequestsAsync(api, StaleRequestTimeout, ct);
+            var staleRequests = await _repository.GetStaleRequestsAsync(api, _options.StaleRequestTimeout, ct);
             
             foreach (var request in staleRequests)
             {
                 _logger.LogWarning("Marking stale request {RequestId} as failed (stuck in Processing for > {Timeout} minutes)",
-                    request.Id, StaleRequestTimeout.TotalMinutes);
+                    request.Id, _options.StaleRequestTimeout.TotalMinutes);
                 
                 await _repository.UpdateRequestStatusAsync(api, request.Id,
                     ReportRequestStatus.Failed, 
-                    errorMessage: $"Request timed out after {StaleRequestTimeout.TotalMinutes} minutes",
+                    errorMessage: $"Request timed out after {_options.StaleRequestTimeout.TotalMinutes} minutes",
                     ct: ct);
             }
         }
@@ -201,7 +228,7 @@ public class IncidentPollerWorker : BackgroundService
         }
     }
     
-    private async Task ProcessReportRequestsAsync(API api, CancellationToken ct)
+    private async Task ProcessReportRequestsAsync(IGeotabApi api, CancellationToken ct)
     {
         // First, handle stale requests (stuck in Processing for > 10 minutes)
         await HandleStaleRequestsAsync(api, ct);
@@ -327,7 +354,7 @@ public class IncidentPollerWorker : BackgroundService
     /// Useful for documenting vehicle state at a point in time.
     /// </summary>
     private async Task<IncidentReport> GenerateBaselineReportAsync(
-        API api,
+        IGeotabApi api,
         ReportRequest request,
         string database,
         CancellationToken ct)
@@ -419,7 +446,7 @@ public class IncidentPollerWorker : BackgroundService
     }
     
     private async Task GenerateAndSaveReportAsync(
-        API api, 
+        IGeotabApi api, 
         ExceptionEvent incident, 
         string database,
         CustomerConfig config,
@@ -459,7 +486,7 @@ public class IncidentPollerWorker : BackgroundService
     /// Add an audit entry to MyGeotab to track FleetClaim actions
     /// </summary>
     private async Task AddAuditAsync(
-        API api, 
+        IGeotabApi api, 
         string auditName, 
         string comment, 
         string? userName = null,

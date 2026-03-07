@@ -1,23 +1,22 @@
 using System.Text.Json;
 using FleetClaim.Core.Models;
-using Geotab.Checkmate;
 using Geotab.Checkmate.ObjectModel;
 
 namespace FleetClaim.Core.Geotab;
 
 public interface IAddInDataRepository
 {
-    Task<List<IncidentReport>> GetReportsAsync(API api, DateTime? since = null, CancellationToken ct = default);
-    Task<List<ReportRequest>> GetPendingRequestsAsync(API api, CancellationToken ct = default);
-    Task<List<ReportRequest>> GetStaleRequestsAsync(API api, TimeSpan timeout, CancellationToken ct = default);
-    Task<CustomerConfig?> GetConfigAsync(API api, CancellationToken ct = default);
+    Task<List<IncidentReport>> GetReportsAsync(IGeotabApi api, DateTime? since = null, CancellationToken ct = default);
+    Task<List<ReportRequest>> GetPendingRequestsAsync(IGeotabApi api, CancellationToken ct = default);
+    Task<List<ReportRequest>> GetStaleRequestsAsync(IGeotabApi api, TimeSpan timeout, CancellationToken ct = default);
+    Task<CustomerConfig?> GetConfigAsync(IGeotabApi api, CancellationToken ct = default);
     
-    Task<WorkerState?> GetWorkerStateAsync(API api, string database, CancellationToken ct = default);
-    Task SaveWorkerStateAsync(API api, string database, WorkerState state, CancellationToken ct = default);
+    Task<WorkerState?> GetWorkerStateAsync(IGeotabApi api, string database, CancellationToken ct = default);
+    Task SaveWorkerStateAsync(IGeotabApi api, string database, WorkerState state, CancellationToken ct = default);
 
-    Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default);
-    Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default);
-    Task UpdateRequestStatusAsync(API api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
+    Task SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default);
+    Task SaveRequestAsync(IGeotabApi api, ReportRequest request, CancellationToken ct = default);
+    Task UpdateRequestStatusAsync(IGeotabApi api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -36,7 +35,7 @@ public class AddInDataRepository : IAddInDataRepository
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
     
-    public async Task<List<IncidentReport>> GetReportsAsync(API api, DateTime? since = null, CancellationToken ct = default)
+    public async Task<List<IncidentReport>> GetReportsAsync(IGeotabApi api, DateTime? since = null, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
         
@@ -49,7 +48,7 @@ public class AddInDataRepository : IAddInDataRepository
             .ToList();
     }
     
-    public async Task<List<ReportRequest>> GetPendingRequestsAsync(API api, CancellationToken ct = default)
+    public async Task<List<ReportRequest>> GetPendingRequestsAsync(IGeotabApi api, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
         
@@ -62,7 +61,7 @@ public class AddInDataRepository : IAddInDataRepository
             .ToList();
     }
     
-    public async Task<List<ReportRequest>> GetStaleRequestsAsync(API api, TimeSpan timeout, CancellationToken ct = default)
+    public async Task<List<ReportRequest>> GetStaleRequestsAsync(IGeotabApi api, TimeSpan timeout, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
         var cutoff = DateTime.UtcNow - timeout;
@@ -77,7 +76,7 @@ public class AddInDataRepository : IAddInDataRepository
             .ToList();
     }
     
-    public async Task<CustomerConfig?> GetConfigAsync(API api, CancellationToken ct = default)
+    public async Task<CustomerConfig?> GetConfigAsync(IGeotabApi api, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
 
@@ -86,7 +85,7 @@ public class AddInDataRepository : IAddInDataRepository
             ?.Wrapper.GetPayload<CustomerConfig>();
     }
 
-    public async Task<WorkerState?> GetWorkerStateAsync(API api, string database, CancellationToken ct = default)
+    public async Task<WorkerState?> GetWorkerStateAsync(IGeotabApi api, string database, CancellationToken ct = default)
     {
         var allData = await GetAllAddInDataAsync(api, ct);
 
@@ -95,7 +94,7 @@ public class AddInDataRepository : IAddInDataRepository
             ?.Wrapper.GetPayload<WorkerState>();
     }
 
-    public async Task SaveWorkerStateAsync(API api, string database, WorkerState state, CancellationToken ct = default)
+    public async Task SaveWorkerStateAsync(IGeotabApi api, string database, WorkerState state, CancellationToken ct = default)
     {
         state.LastPolledAt = DateTime.UtcNow;
         var allData = await GetAllAddInDataAsync(api, ct);
@@ -113,7 +112,7 @@ public class AddInDataRepository : IAddInDataRepository
         }
     }
 
-    public async Task SaveReportAsync(API api, IncidentReport report, CancellationToken ct = default)
+    public async Task SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default)
     {
         // Compact the report to fit within AddInData 10KB limit
         var compactedReport = CompactReportForStorage(report);
@@ -292,14 +291,14 @@ public class AddInDataRepository : IAddInDataRepository
         return result.OrderBy(p => p.Timestamp).ToList();
     }
     
-    public async Task SaveRequestAsync(API api, ReportRequest request, CancellationToken ct = default)
+    public async Task SaveRequestAsync(IGeotabApi api, ReportRequest request, CancellationToken ct = default)
     {
         var wrapper = AddInDataWrapper.ForRequest(request);
         await AddNewRecordAsync(api, wrapper, ct);
     }
     
     public async Task UpdateRequestStatusAsync(
-        API api, 
+        IGeotabApi api, 
         string requestId, 
         ReportRequestStatus status, 
         string? error = null,
@@ -331,7 +330,7 @@ public class AddInDataRepository : IAddInDataRepository
         await UpdateExistingRecordAsync(api, record.GeotabId, wrapper, ct);
     }
     
-    private async Task<List<AddInDataRecord>> GetAllAddInDataAsync(API api, CancellationToken ct)
+    private async Task<List<AddInDataRecord>> GetAllAddInDataAsync(IGeotabApi api, CancellationToken ct)
     {
         var results = await api.CallAsync<List<object>>("Get", typeof(AddInData), new
         {
@@ -375,7 +374,7 @@ public class AddInDataRepository : IAddInDataRepository
         return records;
     }
     
-    private async Task AddNewRecordAsync(API api, AddInDataWrapper wrapper, CancellationToken ct)
+    private async Task AddNewRecordAsync(IGeotabApi api, AddInDataWrapper wrapper, CancellationToken ct)
     {
         var entity = new
         {
@@ -386,7 +385,7 @@ public class AddInDataRepository : IAddInDataRepository
         await api.CallAsync<object>("Add", typeof(AddInData), new { entity }, ct);
     }
     
-    private async Task UpdateExistingRecordAsync(API api, string geotabId, AddInDataWrapper wrapper, CancellationToken ct)
+    private async Task UpdateExistingRecordAsync(IGeotabApi api, string geotabId, AddInDataWrapper wrapper, CancellationToken ct)
     {
         // AddInData doesn't support Set properly - use Remove then Add pattern
         // First remove the old record

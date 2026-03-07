@@ -1,5 +1,5 @@
+using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
-using Geotab.Checkmate;
 using Geotab.Checkmate.ObjectModel;
 using Geotab.Checkmate.ObjectModel.Exceptions;
 using Geotab.Checkmate.ObjectModel.Engine;
@@ -9,7 +9,7 @@ namespace FleetClaim.Core.Services;
 public interface IIncidentCollector
 {
     Task<EvidencePackage> CollectEvidenceAsync(
-        API api,
+        IGeotabApi api,
         ExceptionEvent incident,
         TimeSpan windowBefore,
         TimeSpan windowAfter,
@@ -29,7 +29,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     public async Task<EvidencePackage> CollectEvidenceAsync(
-        API api,
+        IGeotabApi api,
         ExceptionEvent incident,
         TimeSpan windowBefore,
         TimeSpan windowAfter,
@@ -190,7 +190,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     private async Task<List<GpsPoint>> GetGpsTrailAsync(
-        API api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
+        IGeotabApi api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
     {
         var logs = await api.CallAsync<List<LogRecord>>("Get", typeof(LogRecord), new
         {
@@ -212,7 +212,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     private async Task<List<DiagnosticSnapshot>> GetDiagnosticsAsync(
-        API api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
+        IGeotabApi api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
     {
         var statusData = await api.CallAsync<List<StatusData>>("Get", typeof(StatusData), new
         {
@@ -240,7 +240,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     private async Task<(string? DriverId, HosStatus? HosStatus, double? SafetyScore, int? RecentIncidents)> GetDriverInfoAsync(
-        API api, ExceptionEvent incident, CancellationToken ct)
+        IGeotabApi api, ExceptionEvent incident, CancellationToken ct)
     {
         if (incident.Driver?.Id == null)
             return (null, null, null, null);
@@ -273,7 +273,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     private async Task<List<AccelerometerEvent>> GetAccelerometerDataAsync(
-        API api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
+        IGeotabApi api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
     {
         var events = new List<AccelerometerEvent>();
         
@@ -335,7 +335,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     private async Task<List<HardEvent>> GetHardEventsAsync(
-        API api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
+        IGeotabApi api, Id deviceId, DateTime from, DateTime to, CancellationToken ct)
     {
         var hardEvents = new List<HardEvent>();
         
@@ -380,7 +380,7 @@ public class IncidentCollector : IIncidentCollector
     }
     
     private async Task<VehicleStatusSnapshot> GetVehicleStatusAtTimeAsync(
-        API api, Id deviceId, DateTime time, CancellationToken ct)
+        IGeotabApi api, Id deviceId, DateTime time, CancellationToken ct)
     {
         var status = new VehicleStatusSnapshot();
         

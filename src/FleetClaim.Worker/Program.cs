@@ -1,4 +1,5 @@
 using FleetClaim.Core.Geotab;
+using FleetClaim.Core.Models;
 using FleetClaim.Core.Services;
 using FleetClaim.Worker;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,17 @@ var builder = Host.CreateApplicationBuilder(args);
 var projectId = builder.Configuration["GCP_PROJECT_ID"] 
     ?? Environment.GetEnvironmentVariable("GCP_PROJECT_ID")
     ?? throw new InvalidOperationException("GCP_PROJECT_ID is required");
+
+// Poller options (with sensible defaults, configurable via environment)
+builder.Services.Configure<PollerOptions>(options =>
+{
+    if (int.TryParse(builder.Configuration["POLLER_RESULTS_LIMIT"], out var limit))
+        options.ResultsLimit = limit;
+    if (int.TryParse(builder.Configuration["POLLER_MAX_ITERATIONS"], out var maxIter))
+        options.MaxIterations = maxIter;
+    if (int.TryParse(builder.Configuration["POLLER_STALE_TIMEOUT_MINUTES"], out var staleMins))
+        options.StaleRequestTimeout = TimeSpan.FromMinutes(staleMins);
+});
 
 // PDF options
 var pdfOptions = new PdfOptions

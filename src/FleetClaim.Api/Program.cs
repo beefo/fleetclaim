@@ -158,9 +158,9 @@ GeotabCredentialsRequest ExtractCredentials(HttpContext context, GeotabCredentia
 
 /// <summary>
 /// Verify MyGeotab credentials by calling GetSystemTimeUtc API
-/// Returns the authenticated API object if successful
+/// Returns the authenticated API wrapper if successful
 /// </summary>
-async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
+async Task<(bool Success, string? Error, IGeotabApi? Api)> VerifyCredentialsAsync(
     GeotabCredentialsRequest creds,
     CancellationToken ct)
 {
@@ -217,7 +217,7 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
         
         Console.WriteLine($"[VerifyCredentials] SUCCESS: Found user {users[0].Name} (id: {users[0].Id})");
         
-        return (true, null, api);
+        return (true, null, new GeotabApiWrapper(api, server));
     }
     catch (Exception ex)
     {
@@ -230,7 +230,7 @@ async Task<(bool Success, string? Error, API? Api)> VerifyCredentialsAsync(
 /// Fetch photo data for embedding in PDF
 /// </summary>
 async Task<Dictionary<string, byte[]>> FetchPhotoDataAsync(
-    API api,
+    IGeotabApi api,
     IncidentReport report,
     string server,
     CancellationToken ct)

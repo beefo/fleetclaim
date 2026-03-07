@@ -1,5 +1,5 @@
+using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Models;
-using Geotab.Checkmate;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -14,17 +14,17 @@ public interface IMediaFileService
     /// <summary>
     /// Uploads a PDF to Geotab MediaFile storage.
     /// </summary>
-    Task<string> UploadPdfAsync(API api, string reportId, string deviceId, byte[] pdfBytes, CancellationToken ct = default);
+    Task<string> UploadPdfAsync(IGeotabApi api, string reportId, string deviceId, byte[] pdfBytes, CancellationToken ct = default);
     
     /// <summary>
     /// Downloads a file from Geotab MediaFile storage.
     /// </summary>
-    Task<byte[]?> DownloadFileAsync(API api, string mediaFileId, CancellationToken ct = default);
+    Task<byte[]?> DownloadFileAsync(IGeotabApi api, string mediaFileId, CancellationToken ct = default);
     
     /// <summary>
     /// Deletes a file from Geotab MediaFile storage.
     /// </summary>
-    Task DeleteFileAsync(API api, string mediaFileId, CancellationToken ct = default);
+    Task DeleteFileAsync(IGeotabApi api, string mediaFileId, CancellationToken ct = default);
 }
 
 public class MediaFileService : IMediaFileService
@@ -39,7 +39,7 @@ public class MediaFileService : IMediaFileService
         _httpClient = httpClient ?? new HttpClient();
     }
     
-    public async Task<string> UploadPdfAsync(API api, string reportId, string deviceId, byte[] pdfBytes, CancellationToken ct = default)
+    public async Task<string> UploadPdfAsync(IGeotabApi api, string reportId, string deviceId, byte[] pdfBytes, CancellationToken ct = default)
     {
         // Step 1: Create MediaFile entity via JSON-RPC (avoiding direct object model dependency)
         var mediaFile = new Dictionary<string, object?>
@@ -72,7 +72,7 @@ public class MediaFileService : IMediaFileService
         {
             // Get connection info from the API
             var credentials = api.LoginResult?.Credentials;
-            var server = ExtractServer(api) ?? "my.geotab.com";
+            var server = api.Server ?? "my.geotab.com";
             var database = credentials?.Database ?? "";
             var userName = credentials?.UserName ?? "";
             var sessionId = credentials?.SessionId ?? "";
@@ -112,10 +112,10 @@ public class MediaFileService : IMediaFileService
         }
     }
     
-    public async Task<byte[]?> DownloadFileAsync(API api, string mediaFileId, CancellationToken ct = default)
+    public async Task<byte[]?> DownloadFileAsync(IGeotabApi api, string mediaFileId, CancellationToken ct = default)
     {
         var credentials = api.LoginResult?.Credentials;
-        var server = ExtractServer(api) ?? "my.geotab.com";
+        var server = api.Server ?? "my.geotab.com";
         var database = credentials?.Database ?? "";
         var userName = credentials?.UserName ?? "";
         var sessionId = credentials?.SessionId ?? "";
@@ -159,35 +159,9 @@ public class MediaFileService : IMediaFileService
         return bytes;
     }
     
-    public async Task DeleteFileAsync(API api, string mediaFileId, CancellationToken ct = default)
+    public async Task DeleteFileAsync(IGeotabApi api, string mediaFileId, CancellationToken ct = default)
     {
         await api.CallAsync<object>("Remove", new { typeName = "MediaFile", entity = new { id = mediaFileId } }, ct);
     }
     
-    /// <summary>
-    /// Extracts the server URL from the API object (handles different SDK versions).
-    /// </summary>
-    private static string? ExtractServer(API api)
-    {
-        // Try to get server from URI if available
-        try
-        {
-            var uriField = api.GetType().GetField("uri", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (uriField?.GetValue(api) is Uri uri)
-            {
-                return uri.Host;
-            }
-        }
-        catch { }
-        
-        // Fallback to database naming convention
-        var database = api.LoginResult?.Credentials?.Database;
-        if (!string.IsNullOrEmpty(database))
-        {
-            // Standard Geotab servers
-            return "my.geotab.com";
-        }
-        
-        return null;
-    }
 }

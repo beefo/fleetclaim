@@ -6,8 +6,8 @@ namespace FleetClaim.Core.Geotab;
 
 public interface IGeotabClientFactory
 {
-    Task<API> CreateClientAsync(string database, CancellationToken ct = default);
-    Task<API> RefreshSessionAsync(string database, CancellationToken ct = default);
+    Task<IGeotabApi> CreateClientAsync(string database, CancellationToken ct = default);
+    Task<IGeotabApi> RefreshSessionAsync(string database, CancellationToken ct = default);
     void InvalidateSession(string database);
 }
 
@@ -23,7 +23,7 @@ public class GeotabClientFactory : IGeotabClientFactory
     
     private class CachedSession
     {
-        public required API Api { get; init; }
+        public required IGeotabApi Api { get; init; }
         public required DateTime ExpiresAt { get; init; }
     }
     
@@ -32,7 +32,7 @@ public class GeotabClientFactory : IGeotabClientFactory
         _credentialStore = credentialStore;
     }
     
-    public async Task<API> CreateClientAsync(string database, CancellationToken ct = default)
+    public async Task<IGeotabApi> CreateClientAsync(string database, CancellationToken ct = default)
     {
         var key = database.ToLowerInvariant();
         
@@ -48,7 +48,7 @@ public class GeotabClientFactory : IGeotabClientFactory
     /// <summary>
     /// Force creates a new session, bypassing cache. Call this if a cached session becomes invalid.
     /// </summary>
-    public async Task<API> RefreshSessionAsync(string database, CancellationToken ct = default)
+    public async Task<IGeotabApi> RefreshSessionAsync(string database, CancellationToken ct = default)
     {
         var key = database.ToLowerInvariant();
         _sessions.TryRemove(key, out _);  // Clear any cached invalid session
@@ -65,7 +65,7 @@ public class GeotabClientFactory : IGeotabClientFactory
         Console.WriteLine($"[GeotabClientFactory] Invalidated session for {database}");
     }
     
-    private async Task<API> CreateNewSessionAsync(string database, string key, CancellationToken ct)
+    private async Task<IGeotabApi> CreateNewSessionAsync(string database, string key, CancellationToken ct)
     {
         var creds = await _credentialStore.GetCredentialsAsync(database, ct);
         
@@ -83,14 +83,16 @@ public class GeotabClientFactory : IGeotabClientFactory
         
         Console.WriteLine($"[GeotabClientFactory] Authenticated successfully for {database}");
         
+        var wrapper = new GeotabApiWrapper(api, creds.Server ?? "my.geotab.com");
+        
         // Cache the session
         _sessions[key] = new CachedSession
         {
-            Api = api,
+            Api = wrapper,
             ExpiresAt = DateTime.UtcNow.Add(_sessionTtl)
         };
         
-        return api;
+        return wrapper;
     }
 }
 

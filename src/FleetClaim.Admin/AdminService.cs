@@ -220,7 +220,7 @@ public class AdminService
         }
     }
 
-    private async Task<List<AddInDataWrapper>> GetAddInDataAsync(Geotab.Checkmate.API api)
+    private async Task<List<AddInDataWrapper>> GetAddInDataAsync(IGeotabApi api)
     {
         const string AddInIdValue = "aji_jHQGE8k2TDodR8tZrpw";
         
@@ -266,16 +266,17 @@ public class AdminService
         _logger.LogInformation("Onboarding database {Database} on server {Server}", database, server);
         
         // Step 1: Authenticate to verify credentials
-        var api = new API(username, password, null, database, server);
+        var rawApi = new API(username, password, null, database, server);
         try
         {
-            await api.AuthenticateAsync();
+            await rawApi.AuthenticateAsync();
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Failed to authenticate to {database}: {ex.Message}");
         }
         
+        var api = new GeotabApiWrapper(rawApi, server);
         _logger.LogInformation("Authenticated to {Database}", database);
         
         // Step 2: Store credentials in Secret Manager

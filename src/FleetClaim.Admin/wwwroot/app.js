@@ -126,6 +126,7 @@ function renderDatabases(databases) {
                     <th>Pending</th>
                     <th>Completed</th>
                     <th>Reports</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -137,11 +138,36 @@ function renderDatabases(databases) {
                         <td>${db.pendingRequests || 0}</td>
                         <td>${db.completedRequests || 0}</td>
                         <td>${db.totalReports || 0}</td>
+                        <td><button class="btn-remove" onclick="removeDatabase('${db.database}')">Remove</button></td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
     `;
+}
+
+async function removeDatabase(database) {
+    if (!confirm(`Are you sure you want to remove "${database}"?\n\nThis will delete the stored credentials from Secret Manager. Reports and data in MyGeotab will not be affected.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/databases/${encodeURIComponent(database)}`, {
+            method: 'DELETE',
+            headers: { 'X-API-Key': apiKey }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert(`✅ ${data.message}`);
+            loadDashboard();
+        } else {
+            throw new Error(data.detail || data.error || 'Failed to remove database');
+        }
+    } catch (error) {
+        alert(`❌ Error: ${error.message}`);
+    }
 }
 
 async function loadRequests() {

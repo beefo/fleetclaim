@@ -391,6 +391,21 @@ footer {
     background: #64748b;
 }
 
+.btn-remove {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+.btn-remove:hover {
+    background: #b91c1c;
+}
+
 .success-message {
     background: #065f46;
     color: #a7f3d0;

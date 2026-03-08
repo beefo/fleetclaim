@@ -43,6 +43,10 @@ MyGeotab Portal (iframe)
 
 Before committing any bug fix: write a test that catches the bug, verify it fails without the fix, apply the fix, verify it passes. No exceptions.
 
+### Every API Endpoint Must Be Authenticated
+
+All endpoints in `src/FleetClaim.Api/Program.cs` (except `/health`) must call `VerifyCredentialsAsync` and reject unauthenticated requests. When adding a new endpoint, always include credential verification. Never expose an unauthenticated route that accesses Geotab data or performs actions.
+
 ### Never Commit Secrets
 
 - **NEVER** hardcode passwords, API keys, or credentials

@@ -2,6 +2,8 @@
 
 **This is an open-source public repository.** Never commit secrets, internal URLs, GCP project numbers, service account emails, or database names into this file or any tracked file.
 
+**Keep this file up to date.** When you add, remove, or rename components, endpoints, models, services, or test files, update the relevant sections of this CLAUDE.md in the same commit.
+
 ## Project Overview
 
 **FleetClaim** is a MyGeotab Add-In for automated vehicle incident evidence collection and reporting. It integrates with Geotab's telematics platform to generate PDF reports containing GPS trails, accelerometer data, photos, weather conditions, and vehicle diagnostics.

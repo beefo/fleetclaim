@@ -166,6 +166,7 @@ public class AddInDataRepository : IAddInDataRepository
             InjuryDescription = report.InjuryDescription,
             ShareUrl = report.ShareUrl,
             IsBaselineReport = report.IsBaselineReport,
+            Source = report.Source,  // Preserve manual vs automatic source
             Notes = report.Notes,
             NotesUpdatedAt = report.NotesUpdatedAt,
             NotesUpdatedBy = report.NotesUpdatedBy,

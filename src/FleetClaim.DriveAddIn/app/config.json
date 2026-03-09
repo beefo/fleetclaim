@@ -3,10 +3,10 @@
     "supportEmail": "support@fleetclaim.com",
     "version": "1.0.0",
     "items": [{
-        "url": "index.html",
+        "url": "https://fleetclaim-drive-addin-589116575765.us-central1.run.app/",
         "path": "DriveAppLink/",
         "menuName": { "en": "FleetClaim" },
-        "icon": "images/icon.svg"
+        "icon": "https://fleetclaim-drive-addin-589116575765.us-central1.run.app/images/icon.svg"
     }],
     "onStartup": true,
     "onShutdown": false,

@@ -1,0 +1,5 @@
+node_modules
+dist
+.dev
+*.test.ts
+__tests__

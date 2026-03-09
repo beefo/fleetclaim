@@ -92,22 +92,20 @@ export interface DriveGeotabApi extends GeotabApi {
     mobile: MobileApi;
 }
 
-// Declare global geotab object (extended for Drive)
+// Declare global geotab object (provided by Geotab framework)
 declare global {
-    interface Window {
-        geotab: {
-            addin: {
-                fleetclaimdrive?: GeotabAddIn;
-            };
-        };
-    }
-    const geotab: typeof window.geotab;
+    const geotab: {
+        addin: Record<string, GeotabAddInFactory>;
+    };
 }
 
-export interface GeotabAddIn {
-    (api: GeotabApi, state: GeotabPageState): void;
-    initialize?: (api: GeotabApi, state: GeotabPageState, callback: () => void) => void;
-    focus?: (api: GeotabApi, state: GeotabPageState) => void;
-    blur?: (api: GeotabApi, state: GeotabPageState) => void;
-    startup?: (freshApi: GeotabApi, freshState: DriveState, callback: () => void) => void;
+export type GeotabAddInFactory = () => GeotabAddInLifecycle;
+
+export interface GeotabAddInLifecycle {
+    initialize: (api: GeotabApi, state: GeotabPageState, callback: () => void) => void;
+    focus: (api: GeotabApi, state: GeotabPageState) => void;
+    blur: () => void;
+    startup?: (api: GeotabApi, state: DriveState, callback: () => void) => void;
 }
+
+// Legacy interface - replaced by GeotabAddInFactory and GeotabAddInLifecycle above

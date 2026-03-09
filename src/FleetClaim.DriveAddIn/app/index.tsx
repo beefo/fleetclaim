@@ -11,27 +11,22 @@ import { DriveApp } from '@/components';
 import { GeotabApi, GeotabPageState, DriveState } from '@/types';
 import './styles/drive.css';
 
-const ADDIN_NAME = 'FleetClaimDrive';
 const ELEMENT_ID = 'fleetclaim-drive';
 
-// Ensure geotab global exists
-if (typeof window !== 'undefined') {
-    if (!window.geotab) {
-        (window as any).geotab = { addin: {} };
-    }
-    if (!window.geotab.addin) {
-        window.geotab.addin = {};
-    }
-}
+// Declare geotab global (provided by Geotab framework, but we need it for standalone testing)
+declare const geotab: { addin: Record<string, unknown> };
 
 /**
  * Geotab Drive Add-In Registration
+ * 
+ * The name "FleetClaimDrive" is derived from config.json "name": "FleetClaim Drive" (spaces removed).
+ * Geotab framework provides the `geotab` global before loading our script.
  * 
  * IMPORTANT: Do NOT look up DOM elements at registration time.
  * The element only exists after Geotab loads the Add-In's HTML into the iframe.
  * Look up elements inside initialize() instead.
  */
-(window as any).geotab.addin[ADDIN_NAME] = function () {
+geotab.addin.FleetClaimDrive = function () {
     'use strict';
 
     let reactRoot: Root | null = null;

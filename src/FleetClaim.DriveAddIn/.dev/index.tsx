@@ -3,10 +3,13 @@
  * Initializes the Add-In with mock Geotab Drive API
  */
 
+// Set up geotab global before importing the add-in (mimics Geotab framework)
+(window as any).geotab = { addin: {} };
+
 import '../app/index';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const addin = (window as any).geotab?.addin?.fleetclaimdrive;
+    const addin = (window as any).geotab?.addin?.FleetClaimDrive;
 
     if (!addin) {
         console.error('FleetClaim Drive Add-In not registered');
@@ -104,8 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     console.log('[Dev] Initializing FleetClaim Drive Add-In...');
-    addin.initialize(mockApi, mockState, () => {
+    const lifecycle = addin();  // Call factory to get lifecycle object
+    lifecycle.initialize(mockApi, mockState, () => {
         console.log('[Dev] Add-In initialized, calling focus...');
-        addin.focus(mockApi, mockState);
+        lifecycle.focus(mockApi, mockState);
     });
 });

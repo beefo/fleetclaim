@@ -8,3 +8,4 @@ export { ReviewSubmitStep } from './ReviewSubmitStep';
 export { SubmissionsList } from './SubmissionsList';
 export { SyncStatusBanner } from './SyncStatusBanner';
 export { ToastContainer } from './ToastContainer';
+export { LocationPicker } from './LocationPicker';

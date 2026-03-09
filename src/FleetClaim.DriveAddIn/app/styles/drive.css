@@ -580,3 +580,78 @@
     max-width: 100%;
     width: 100%;
 }
+
+/* ============================================
+   Location Picker
+   ============================================ */
+
+.location-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.location-picker-map {
+    border: 1px solid var(--zen-color-border, #ddd);
+    border-radius: 8px;
+    overflow: hidden;
+    touch-action: pan-x pan-y;
+}
+
+/* Fix Leaflet tile rendering */
+.location-picker-map .leaflet-container {
+    height: 100%;
+    width: 100%;
+    z-index: 0;
+}
+
+.location-picker-map .leaflet-pane {
+    z-index: 1;
+}
+
+.location-picker-map .leaflet-control-zoom {
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.location-picker-address {
+    font-size: 14px;
+    color: var(--zen-color-text-secondary, #666);
+    min-height: 20px;
+}
+
+.location-picker-address .location-icon {
+    margin-right: 4px;
+}
+
+.location-picker-address .location-text {
+    color: var(--zen-color-text-primary, #111);
+}
+
+.location-picker-address .location-coords {
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.location-picker-address .location-loading {
+    font-style: italic;
+    color: var(--zen-color-text-tertiary, #999);
+}
+
+.location-picker-address .location-empty {
+    font-style: italic;
+    color: var(--zen-color-text-tertiary, #999);
+}
+
+.location-refresh-btn {
+    align-self: flex-start;
+}
+
+/* Leaflet popup and marker fixes for mobile */
+.leaflet-marker-icon {
+    cursor: grab;
+}
+
+.leaflet-marker-icon:active {
+    cursor: grabbing;
+}

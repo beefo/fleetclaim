@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { Card } from '@geotab/zenith';
 import { DriverSubmission } from '@/types';
 import { useDrive } from '@/contexts';
+import { LocationPicker } from './LocationPicker';
 
 interface IncidentBasicsStepProps {
     submission: DriverSubmission;
@@ -28,7 +29,7 @@ export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submissi
             onChange(updates);
         }
 
-        // Grab location
+        // Grab location if we don't have one yet
         if (!submission.latitude) {
             getCurrentLocation().then(loc => {
                 if (loc) {
@@ -37,6 +38,20 @@ export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submissi
             });
         }
     }, []);
+
+    // Handle location changes from the map
+    const handleLocationChange = useCallback((lat: number, lng: number, address?: string) => {
+        onChange({ 
+            latitude: lat, 
+            longitude: lng, 
+            locationAddress: address 
+        });
+    }, [onChange]);
+
+    // Refresh location from GPS
+    const handleRefreshLocation = useCallback(async () => {
+        return getCurrentLocation();
+    }, [getCurrentLocation]);
 
     const formatLocalDateTime = (isoString: string): string => {
         try {
@@ -85,18 +100,16 @@ export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submissi
                             onChange={(e) => onChange({ incidentTimestamp: new Date(e.target.value).toISOString() })}
                         />
                     </div>
-                    {submission.latitude && submission.longitude && (
-                        <div className="form-field">
-                            <label className="form-label">Location</label>
-                            <input
-                                type="text"
-                                className="form-input"
-                                value={submission.locationAddress || `${submission.latitude.toFixed(5)}, ${submission.longitude.toFixed(5)}`}
-                                onChange={(e) => onChange({ locationAddress: e.target.value })}
-                                placeholder="Street address (optional)"
-                            />
-                        </div>
-                    )}
+                    <div className="form-field">
+                        <label className="form-label">Location</label>
+                        <LocationPicker
+                            latitude={submission.latitude}
+                            longitude={submission.longitude}
+                            address={submission.locationAddress}
+                            onLocationChange={handleLocationChange}
+                            onRefreshLocation={handleRefreshLocation}
+                        />
+                    </div>
                 </Card.Content>
             </Card>
 

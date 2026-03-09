@@ -45,6 +45,12 @@ public class AddInDataWrapper
         Type = "workerState",
         Payload = JsonSerializer.SerializeToElement(state, SerializerOptions)
     };
-    
+
+    public static AddInDataWrapper ForDriverSubmission(DriverSubmission submission) => new()
+    {
+        Type = "driverSubmission",
+        Payload = JsonSerializer.SerializeToElement(submission, SerializerOptions)
+    };
+
     public T? GetPayload<T>() => Payload.Deserialize<T>(SerializerOptions);
 }

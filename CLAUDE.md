@@ -11,16 +11,16 @@
 ### Architecture
 
 ```
-MyGeotab Portal (iframe)
-  └─ FleetClaim Add-In (React + TypeScript, served by nginx on Cloud Run)
-       │
-       ▼
-  FleetClaim API (Cloud Run, .NET 10, Minimal APIs)
+MyGeotab Portal (iframe)                    Geotab Drive App (mobile)
+  └─ FleetClaim Add-In (React+TS, nginx)     └─ FleetClaim Drive Add-In (React+TS, nginx)
+       │                                           │  offline: localStorage/IndexedDB
+       ▼                                           │  online: → AddInData sync
+  FleetClaim API (Cloud Run, .NET 10, Minimal APIs)│
   • PDF generation (QuestPDF)      • Session verification
   • Email reports (Gmail OAuth)     • Rate limiting (10/min PDF, 5/min email)
-       │
+       │                                           │
        ├── Geotab API (AddInData, MediaFile, ExceptionEvents)
-       ├── FleetClaim Worker (Cloud Run Job, .NET 10) — polls for collisions, generates reports
+       ├── FleetClaim Worker (Cloud Run Job, .NET 10) — polls collisions, merges driver submissions
        └── GCP Services (Secret Manager, Artifact Registry, Cloud Build)
 ```
 
@@ -29,11 +29,12 @@ MyGeotab Portal (iframe)
 | Component | Path | Tech | Purpose |
 |-----------|------|------|---------|
 | **Add-In** | `src/FleetClaim.AddIn.React/` | React 18, TypeScript 5.5, Webpack 5, Zenith 1.15 | UI in MyGeotab iframe |
+| **Drive Add-In** | `src/FleetClaim.DriveAddIn/` | React 18, TypeScript 5.5, Webpack 5, Zenith 1.15 | Mobile incident capture in Geotab Drive |
 | **API** | `src/FleetClaim.Api/` | .NET 10, Minimal APIs | PDF generation, email, auth |
-| **Worker** | `src/FleetClaim.Worker/` | .NET 10, Cloud Run Job | Feed-based collision polling, report generation |
+| **Worker** | `src/FleetClaim.Worker/` | .NET 10, Cloud Run Job | Feed-based collision polling, driver submission merging |
 | **Core** | `src/FleetClaim.Core/` | .NET 10 Class Library | Models, Geotab integration, PDF renderer, services |
 | **Admin** | `src/FleetClaim.Admin/` | .NET 10, Razor Pages | Admin portal |
-| **Tests** | `src/FleetClaim.Tests/` | xUnit, Moq | 116 unit tests |
+| **Tests** | `src/FleetClaim.Tests/` | xUnit, Moq | 176 unit tests |
 
 ---
 
@@ -130,17 +131,26 @@ fleetclaim/
 │   │       ├── services/       # reportService (CRUD, PDF, email), photoService (MediaFile upload)
 │   │       ├── types/          # geotab.ts, report.ts
 │   │       └── __tests__/      # 9 Jest test files
+│   ├── FleetClaim.DriveAddIn/
+│   │   ├── app/
+│   │   │   ├── components/     # 10 components (DriveApp, SafetyScreen, wizard steps, etc.)
+│   │   │   ├── contexts/       # DriveContext (api, mobile state, online status)
+│   │   │   ├── hooks/          # useSubmission, useOnlineStatus, useCamera, useToast
+│   │   │   ├── services/       # storageService (offline), syncService (AddInData sync)
+│   │   │   ├── types/          # geotab.ts (Drive-extended), driverSubmission.ts, report.ts
+│   │   │   └── __tests__/      # Jest test files
+│   │   └── .dev/               # Dev mode with mock api.mobile
 │   ├── FleetClaim.Api/
 │   │   └── Program.cs          # Minimal API (517 lines): /health, /api/pdf, /api/email
 │   ├── FleetClaim.Core/
-│   │   ├── Models/             # IncidentReport, AddInDataWrapper, ReportRequest, CustomerConfig
+│   │   ├── Models/             # IncidentReport, AddInDataWrapper, DriverSubmission, ReportRequest
 │   │   ├── Geotab/             # AddInDataRepository, GcpCredentialStore, GeotabClientFactory
 │   │   └── Services/           # QuestPdfRenderer (1800+ lines), ReportGenerator, IncidentCollector, etc.
 │   ├── FleetClaim.Worker/
 │   │   ├── Program.cs          # DI setup
-│   │   └── IncidentPollerWorker.cs  # Feed polling, collision detection, request processing
+│   │   └── IncidentPollerWorker.cs  # Feed polling, collision detection, driver submission merging
 │   ├── FleetClaim.Admin/       # Razor Pages admin portal
-│   └── FleetClaim.Tests/       # 10 test files, 116 tests
+│   └── FleetClaim.Tests/       # 11 test files, 176 tests
 └── fleetclaim.sln              # Solution file (5 .NET projects)
 ```
 
@@ -226,8 +236,9 @@ Allowed origins: `*.geotab.com`, `*.geotab.ca`, `localhost`, `*.run.app`
 Reports are stored in Geotab's AddInData as JSON via `AddInDataWrapper`:
 
 ```csharp
-// Type-discriminated wrapper: type = "report" | "reportRequest" | "config" | "workerState"
+// Type-discriminated wrapper: type = "report" | "reportRequest" | "config" | "workerState" | "driverSubmission"
 { "type": "report", "payload": { /* IncidentReport */ } }
+{ "type": "driverSubmission", "payload": { /* DriverSubmission */ } }
 ```
 
 **Critical constraint:** AddInData has a **10KB limit per record**. The `AddInDataRepository` compacts reports before saving:
@@ -267,7 +278,7 @@ public PhotoCategory Category =>
     ? cat : PhotoCategory.General;
 ```
 
-### Worker: Feed-Based Collision Polling
+### Worker: Feed-Based Collision Polling & Submission Merging
 
 The Worker runs as a single-execution Cloud Run Job:
 1. Loads database credentials from GCP Secret Manager
@@ -275,7 +286,16 @@ The Worker runs as a single-execution Cloud Run Job:
 3. Filters to stock collision rule IDs: `RuleAccidentId`, `RuleEnhancedMajorCollisionId`, `RuleEnhancedMinorCollisionId`
 4. Generates reports via `ReportGenerator` → compacts → saves to AddInData
 5. Processes manual `ReportRequest`s (marks stale ones as failed after 10 min)
-6. Saves feed version to AddInData for next poll
+6. **Merges driver submissions** — matches `DriverSubmission` to auto-reports by `DeviceId` + `OccurredAt` within 30 minutes, fills empty fields, appends photos/notes. Submissions unmatched after 24h become standalone reports.
+7. Saves feed version to AddInData for next poll
+
+### Drive Add-In: Offline-First Storage
+
+The Drive Add-In uses two-tier offline storage:
+- **localStorage** — submission metadata (`fleetclaim_drive_submissions` index, `fleetclaim_drive_sub_<id>` per record)
+- **IndexedDB** — photo binary data (`fleetclaim_drive` database, `photos` object store)
+
+Photos are resized to max 1920px via canvas before storage. On reconnect, `syncService` uploads photos as Geotab MediaFile entities, then saves the submission to AddInData as `type: "driverSubmission"`.
 
 ---
 
@@ -284,11 +304,14 @@ The Worker runs as a single-execution Cloud Run Job:
 ### Run Tests
 
 ```bash
-# .NET tests (116 tests)
+# .NET tests (176 tests)
 dotnet test
 
 # Add-In tests (requires jest-environment-jsdom)
 cd src/FleetClaim.AddIn.React && npm test
+
+# Drive Add-In tests
+cd src/FleetClaim.DriveAddIn && npm test
 ```
 
 ### Test Files (.NET)
@@ -305,6 +328,7 @@ cd src/FleetClaim.AddIn.React && npm test
 | NotificationServiceTests | Email/webhook |
 | OpenMeteoWeatherServiceTests | Weather API |
 | ShareLinkServiceTests | Secure share links |
+| DriverSubmissionMergeTests | Worker merge logic (15 tests) |
 
 ---
 
@@ -315,6 +339,7 @@ cd src/FleetClaim.AddIn.React && npm test
 Pushes to `main` trigger conditional deploys via `dorny/paths-filter@v3`:
 - `src/FleetClaim.Api/**` or `src/FleetClaim.Core/**` → Deploy API
 - `src/FleetClaim.AddIn.React/**` → Deploy Add-In
+- `src/FleetClaim.DriveAddIn/**` → Deploy Drive Add-In
 - `src/FleetClaim.Worker/**` or `src/FleetClaim.Core/**` → Deploy Worker
 - `src/FleetClaim.Admin/**` → Deploy Admin
 
@@ -325,13 +350,14 @@ Authentication: GCP Workload Identity Federation
 ```bash
 gcloud builds submit --config=cloudbuild-api.yaml
 gcloud builds submit --config=cloudbuild-addin.yaml
+gcloud builds submit --config=cloudbuild-drive.yaml
 gcloud builds submit --config=cloudbuild-worker.yaml
 ```
 
 ### Docker Images
 
 - API/Worker: multi-stage `mcr.microsoft.com/dotnet/sdk:10.0` → `aspnet:10.0`
-- Add-In: `nginx:alpine` serving static build from `dist/`
+- Add-In / Drive Add-In: `nginx:alpine` serving static build from `dist/`
 - Registry: GCP Artifact Registry (`us-central1-docker.pkg.dev`)
 
 ---
@@ -344,6 +370,7 @@ gcloud builds submit --config=cloudbuild-worker.yaml
 | Region | `us-central1` |
 | API URL | `https://fleetclaim-api-<project-number>.us-central1.run.app` |
 | Add-In URL | `https://fleetclaim-addin-react-<project-number>.us-central1.run.app` |
+| Drive Add-In URL | `https://fleetclaim-drive-addin-<project-number>.us-central1.run.app` |
 | Add-In Solution ID | `aji_jHQGE8k2TDodR8tZrpw` |
 | Demo Database | See `.secrets/` for database and server details |
 
@@ -355,13 +382,13 @@ gcloud builds submit --config=cloudbuild-worker.yaml
 
 ---
 
-## Add-In Component Map
+## Add-In Component Map (MyGeotab)
 
 | Component | Purpose |
 |-----------|---------|
 | App | Root: tabbed interface (Reports, Requests, Settings, About) |
 | ReportsTab | Report list with filters (search, severity, date range, vehicle) |
-| ReportDetailPage | Full-page report view with edit capabilities |
+| ReportDetailPage | Full-page report view with edit capabilities, merge provenance banner |
 | ReportDetailModal | Quick-view modal for report preview |
 | RequestsTab | Manual report request management |
 | NewRequestModal | Form to create new report requests |
@@ -372,6 +399,21 @@ gcloud builds submit --config=cloudbuild-worker.yaml
 | DamageAssessmentForm | Damage details input |
 | ThirdPartyInfoForm | Other-party information |
 | ToastContainer | Toast notification system |
+
+## Drive Add-In Component Map (Geotab Drive)
+
+| Component | Purpose |
+|-----------|---------|
+| DriveApp | Root: wizard flow controller with step navigation and progress indicator |
+| SafetyScreen | Safety-first screen with 911 call button, entry to wizard or past submissions |
+| IncidentBasicsStep | Auto-populated vehicle/driver/location, description, severity |
+| DamageAssessmentStep | Single-column damage level, driveability, description, cost estimate |
+| PhotoCaptureStep | Camera integration via `api.mobile.camera`, category selection, photo grid |
+| ThirdPartyStep | Other driver/vehicle info, police report, injuries, witnesses |
+| ReviewSubmitStep | Summary review, online submit or offline save-for-later |
+| SubmissionsList | Past/pending submissions with status, resume draft, delete |
+| SyncStatusBanner | Online/offline indicator with pending sync count |
+| ToastContainer | Mobile-adapted toast notifications |
 
 ---
 

@@ -240,6 +240,14 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                 </Banner>
             )}
 
+            {/* Driver submission merge notice */}
+            {report.mergedFromSubmissionId && (
+                <Banner type="success" header="Driver Submission Merged">
+                    Driver-submitted details were merged into this report
+                    {report.mergedAt ? ` on ${safeFormat(report.mergedAt, 'MMM d, yyyy h:mm a')}` : ''}.
+                </Banner>
+            )}
+
             {/* Tabs */}
             <Tabs tabs={tabs} activeTabId={activeTab} onTabChange={(id) => setActiveTab(id as TabId)} />
 

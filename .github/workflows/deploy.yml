@@ -25,6 +25,10 @@ on:
         description: 'Deploy Admin'
         type: boolean
         default: false
+      deploy_drive:
+        description: 'Deploy Drive Add-In'
+        type: boolean
+        default: false
       deploy_all:
         description: 'Deploy ALL components'
         type: boolean
@@ -66,6 +70,7 @@ jobs:
       addin: ${{ steps.filter.outputs.addin }}
       worker: ${{ steps.filter.outputs.worker }}
       admin: ${{ steps.filter.outputs.admin }}
+      drive: ${{ steps.filter.outputs.drive }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -89,6 +94,9 @@ jobs:
             admin:
               - 'src/FleetClaim.Admin/**'
               - 'cloudbuild-admin.yaml'
+            drive:
+              - 'src/FleetClaim.DriveAddIn/**'
+              - 'cloudbuild-drive.yaml'
 
   # Deploy API
   deploy-api:
@@ -236,4 +244,41 @@ jobs:
       - name: Summary
         run: |
           echo "## 🚀 Admin Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # Deploy Drive Add-In
+  deploy-drive:
+    needs: [test, changes]
+    if: |
+      needs.changes.outputs.drive == 'true' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.deploy_drive || inputs.deploy_all))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy Drive Add-In
+        run: |
+          gcloud builds submit \
+            --config=cloudbuild-drive.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }} \
+            --project=${{ env.GCP_PROJECT_ID }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Drive Add-In Deployed" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY

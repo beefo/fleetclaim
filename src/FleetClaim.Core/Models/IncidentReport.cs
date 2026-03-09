@@ -98,6 +98,17 @@ public class IncidentReport
     /// Who updated the notes (email or username)
     /// </summary>
     public string? NotesUpdatedBy { get; set; }
+
+    /// <summary>
+    /// ID of the driver submission that was merged into this report.
+    /// Set by the Worker when a DriverSubmission is matched and merged.
+    /// </summary>
+    public string? MergedFromSubmissionId { get; set; }
+
+    /// <summary>
+    /// When the driver submission was merged into this report.
+    /// </summary>
+    public DateTime? MergedAt { get; set; }
 }
 
 public enum IncidentSeverity

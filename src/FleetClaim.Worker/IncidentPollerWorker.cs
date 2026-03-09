@@ -110,9 +110,12 @@ public class IncidentPollerWorker : BackgroundService
         
         // Process new incidents
         await ProcessNewIncidentsAsync(api, database, config, ct);
-        
+
         // Process manual report requests
         await ProcessReportRequestsAsync(api, ct);
+
+        // Process driver submissions (merge into matching reports)
+        await ProcessDriverSubmissionsAsync(api, database, ct);
     }
     
     private async Task ProcessNewIncidentsAsync(
@@ -445,6 +448,157 @@ public class IncidentPollerWorker : BackgroundService
         return report;
     }
     
+    /// <summary>
+    /// Processes unmerged driver submissions by matching them to existing reports
+    /// and merging driver-provided data into the report.
+    /// </summary>
+    private async Task ProcessDriverSubmissionsAsync(IGeotabApi api, string database, CancellationToken ct)
+    {
+        List<DriverSubmission> submissions;
+        try
+        {
+            submissions = await _repository.GetUnmergedSubmissionsAsync(api, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching driver submissions for {Database}", database);
+            return;
+        }
+
+        if (submissions.Count == 0) return;
+
+        _logger.LogInformation("Found {Count} unmerged driver submission(s) for {Database}", submissions.Count, database);
+
+        var reports = await _repository.GetReportsAsync(api, ct: ct);
+        var matchWindow = TimeSpan.FromMinutes(30);
+        var standaloneAge = TimeSpan.FromHours(24);
+
+        foreach (var submission in submissions)
+        {
+            try
+            {
+                // Find matching report: same DeviceId, OccurredAt within 30 min of IncidentTimestamp
+                var match = reports.FirstOrDefault(r =>
+                    string.Equals(r.VehicleId, submission.DeviceId, StringComparison.OrdinalIgnoreCase) &&
+                    Math.Abs((r.OccurredAt - submission.IncidentTimestamp).TotalMinutes) <= matchWindow.TotalMinutes &&
+                    r.MergedFromSubmissionId == null);
+
+                if (match != null)
+                {
+                    _logger.LogInformation("Merging submission {SubmissionId} into report {ReportId}",
+                        submission.Id, match.Id);
+
+                    MergeSubmissionIntoReport(match, submission);
+                    await _repository.UpdateReportAsync(api, match, ct);
+                    await _repository.UpdateSubmissionStatusAsync(api, submission.Id, "merged", match.Id, ct);
+                }
+                else if (DateTime.UtcNow - submission.CreatedAt > standaloneAge)
+                {
+                    // No match found after 24 hours - mark as standalone
+                    _logger.LogInformation("No matching report found for submission {SubmissionId} after 24h, marking standalone",
+                        submission.Id);
+                    await _repository.UpdateSubmissionStatusAsync(api, submission.Id, "standalone", ct: ct);
+                }
+                else
+                {
+                    _logger.LogDebug("No matching report yet for submission {SubmissionId}, will retry next poll",
+                        submission.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing driver submission {SubmissionId}", submission.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Merges driver-submitted data into an existing report.
+    /// Driver data fills empty fields; notes and photos are appended.
+    /// </summary>
+    public static void MergeSubmissionIntoReport(IncidentReport report, DriverSubmission submission)
+    {
+        // Mark merge provenance
+        report.MergedFromSubmissionId = submission.Id;
+        report.MergedAt = DateTime.UtcNow;
+
+        // Fill empty driver info
+        report.DriverId ??= submission.DriverId;
+        report.DriverName ??= submission.DriverName;
+
+        // Fill empty location info
+        if (string.IsNullOrEmpty(report.IncidentAddress))
+            report.IncidentAddress = submission.LocationAddress;
+
+        // Fill empty damage info
+        report.DamageDescription ??= submission.DamageDescription;
+        report.DamageLevel ??= submission.DamageLevel;
+        report.VehicleDriveable ??= submission.VehicleDriveable;
+
+        // Fill empty police info
+        report.PoliceReportNumber ??= submission.PoliceReportNumber;
+        report.PoliceAgency ??= submission.PoliceAgency;
+
+        // Fill injury info
+        report.InjuriesReported ??= submission.InjuriesReported;
+        report.InjuryDescription ??= submission.InjuryDescription;
+
+        // Append notes
+        if (!string.IsNullOrEmpty(submission.Notes))
+        {
+            var driverNotes = $"[Driver submission] {submission.Notes}";
+            report.Notes = string.IsNullOrEmpty(report.Notes) ? driverNotes : $"{report.Notes}\n\n{driverNotes}";
+            report.NotesUpdatedAt = DateTime.UtcNow;
+            report.NotesUpdatedBy = submission.DriverName ?? "Driver";
+        }
+
+        if (!string.IsNullOrEmpty(submission.Description))
+        {
+            var driverDesc = $"[Driver statement] {submission.Description}";
+            report.Notes = string.IsNullOrEmpty(report.Notes) ? driverDesc : $"{report.Notes}\n\n{driverDesc}";
+            report.NotesUpdatedAt = DateTime.UtcNow;
+            report.NotesUpdatedBy = submission.DriverName ?? "Driver";
+        }
+
+        // Append third-party info
+        if (submission.ThirdParties.Count > 0)
+        {
+            report.ThirdParties.AddRange(submission.ThirdParties);
+        }
+        else if (!string.IsNullOrEmpty(submission.OtherDriverName))
+        {
+            report.ThirdParties.Add(new ThirdPartyInfo
+            {
+                DriverName = submission.OtherDriverName,
+                DriverPhone = submission.OtherDriverPhone,
+                InsuranceCompany = submission.OtherDriverInsurance,
+                InsurancePolicyNumber = submission.OtherDriverPolicyNumber,
+                VehicleMake = submission.OtherVehicleMake,
+                VehicleModel = submission.OtherVehicleModel,
+                VehiclePlate = submission.OtherVehiclePlate,
+                VehicleColor = submission.OtherVehicleColor
+            });
+        }
+
+        // Append witnesses
+        if (!string.IsNullOrEmpty(submission.Witnesses))
+        {
+            report.Witnesses.Add(new WitnessInfo { Statement = submission.Witnesses });
+        }
+
+        // Append photos
+        if (submission.Photos.Count > 0)
+        {
+            report.Evidence.Photos.AddRange(submission.Photos);
+        }
+
+        // Upgrade severity if driver reports higher
+        if (submission.Severity.HasValue && submission.Severity.Value > report.Severity)
+        {
+            report.Severity = submission.Severity.Value;
+        }
+    }
+
     private async Task GenerateAndSaveReportAsync(
         IGeotabApi api, 
         ExceptionEvent incident, 

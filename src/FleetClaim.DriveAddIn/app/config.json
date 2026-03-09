@@ -1,0 +1,14 @@
+{
+    "name": "FleetClaim Drive",
+    "supportEmail": "support@fleetclaim.com",
+    "version": "1.0.0",
+    "items": [{
+        "url": "index.html",
+        "path": "DriveAppLink/",
+        "menuName": { "en": "FleetClaim" },
+        "icon": "images/icon.svg"
+    }],
+    "onStartup": true,
+    "onShutdown": false,
+    "isSigned": false
+}

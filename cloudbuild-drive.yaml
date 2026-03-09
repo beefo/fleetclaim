@@ -1,0 +1,46 @@
+steps:
+  # Build Drive Add-In image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-drive'
+    args:
+      - 'build'
+      - '--cache-from'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin:$COMMIT_SHA'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin:latest'
+      - 'src/FleetClaim.DriveAddIn'
+
+  # Push Drive Add-In image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-drive'
+    args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin']
+    waitFor: ['build-drive']
+
+  # Deploy Drive Add-In to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-drive'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fleetclaim-drive-addin'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+      - '--platform'
+      - 'managed'
+    waitFor: ['push-drive']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fleetclaim/drive-addin:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '600s'

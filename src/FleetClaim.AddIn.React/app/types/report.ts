@@ -138,6 +138,8 @@ export interface IncidentReport {
     pdfMediaFileId?: string;
     shareToken?: string;
     shareUrl?: string;
+    mergedFromSubmissionId?: string;
+    mergedAt?: string;
 }
 
 export interface ReportRequest {
@@ -155,7 +157,7 @@ export interface ReportRequest {
 }
 
 export interface AddInDataWrapper<T> {
-    type: 'report' | 'reportRequest' | 'config';
+    type: 'report' | 'reportRequest' | 'config' | 'driverSubmission';
     payload: T;
     version?: number;
 }

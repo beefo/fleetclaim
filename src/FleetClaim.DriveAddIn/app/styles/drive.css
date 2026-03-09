@@ -1,0 +1,582 @@
+/**
+ * FleetClaim Drive Add-In Styles
+ * Mobile-optimized single-column layout
+ */
+
+/* ============================================
+   Root Layout
+   ============================================ */
+
+.drive-app {
+    padding: 8px 12px;
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: 'Source Sans Pro', sans-serif;
+}
+
+/* ============================================
+   Safety Screen
+   ============================================ */
+
+.drive-safety-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 0;
+}
+
+.safety-content {
+    text-align: center;
+    padding: 24px 16px;
+}
+
+.safety-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.safety-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    color: var(--zen-color-text-primary, #111);
+}
+
+.safety-text {
+    font-size: 16px;
+    color: var(--zen-color-text-secondary, #666);
+    margin: 0 0 20px;
+    line-height: 1.5;
+}
+
+.safety-call-btn {
+    min-width: 200px;
+    font-size: 18px;
+    padding: 12px 24px;
+}
+
+.safety-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.safety-actions button {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+    font-size: 16px;
+}
+
+/* ============================================
+   Wizard
+   ============================================ */
+
+.wizard-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wizard-progress {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    overflow-x: auto;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.progress-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--zen-color-surface-secondary, #e5e7eb);
+    color: var(--zen-color-text-secondary, #666);
+    transition: all 0.2s;
+}
+
+.progress-step.active .progress-dot {
+    background: var(--zen-color-primary, #0070f3);
+    color: white;
+}
+
+.progress-step.completed .progress-dot {
+    background: #22c55e;
+    color: white;
+}
+
+.progress-label {
+    font-size: 11px;
+    color: var(--zen-color-text-secondary, #999);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.progress-step.active .progress-label {
+    color: var(--zen-color-primary, #0070f3);
+    font-weight: 600;
+}
+
+.wizard-nav {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-top: 1px solid var(--zen-color-border-light, #eee);
+    margin-top: 8px;
+}
+
+.wizard-nav button {
+    min-height: 44px;
+    min-width: 100px;
+}
+
+/* ============================================
+   Steps
+   ============================================ */
+
+.drive-step {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.step-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--zen-color-text-primary, #111);
+}
+
+.step-subtitle {
+    font-size: 14px;
+    color: var(--zen-color-text-secondary, #666);
+    margin: -8px 0 0;
+}
+
+/* ============================================
+   Form Fields
+   ============================================ */
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.form-field:last-child {
+    margin-bottom: 0;
+}
+
+.form-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--zen-color-text-primary);
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--zen-color-border, #d1d5db);
+    border-radius: 6px;
+    font-size: 16px;
+    font-family: inherit;
+    background: #fff;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--zen-color-primary, #0070f3);
+    box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.1);
+}
+
+.form-input::placeholder {
+    color: var(--zen-color-text-tertiary, #999);
+}
+
+/* ============================================
+   Severity & Category Options
+   ============================================ */
+
+.severity-options,
+.category-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.severity-option,
+.category-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--zen-color-border, #ddd);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+}
+
+.severity-option:hover,
+.category-option:hover {
+    border-color: var(--zen-color-primary, #0070f3);
+}
+
+.severity-option.selected,
+.category-option.selected {
+    border-color: var(--zen-color-primary, #0070f3);
+    background: rgba(0, 112, 243, 0.05);
+}
+
+.severity-option input,
+.category-option input {
+    margin: 0;
+}
+
+/* ============================================
+   Damage Level Options
+   ============================================ */
+
+.damage-level-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.damage-level-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--zen-color-border, #ddd);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.damage-level-option:hover {
+    border-color: var(--zen-color-primary);
+    background: var(--zen-color-surface-secondary, #f8f9fa);
+}
+
+.damage-level-option.selected {
+    border-color: var(--zen-color-primary, #0070f3);
+    background: rgba(0, 112, 243, 0.05);
+}
+
+.damage-level-option input[type="radio"] {
+    margin-top: 2px;
+}
+
+.damage-level-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.damage-level-label {
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--zen-color-text-primary);
+}
+
+.damage-level-desc {
+    font-size: 13px;
+    color: var(--zen-color-text-secondary);
+}
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+/* ============================================
+   Photos
+   ============================================ */
+
+.photo-grid-mobile {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.photo-card-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.photo-thumb-mobile {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--zen-color-border-light, #eee);
+}
+
+.photo-placeholder-mobile {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--zen-color-surface-secondary, #f5f5f5);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--zen-color-text-secondary);
+}
+
+.photo-meta-mobile {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+}
+
+.photo-category-label {
+    font-size: 11px;
+    color: var(--zen-color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.photo-delete-btn {
+    background: none;
+    border: none;
+    font-size: 11px;
+    color: var(--zen-color-destructive, #ef4444);
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+/* ============================================
+   Review
+   ============================================ */
+
+.review-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.review-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--zen-color-border-light, #f0f0f0);
+}
+
+.review-row:last-child {
+    border-bottom: none;
+}
+
+.review-label {
+    font-size: 14px;
+    color: var(--zen-color-text-secondary, #666);
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.review-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--zen-color-text-primary, #111);
+    text-align: right;
+    word-break: break-word;
+}
+
+.submit-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.submit-actions button {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+    font-size: 16px;
+}
+
+/* ============================================
+   Submitted Screen
+   ============================================ */
+
+.submitted-screen {
+    text-align: center;
+    padding: 40px 16px;
+}
+
+.submitted-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.submitted-screen h2 {
+    font-size: 22px;
+    margin: 0 0 8px;
+    color: var(--zen-color-text-primary);
+}
+
+.submitted-screen p {
+    font-size: 15px;
+    color: var(--zen-color-text-secondary);
+    margin: 0 0 24px;
+}
+
+.submitted-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.submitted-actions button {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+}
+
+/* ============================================
+   Submissions List
+   ============================================ */
+
+.list-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.submission-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.submission-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.submission-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--zen-color-text-secondary, #666);
+}
+
+.submission-desc {
+    font-size: 13px;
+    color: var(--zen-color-text-primary);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.submission-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+/* ============================================
+   Toast Container
+   ============================================ */
+
+.toast-container {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideDown 0.2s ease;
+    cursor: pointer;
+}
+
+.toast-success { background: #10b981; color: white; }
+.toast-error { background: #ef4444; color: white; }
+.toast-warning { background: #f59e0b; color: white; }
+.toast-info { background: #3b82f6; color: white; }
+
+.toast-icon { flex-shrink: 0; }
+.toast-message { flex: 1; }
+
+.toast-close {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+}
+
+@keyframes slideDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* ============================================
+   Empty States
+   ============================================ */
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--zen-color-text-secondary);
+}
+
+.empty-state-text {
+    font-size: 14px;
+}
+
+/* ============================================
+   Zenith Card overrides for mobile
+   ============================================ */
+
+.drive-app .zen-card-container.zen-card-container--small {
+    max-width: 100%;
+    width: 100%;
+}

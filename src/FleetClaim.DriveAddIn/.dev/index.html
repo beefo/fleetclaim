@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FleetClaim Drive - Development</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Source Sans Pro', sans-serif;
+            max-width: 420px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            min-height: 100vh;
+        }
+        .dev-banner {
+            background: #059669;
+            color: white;
+            padding: 8px 16px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dev-banner button {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        .dev-controls {
+            background: #f3f4f6;
+            padding: 8px 16px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 12px;
+        }
+        .dev-controls label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dev-banner">
+        <span>FleetClaim Drive - Dev Mode (Mobile Preview)</span>
+        <div>
+            <button onclick="location.reload()">Reload</button>
+        </div>
+    </div>
+    <div class="dev-controls" id="dev-controls">
+        <label>
+            <input type="checkbox" id="dev-online" checked>
+            Online
+        </label>
+    </div>
+    <div id="fleetclaim-drive"></div>
+
+    <script>
+        window.geotab = { addin: {} };
+
+        // Mock API
+        var mockApi = {
+            call: function(method, params, success, error) {
+                console.log('[MockAPI] call:', method, params);
+                setTimeout(function() {
+                    switch(method) {
+                        case 'Get':
+                            if (params.typeName === 'Device') {
+                                success([{ id: 'b1', name: 'Vehicle 001', serialNumber: 'G9001' }]);
+                            } else if (params.typeName === 'AddInData') {
+                                success([]);
+                            } else if (params.typeName === 'User') {
+                                success([{ id: 'u1', name: 'driver@fleet.com', firstName: 'John', lastName: 'Driver' }]);
+                            } else {
+                                success([]);
+                            }
+                            break;
+                        case 'Add':
+                            success('mock_id_' + Date.now());
+                            break;
+                        default:
+                            success(null);
+                    }
+                }, 200);
+                return Promise.resolve();
+            },
+            multiCall: function(calls) {
+                return Promise.all(calls.map(function(c) {
+                    return new Promise(function(resolve) {
+                        mockApi.call(c[0], c[1], resolve, function() { resolve(null); });
+                    });
+                }));
+            },
+            getSession: function(success) {
+                success({
+                    database: 'demo_drive',
+                    userName: 'driver@fleet.com',
+                    sessionId: 'mock_session_drive_123',
+                    server: 'my.geotab.com'
+                });
+            },
+            mobile: {
+                exists: function() { return true; },
+                camera: {
+                    takePicture: function() {
+                        // Return a small test image (red square)
+                        var canvas = document.createElement('canvas');
+                        canvas.width = 200;
+                        canvas.height = 200;
+                        var ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#ef4444';
+                        ctx.fillRect(0, 0, 200, 200);
+                        ctx.fillStyle = 'white';
+                        ctx.font = '16px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Test Photo', 100, 100);
+                        return Promise.resolve(canvas.toDataURL('image/jpeg'));
+                    }
+                },
+                geolocation: navigator.geolocation,
+                speak: function(msg) { console.log('[Mock] speak:', msg); },
+                notification: {
+                    notify: function(msg, title) {
+                        console.log('[Mock] notification:', title, msg);
+                        return Promise.resolve();
+                    }
+                },
+                user: {
+                    get: function() {
+                        return Promise.resolve([{ id: 'u1', name: 'John Driver', firstName: 'John', lastName: 'Driver' }]);
+                    }
+                },
+                vehicle: {
+                    get: function() {
+                        return Promise.resolve({ id: 'b1', name: 'Vehicle 001' });
+                    }
+                },
+                listenTo: function(callback) {
+                    // Listen for online toggle
+                    var checkbox = document.getElementById('dev-online');
+                    if (checkbox) {
+                        checkbox.addEventListener('change', function() {
+                            callback({
+                                device: 'b1',
+                                driving: false,
+                                online: checkbox.checked,
+                                charging: false,
+                                background: false,
+                                getState: function() { return {}; },
+                                setState: function() {},
+                                gotoPage: function() { return true; },
+                                hasAccessToPage: function() { return true; },
+                                getGroupFilter: function() { return []; },
+                                translate: function(t) { return t; }
+                            });
+                        });
+                    }
+                }
+            }
+        };
+
+        // Mock state
+        var mockState = {
+            device: 'b1',
+            driving: false,
+            online: true,
+            charging: false,
+            background: false,
+            getState: function() { return {}; },
+            setState: function() {},
+            gotoPage: function() { return true; },
+            hasAccessToPage: function() { return true; },
+            getGroupFilter: function() { return []; },
+            translate: function(text) { return text; }
+        };
+    </script>
+</body>
+</html>

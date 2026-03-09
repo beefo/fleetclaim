@@ -10,13 +10,17 @@ public interface IAddInDataRepository
     Task<List<ReportRequest>> GetPendingRequestsAsync(IGeotabApi api, CancellationToken ct = default);
     Task<List<ReportRequest>> GetStaleRequestsAsync(IGeotabApi api, TimeSpan timeout, CancellationToken ct = default);
     Task<CustomerConfig?> GetConfigAsync(IGeotabApi api, CancellationToken ct = default);
-    
+
     Task<WorkerState?> GetWorkerStateAsync(IGeotabApi api, string database, CancellationToken ct = default);
     Task SaveWorkerStateAsync(IGeotabApi api, string database, WorkerState state, CancellationToken ct = default);
 
     Task SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default);
     Task SaveRequestAsync(IGeotabApi api, ReportRequest request, CancellationToken ct = default);
     Task UpdateRequestStatusAsync(IGeotabApi api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
+
+    Task<List<DriverSubmission>> GetUnmergedSubmissionsAsync(IGeotabApi api, CancellationToken ct = default);
+    Task UpdateSubmissionStatusAsync(IGeotabApi api, string submissionId, string status, string? mergedIntoReportId = null, CancellationToken ct = default);
+    Task UpdateReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -170,6 +174,8 @@ public class AddInDataRepository : IAddInDataRepository
             Notes = report.Notes,
             NotesUpdatedAt = report.NotesUpdatedAt,
             NotesUpdatedBy = report.NotesUpdatedBy,
+            MergedFromSubmissionId = report.MergedFromSubmissionId,
+            MergedAt = report.MergedAt,
             // Don't store PdfBase64 in AddInData - it's generated on demand
             PdfBase64 = null
         };
@@ -386,12 +392,60 @@ public class AddInDataRepository : IAddInDataRepository
         await api.CallAsync<object>("Add", typeof(AddInData), new { entity }, ct);
     }
     
+    public async Task<List<DriverSubmission>> GetUnmergedSubmissionsAsync(IGeotabApi api, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+
+        return allData
+            .Where(r => r.Wrapper.Type == "driverSubmission")
+            .Select(r => r.Wrapper.GetPayload<DriverSubmission>())
+            .Where(r => r != null && r.Status == "synced")
+            .Cast<DriverSubmission>()
+            .OrderBy(r => r.IncidentTimestamp)
+            .ToList();
+    }
+
+    public async Task UpdateSubmissionStatusAsync(IGeotabApi api, string submissionId, string status, string? mergedIntoReportId = null, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+
+        var record = allData.FirstOrDefault(r =>
+            r.Wrapper.Type == "driverSubmission" &&
+            r.Wrapper.GetPayload<DriverSubmission>()?.Id == submissionId);
+
+        if (record == null) return;
+
+        var submission = record.Wrapper.GetPayload<DriverSubmission>();
+        if (submission == null) return;
+
+        submission.Status = status;
+        submission.MergedIntoReportId = mergedIntoReportId ?? submission.MergedIntoReportId;
+
+        var wrapper = AddInDataWrapper.ForDriverSubmission(submission);
+        await UpdateExistingRecordAsync(api, record.GeotabId, wrapper, ct);
+    }
+
+    public async Task UpdateReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+
+        var record = allData.FirstOrDefault(r =>
+            r.Wrapper.Type == "report" &&
+            r.Wrapper.GetPayload<IncidentReport>()?.Id == report.Id);
+
+        if (record == null) return;
+
+        var compacted = CompactReportForStorage(report);
+        var wrapper = AddInDataWrapper.ForReport(compacted);
+        await UpdateExistingRecordAsync(api, record.GeotabId, wrapper, ct);
+    }
+
     private async Task UpdateExistingRecordAsync(IGeotabApi api, string geotabId, AddInDataWrapper wrapper, CancellationToken ct)
     {
         // AddInData doesn't support Set properly - use Remove then Add pattern
         // First remove the old record
         await api.CallAsync<object>("Remove", typeof(AddInData), new { entity = new { id = geotabId } }, ct);
-        
+
         // Then add the updated record
         await AddNewRecordAsync(api, wrapper, ct);
     }

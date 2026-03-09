@@ -50,7 +50,7 @@ jobs:
       - name: Type-check Add-In
         run: |
           cd src/FleetClaim.AddIn.React
-          npm ci --ignore-scripts
+          npm install --ignore-scripts
           npx tsc --noEmit
 
       - name: Type-check Drive Add-In

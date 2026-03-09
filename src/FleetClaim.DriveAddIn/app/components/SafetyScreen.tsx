@@ -18,7 +18,7 @@ export const SafetyScreen: React.FC<SafetyScreenProps> = ({ onContinue, onViewPa
                             If anyone needs medical attention or there is immediate danger, call emergency services first.
                         </p>
                         <Button
-                            type="primary-destructive"
+                            type="tertiary-destructive"
                             onClick={() => window.open('tel:911', '_system')}
                             className="safety-call-btn"
                         >

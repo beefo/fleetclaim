@@ -11,7 +11,7 @@ import { DriveApp } from '@/components';
 import { GeotabApi, GeotabPageState, DriveState } from '@/types';
 import './styles/drive.css';
 
-const ADDIN_NAME = 'fleetclaimdrive';
+const ADDIN_NAME = 'FleetClaimDrive';
 const ELEMENT_ID = 'fleetclaim-drive';
 
 // Ensure geotab global exists

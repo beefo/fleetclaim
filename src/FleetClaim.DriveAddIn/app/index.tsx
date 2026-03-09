@@ -26,23 +26,22 @@ if (typeof window !== 'undefined') {
 
 /**
  * Geotab Drive Add-In Registration
+ * 
+ * IMPORTANT: Do NOT look up DOM elements at registration time.
+ * The element only exists after Geotab loads the Add-In's HTML into the iframe.
+ * Look up elements inside initialize() instead.
  */
-(window as any).geotab.addin[ADDIN_NAME] = function (api: GeotabApi, state: GeotabPageState) {
+(window as any).geotab.addin[ADDIN_NAME] = function () {
     'use strict';
 
     let reactRoot: Root | null = null;
-    let currentApi: GeotabApi = api;
-    let currentState: GeotabPageState = state;
-    const elAddin = document.getElementById(ELEMENT_ID);
-
-    if (!elAddin) {
-        console.error('[FleetClaim Drive] Could not find element #' + ELEMENT_ID);
-        return {};
-    }
+    let elAddin: HTMLElement | null = null;
+    let currentApi: GeotabApi | null = null;
+    let currentState: GeotabPageState | null = null;
 
     function renderApp() {
-        if (!reactRoot) {
-            console.error('[FleetClaim Drive] React root not initialized');
+        if (!reactRoot || !currentApi || !currentState || !elAddin) {
+            console.error('[FleetClaim Drive] React root or context not initialized');
             return;
         }
 
@@ -62,6 +61,7 @@ if (typeof window !== 'undefined') {
     return {
         /**
          * Called once when the Add-In is first loaded.
+         * DOM element is now available.
          */
         initialize: function (
             freshApi: GeotabApi,
@@ -70,6 +70,14 @@ if (typeof window !== 'undefined') {
         ) {
             currentApi = freshApi;
             currentState = freshState;
+
+            // Look up element HERE, not at registration time
+            elAddin = document.getElementById(ELEMENT_ID);
+            if (!elAddin) {
+                console.error('[FleetClaim Drive] Could not find element #' + ELEMENT_ID);
+                initializeCallback();
+                return;
+            }
 
             if (freshState.translate) {
                 freshState.translate(elAddin);
@@ -85,7 +93,9 @@ if (typeof window !== 'undefined') {
         focus: function (freshApi: GeotabApi, freshState: GeotabPageState) {
             currentApi = freshApi;
             currentState = freshState;
-            elAddin.classList.remove('hidden');
+            if (elAddin) {
+                elAddin.classList.remove('hidden');
+            }
             renderApp();
         },
 

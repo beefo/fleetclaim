@@ -5,11 +5,13 @@
 ADDIN_SRC="src/FleetClaim.AddIn.React/app/"
 ADDIN_DIST="src/FleetClaim.AddIn.React/dist/"
 DRIVE_SRC="src/FleetClaim.DriveAddIn/app/"
+DRIVE_DIST="src/FleetClaim.DriveAddIn/dist/"
 
 # Get staged files
 staged_addin_src=$(git diff --cached --name-only -- "$ADDIN_SRC")
 staged_addin_dist=$(git diff --cached --name-only -- "$ADDIN_DIST")
 staged_drive_src=$(git diff --cached --name-only -- "$DRIVE_SRC")
+staged_drive_dist=$(git diff --cached --name-only -- "$DRIVE_DIST")
 
 # Check Add-In dist/ is rebuilt
 if [ -n "$staged_addin_src" ] && [ -z "$staged_addin_dist" ]; then
@@ -22,6 +24,21 @@ if [ -n "$staged_addin_src" ] && [ -z "$staged_addin_dist" ]; then
     echo "Run this to rebuild:"
     echo "  cd src/FleetClaim.AddIn.React && NODE_OPTIONS=\"\" npm run build"
     echo "  git add src/FleetClaim.AddIn.React/dist/"
+    echo ""
+    exit 1
+fi
+
+# Check Drive Add-In dist/ is rebuilt
+if [ -n "$staged_drive_src" ] && [ -z "$staged_drive_dist" ]; then
+    echo ""
+    echo "ERROR: Drive Add-In source files changed but dist/ was not updated."
+    echo ""
+    echo "Changed source files:"
+    echo "$staged_drive_src" | sed 's/^/  /'
+    echo ""
+    echo "Run this to rebuild:"
+    echo "  cd src/FleetClaim.DriveAddIn && NODE_OPTIONS=\"\" npm run build"
+    echo "  git add src/FleetClaim.DriveAddIn/dist/"
     echo ""
     exit 1
 fi

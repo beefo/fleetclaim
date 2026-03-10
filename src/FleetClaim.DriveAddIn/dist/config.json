@@ -8,7 +8,7 @@
         "menuName": { "en": "FleetClaim" },
         "icon": "https://fleetclaim-drive-addin-589116575765.us-central1.run.app/images/icon.svg"
     }],
-    "onStartup": true,
+    "onStartup": false,
     "onShutdown": false,
     "isSigned": false
 }

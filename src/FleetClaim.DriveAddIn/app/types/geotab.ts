@@ -20,7 +20,9 @@ export interface SessionInfo {
 export interface GeotabApi {
     call: <T = unknown>(method: string, params: object, successCallback?: (result: T) => void, errorCallback?: (error: Error) => void) => Promise<T>;
     multiCall: <T = unknown[]>(calls: Array<[string, object]>) => Promise<T>;
-    getSession: (successCallback: (session: SessionInfo) => void, errorCallback?: (error: Error) => void) => void;
+    // NOTE: second param is newSession BOOLEAN, not an error callback!
+    // Passing a truthy value (e.g. a function) triggers a new session → login redirect.
+    getSession: (successCallback: (session: SessionInfo) => void, newSession?: boolean) => void;
 }
 
 export interface GeotabPageState {

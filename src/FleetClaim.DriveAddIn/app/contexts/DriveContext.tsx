@@ -64,6 +64,9 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
     const hasMobileApi = !!(driveApi?.mobile?.exists?.());
 
     // Capture credentials from Geotab session
+    // NOTE: getSession signature is getSession(callback, newSession?)
+    // where newSession is a BOOLEAN, not an error callback!
+    // Passing a function as the second arg is truthy → triggers new session → login redirect.
     const captureCredentials = useCallback(async (): Promise<GeotabCredentials | null> => {
         return new Promise((resolve) => {
             try {
@@ -79,9 +82,6 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
                     setCredentials(creds);
                     setGeotabHost(server);
                     resolve(creds);
-                }, (err) => {
-                    console.error('[DriveContext] getSession error:', err);
-                    resolve(null);
                 });
             } catch (err) {
                 console.error('[DriveContext] getSession exception:', err);

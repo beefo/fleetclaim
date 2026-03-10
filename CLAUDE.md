@@ -178,16 +178,22 @@ The SDK expects hostname only, **not** a full URL:
 new API("user", "sessionId", null, "my.geotab.com");
 ```
 
-### api.getSession() Signature
+### api.getSession() Signature (Critical)
+
+The second parameter is `newSession` — a **BOOLEAN**, not an error callback. Passing a function (or any truthy value) as the second argument tells the framework to create a new session, which **triggers a login redirect loop** in Geotab Drive.
 
 ```typescript
-// getSession(callback, newSession?)
-// - newSession is a BOOLEAN (not an error callback!)
+// WRONG — function is truthy, interpreted as newSession=true → login redirect!
+api.getSession((creds, server) => { ... }, (err) => { ... });
+
+// RIGHT — only pass the success callback
 api.getSession((creds, server) => {
   // creds.database, creds.userName, creds.sessionId
   // server: "my.geotab.com" or similar
 });
 ```
+
+Handle errors with try/catch around the `getSession()` call, not with a second callback argument.
 
 ### Credential Warmup
 

@@ -69,7 +69,34 @@ export const DriveApp: React.FC = () => {
     }, [wizardStep]);
 
     const handleSubmit = useCallback(async () => {
-        if (!submission || !api || !credentials) return;
+        console.log('[DriveApp] handleSubmit called', { 
+            hasSubmission: !!submission, 
+            hasApi: !!api, 
+            hasCredentials: !!credentials,
+            credentials 
+        });
+        
+        if (!submission) {
+            console.error('[DriveApp] No submission to submit');
+            toast.error('No submission data');
+            return;
+        }
+        
+        if (!api) {
+            console.error('[DriveApp] No API available');
+            toast.error('API not available');
+            return;
+        }
+        
+        if (!credentials) {
+            console.warn('[DriveApp] No credentials - saving locally instead');
+            // Fall back to local save if no credentials
+            markPendingSync();
+            toast.info('Saved locally. Will sync when authenticated.');
+            setView('submitted');
+            return;
+        }
+        
         setIsSubmitting(true);
         try {
             // Mark as pending sync first

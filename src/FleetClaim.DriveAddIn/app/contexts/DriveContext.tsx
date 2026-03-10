@@ -66,18 +66,27 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
     // Capture credentials from Geotab session
     const captureCredentials = useCallback(async (): Promise<GeotabCredentials | null> => {
         return new Promise((resolve) => {
-            apiRef.current.getSession((session: SessionInfo) => {
-                const server = session.server || 'my.geotab.com';
-                const creds: GeotabCredentials = {
-                    database: session.database,
-                    userName: session.userName,
-                    sessionId: session.sessionId,
-                    server
-                };
-                setCredentials(creds);
-                setGeotabHost(server);
-                resolve(creds);
-            }, () => resolve(null));
+            try {
+                apiRef.current.getSession((session: SessionInfo) => {
+                    console.log('[DriveContext] getSession result:', session);
+                    const server = session.server || 'my.geotab.com';
+                    const creds: GeotabCredentials = {
+                        database: session.database,
+                        userName: session.userName,
+                        sessionId: session.sessionId,
+                        server
+                    };
+                    setCredentials(creds);
+                    setGeotabHost(server);
+                    resolve(creds);
+                }, (err) => {
+                    console.error('[DriveContext] getSession error:', err);
+                    resolve(null);
+                });
+            } catch (err) {
+                console.error('[DriveContext] getSession exception:', err);
+                resolve(null);
+            }
         });
     }, []);
 

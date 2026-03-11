@@ -48,10 +48,12 @@ export interface SubmissionPhoto {
 export function createEmptySubmission(deviceId: string, deviceName: string): DriverSubmission {
     const now = new Date().toISOString();
     const id = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const normalizedDeviceId = deviceId === 'unknown' ? '' : deviceId;
+    const normalizedDeviceName = deviceName === 'Unknown Vehicle' ? '' : deviceName;
     return {
         id,
-        deviceId,
-        deviceName,
+        deviceId: normalizedDeviceId,
+        deviceName: normalizedDeviceName,
         incidentTimestamp: now,
         photos: [],
         status: 'draft',

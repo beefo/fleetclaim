@@ -15,8 +15,10 @@ export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submissi
     // Auto-populate device/driver/location on mount
     useEffect(() => {
         const updates: Partial<DriverSubmission> = {};
+        const needsDeviceId = !submission.deviceId || submission.deviceId === 'unknown';
+        const needsDeviceName = !submission.deviceName || submission.deviceName === 'Unknown Vehicle';
 
-        if (currentDevice && !submission.deviceId) {
+        if (currentDevice && (needsDeviceId || needsDeviceName)) {
             updates.deviceId = currentDevice.id;
             updates.deviceName = currentDevice.name;
         }

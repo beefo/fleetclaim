@@ -138,6 +138,13 @@ describe('storageService', () => {
             expect(sub.photos).toEqual([]);
             expect(sub.pendingPhotoUploads).toBe(0);
         });
+
+        it('should normalize unknown device placeholders to empty values', () => {
+            const sub = createEmptySubmission('unknown', 'Unknown Vehicle');
+
+            expect(sub.deviceId).toBe('');
+            expect(sub.deviceName).toBe('');
+        });
     });
 
     describe('submissions changed event', () => {

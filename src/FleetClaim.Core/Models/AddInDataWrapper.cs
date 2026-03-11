@@ -53,4 +53,23 @@ public class AddInDataWrapper
     };
 
     public T? GetPayload<T>() => Payload.Deserialize<T>(SerializerOptions);
+
+    public bool TryGetPayload<T>(out T? payload)
+    {
+        try
+        {
+            payload = Payload.Deserialize<T>(SerializerOptions);
+            return payload is not null;
+        }
+        catch (JsonException)
+        {
+            payload = default;
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            payload = default;
+            return false;
+        }
+    }
 }

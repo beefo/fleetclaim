@@ -398,7 +398,7 @@ public class AddInDataRepository : IAddInDataRepository
 
         return allData
             .Where(r => r.Wrapper.Type == "driverSubmission")
-            .Select(r => r.Wrapper.GetPayload<DriverSubmission>())
+            .Select(TryGetDriverSubmission)
             .Where(r => r != null && r.Status == "synced")
             .Cast<DriverSubmission>()
             .OrderBy(r => r.IncidentTimestamp)
@@ -409,13 +409,15 @@ public class AddInDataRepository : IAddInDataRepository
     {
         var allData = await GetAllAddInDataAsync(api, ct);
 
-        var record = allData.FirstOrDefault(r =>
-            r.Wrapper.Type == "driverSubmission" &&
-            r.Wrapper.GetPayload<DriverSubmission>()?.Id == submissionId);
+        var record = allData
+            .Where(r => r.Wrapper.Type == "driverSubmission")
+            .Select(r => new { Record = r, Submission = TryGetDriverSubmission(r) })
+            .FirstOrDefault(x => x.Submission?.Id == submissionId)
+            ?.Record;
 
         if (record == null) return;
 
-        var submission = record.Wrapper.GetPayload<DriverSubmission>();
+        var submission = TryGetDriverSubmission(record);
         if (submission == null) return;
 
         submission.Status = status;
@@ -423,6 +425,14 @@ public class AddInDataRepository : IAddInDataRepository
 
         var wrapper = AddInDataWrapper.ForDriverSubmission(submission);
         await UpdateExistingRecordAsync(api, record.GeotabId, wrapper, ct);
+    }
+
+    private static DriverSubmission? TryGetDriverSubmission(AddInDataRecord record)
+    {
+        if (record.Wrapper.TryGetPayload<DriverSubmission>(out var submission))
+            return submission;
+
+        return null;
     }
 
     public async Task UpdateReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default)

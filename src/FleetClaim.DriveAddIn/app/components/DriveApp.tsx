@@ -24,8 +24,8 @@ const STEP_LABELS = ['Basics', 'Damage', 'Photos', 'Third Party', 'Review'];
 
 export const DriveApp: React.FC = () => {
     const { currentDevice, currentDriver, api, credentials, geotabHost, isOnline } = useDrive();
-    const deviceId = currentDevice?.id || 'unknown';
-    const deviceName = currentDevice?.name || 'Unknown Vehicle';
+    const deviceId = currentDevice?.id || '';
+    const deviceName = currentDevice?.name || '';
 
     const { submission, startNew, update, markPendingSync, discard, resume } = useSubmission(deviceId, deviceName);
     const toast = useToast();

@@ -255,6 +255,30 @@ public class ModelTests
     }
 
     [Fact]
+    public void AddInDataWrapper_TryGetPayload_ReturnsFalseForMalformedPayload()
+    {
+        // status must be a string, but this payload has an object.
+        var malformed = """
+        {
+          "type": "driverSubmission",
+          "payload": {
+            "id": "sub_001",
+            "deviceId": "b1",
+            "incidentTimestamp": "2026-03-11T10:00:00Z",
+            "status": { "value": "synced" }
+          }
+        }
+        """;
+
+        var wrapper = JsonSerializer.Deserialize<AddInDataWrapper>(malformed);
+
+        Assert.NotNull(wrapper);
+        var ok = wrapper!.TryGetPayload<DriverSubmission>(out var submission);
+        Assert.False(ok);
+        Assert.Null(submission);
+    }
+
+    [Fact]
     public void AddInDataWrapper_ForWorkerState_CreatesCorrectType()
     {
         // Arrange

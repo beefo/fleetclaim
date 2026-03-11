@@ -1,7 +1,12 @@
 import React from 'react';
 import { Button, Card, Pill } from '@geotab/zenith';
 import { DriverSubmission, SubmissionStatus } from '@/types';
-import { getAllSubmissions, deleteSubmission, deleteAllPhotosForSubmission } from '@/services/storageService';
+import {
+    getAllSubmissions,
+    deleteSubmission,
+    deleteAllPhotosForSubmission,
+    SUBMISSIONS_CHANGED_EVENT
+} from '@/services/storageService';
 import { format, isValid } from 'date-fns';
 
 interface SubmissionsListProps {
@@ -27,10 +32,17 @@ const safeFormat = (dateStr: string | undefined, fmt: string): string => {
 
 export const SubmissionsList: React.FC<SubmissionsListProps> = ({ onBack, onResume }) => {
     const [submissions, setSubmissions] = React.useState<DriverSubmission[]>([]);
-
-    React.useEffect(() => {
+    const refreshSubmissions = React.useCallback(() => {
         setSubmissions(getAllSubmissions());
     }, []);
+
+    React.useEffect(() => {
+        refreshSubmissions();
+        window.addEventListener(SUBMISSIONS_CHANGED_EVENT, refreshSubmissions);
+        return () => {
+            window.removeEventListener(SUBMISSIONS_CHANGED_EVENT, refreshSubmissions);
+        };
+    }, [refreshSubmissions]);
 
     const handleDelete = async (sub: DriverSubmission) => {
         if (!confirm('Delete this submission?')) return;

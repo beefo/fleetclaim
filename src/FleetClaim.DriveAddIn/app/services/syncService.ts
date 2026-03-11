@@ -21,6 +21,78 @@ function apiCall<T>(api: GeotabApi, method: string, params: object): Promise<T> 
     });
 }
 
+function mapDamageLevel(level?: 'none' | 'minor' | 'moderate' | 'severe' | 'total'): string | undefined {
+    if (!level) return undefined;
+    if (level === 'total') return 'totalLoss';
+    return level;
+}
+
+function mapPhotoCategory(category: SubmissionPhoto['category']): string {
+    switch (category) {
+        case 'damage':
+            return 'vehicleDamage';
+        case 'scene':
+            return 'sceneOverview';
+        default:
+            return 'general';
+    }
+}
+
+export interface SyncedDriverSubmissionPayload {
+    [key: string]: unknown;
+}
+
+export function buildDriverSubmissionPayload(submission: DriverSubmission): SyncedDriverSubmissionPayload {
+    const thirdPartyInfo = submission.thirdPartyInfo || {};
+    const damageAssessment = submission.damageAssessment || {};
+
+    return {
+        id: submission.id,
+        deviceId: submission.deviceId,
+        deviceName: submission.deviceName,
+        driverId: submission.driverId,
+        driverName: submission.driverName,
+        incidentTimestamp: submission.incidentTimestamp,
+        latitude: submission.latitude,
+        longitude: submission.longitude,
+        locationAddress: submission.locationAddress,
+        description: submission.description,
+        severity: submission.severity,
+        damageDescription: damageAssessment.description,
+        damageLevel: mapDamageLevel(damageAssessment.damageLevel),
+        vehicleDriveable: damageAssessment.isDriveable,
+        estimatedRepairCost: damageAssessment.estimatedRepairCost,
+        policeReportNumber: submission.policeReportNumber || thirdPartyInfo.policeReportNumber,
+        policeAgency: submission.policeAgency,
+        injuriesReported: submission.injuriesReported,
+        injuryDescription: submission.injuryDescription,
+        notes: [submission.notes, thirdPartyInfo.additionalNotes].filter(Boolean).join('\n').trim() || undefined,
+        photos: submission.photos
+            .filter(p => !!p.mediaFileId)
+            .map(p => ({
+                mediaFileId: p.mediaFileId!,
+                fileName: p.fileName || `drive_${submission.id}_${p.localId}.jpg`,
+                contentType: p.mimeType || 'image/jpeg',
+                category: mapPhotoCategory(p.category),
+                uploadedAt: p.capturedAt || new Date().toISOString()
+            })),
+        status: submission.status,
+        createdAt: submission.createdAt,
+        updatedAt: submission.updatedAt,
+        submittedAt: submission.submittedAt,
+        mergedIntoReportId: submission.mergedIntoReportId,
+        otherDriverName: thirdPartyInfo.otherDriverName,
+        otherDriverPhone: thirdPartyInfo.otherDriverPhone,
+        otherDriverInsurance: thirdPartyInfo.otherDriverInsurance,
+        otherDriverPolicyNumber: thirdPartyInfo.otherDriverPolicyNumber,
+        otherVehicleMake: thirdPartyInfo.otherVehicleMake,
+        otherVehicleModel: thirdPartyInfo.otherVehicleModel,
+        otherVehiclePlate: thirdPartyInfo.otherVehiclePlate,
+        otherVehicleColor: thirdPartyInfo.otherVehicleColor,
+        witnesses: thirdPartyInfo.witnesses
+    };
+}
+
 /**
  * Upload a single photo to Geotab MediaFile
  */
@@ -167,14 +239,12 @@ export async function syncSubmission(
     }
 
     // 2. Save submission to AddInData
-    const wrapper: AddInDataWrapper<DriverSubmission> = {
+    const wrapper: AddInDataWrapper<SyncedDriverSubmissionPayload> = {
         type: 'driverSubmission',
         payload: {
-            ...submission,
+            ...buildDriverSubmissionPayload(submission),
             status: 'synced',
             submittedAt: new Date().toISOString(),
-            // Strip base64Data from photos
-            photos: submission.photos.map(p => ({ ...p, base64Data: undefined }))
         }
     };
 

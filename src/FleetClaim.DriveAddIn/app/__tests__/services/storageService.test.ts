@@ -7,7 +7,8 @@ import {
     getActiveSubmissionId,
     setActiveSubmission,
     clearActiveSubmission,
-    getPendingSyncSubmissions
+    getPendingSyncSubmissions,
+    SUBMISSIONS_CHANGED_EVENT
 } from '@/services/storageService';
 import { DriverSubmission, createEmptySubmission } from '@/types';
 
@@ -136,6 +137,28 @@ describe('storageService', () => {
             expect(sub.status).toBe('draft');
             expect(sub.photos).toEqual([]);
             expect(sub.pendingPhotoUploads).toBe(0);
+        });
+    });
+
+    describe('submissions changed event', () => {
+        it('should dispatch event when saving a submission', () => {
+            const dispatchSpy = jest.spyOn(window, 'dispatchEvent');
+            const sub = createEmptySubmission('b1', 'Vehicle 001');
+
+            saveSubmission(sub);
+
+            expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: SUBMISSIONS_CHANGED_EVENT }));
+        });
+
+        it('should dispatch event when deleting a submission', () => {
+            const dispatchSpy = jest.spyOn(window, 'dispatchEvent');
+            const sub = createEmptySubmission('b1', 'Vehicle 001');
+            saveSubmission(sub);
+            dispatchSpy.mockClear();
+
+            deleteSubmission(sub.id);
+
+            expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: SUBMISSIONS_CHANGED_EVENT }));
         });
     });
 });

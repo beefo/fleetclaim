@@ -11,6 +11,7 @@ import { DriverSubmission, SubmissionPhoto } from '@/types';
 const STORAGE_PREFIX = 'fleetclaim_drive';
 const SUBMISSIONS_INDEX_KEY = `${STORAGE_PREFIX}_submissions`;
 const ACTIVE_KEY = `${STORAGE_PREFIX}_active`;
+export const SUBMISSIONS_CHANGED_EVENT = 'fleetclaim:submissions-changed';
 const DB_NAME = 'fleetclaim_drive';
 const PHOTOS_STORE = 'photos';
 const DB_VERSION = 1;
@@ -28,6 +29,12 @@ function setSubmissionIndex(ids: string[]) {
     localStorage.setItem(SUBMISSIONS_INDEX_KEY, JSON.stringify(ids));
 }
 
+function notifySubmissionsChanged() {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(SUBMISSIONS_CHANGED_EVENT));
+    }
+}
+
 export function saveSubmission(submission: DriverSubmission) {
     const key = `${STORAGE_PREFIX}_sub_${submission.id}`;
     // Store without photo base64 data (that goes to IndexedDB)
@@ -42,6 +49,7 @@ export function saveSubmission(submission: DriverSubmission) {
         index.unshift(submission.id);
         setSubmissionIndex(index);
     }
+    notifySubmissionsChanged();
 }
 
 export function loadSubmission(id: string): DriverSubmission | null {
@@ -60,6 +68,7 @@ export function deleteSubmission(id: string) {
     if (getActiveSubmissionId() === id) {
         clearActiveSubmission();
     }
+    notifySubmissionsChanged();
 }
 
 export function getAllSubmissions(): DriverSubmission[] {

@@ -57,4 +57,56 @@ describe('DriveContext', () => {
             expect(screen.getByTestId('driver')).toHaveTextContent('Driver One');
         });
     });
+
+    it('falls back to username and serial-number lookup when browser state lacks driver id', async () => {
+        const mockApi: GeotabApi = {
+            call: jest.fn().mockImplementation((method: string, params: { typeName?: string; search?: { id?: string; serialNumber?: string; name?: string } }) => {
+                if (method !== 'Get') return Promise.resolve([]);
+
+                if (params.typeName === 'Device') {
+                    if (params.search?.id === 'SERIAL-001') return Promise.resolve([]);
+                    if (params.search?.serialNumber === 'SERIAL-001') {
+                        return Promise.resolve([{ id: 'b7', name: 'Truck 007' }]);
+                    }
+                }
+
+                if (params.typeName === 'User') {
+                    if (params.search?.name === 'driver.browser') {
+                        return Promise.resolve([{ id: 'u7', name: 'Driver Browser' }]);
+                    }
+                }
+
+                return Promise.resolve([]);
+            }),
+            multiCall: jest.fn().mockResolvedValue([]),
+            getSession: jest.fn((success: (session: { database: string; userName: string; sessionId: string; server: string }) => void) => {
+                success({
+                    database: 'demo_fleetclaim',
+                    userName: 'driver.browser',
+                    sessionId: 'session-2',
+                    server: 'my.geotab.com'
+                });
+            })
+        };
+
+        const mockState: GeotabPageState = {
+            getState: jest.fn(() => ({ device: 'SERIAL-001' })),
+            setState: jest.fn(),
+            gotoPage: jest.fn(() => true),
+            hasAccessToPage: jest.fn(() => true),
+            getGroupFilter: jest.fn(() => []),
+            translate: jest.fn((value: string | HTMLElement) => value)
+        };
+
+        render(
+            <DriveProvider initialApi={mockApi} initialState={mockState}>
+                <ContextProbe />
+            </DriveProvider>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('device')).toHaveTextContent('Truck 007');
+            expect(screen.getByTestId('driver')).toHaveTextContent('Driver Browser');
+        });
+    });
 });

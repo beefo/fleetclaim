@@ -59,9 +59,85 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
     const [isBackground, setIsBackground] = useState(false);
     const apiRef = useRef(initialApi);
     const stateRef = useRef(initialState);
+    const currentDeviceRef = useRef<{ id: string; name: string } | null>(null);
 
     const driveApi = initialApi as DriveGeotabApi;
     const hasMobileApi = !!(driveApi?.mobile?.exists?.());
+
+    const asNonEmptyString = (value: unknown): string | null => {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : null;
+    };
+
+    const extractEntityId = (value: unknown): string | null => {
+        if (!value || typeof value !== 'object') return asNonEmptyString(value);
+        const candidate = (value as { id?: unknown }).id;
+        return asNonEmptyString(candidate);
+    };
+
+    const getStateEntityIds = (): { deviceId: string | null; driverId: string | null } => {
+        const typedState = stateRef.current as unknown as Partial<DriveState> & Record<string, unknown>;
+        const pageState = stateRef.current.getState?.();
+
+        const read = (key: string): unknown => {
+            const typedValue = typedState[key];
+            if (typedValue !== undefined && typedValue !== null) return typedValue;
+            if (pageState && typeof pageState === 'object') {
+                return (pageState as Record<string, unknown>)[key];
+            }
+            return undefined;
+        };
+
+        const deviceId = asNonEmptyString(read('device')) || extractEntityId(read('device'));
+        const driverId =
+            extractEntityId(read('driver')) ||
+            asNonEmptyString(read('driverId')) ||
+            extractEntityId(read('user'));
+
+        return { deviceId, driverId };
+    };
+
+    const loadDeviceById = useCallback(async (deviceId: string) => {
+        try {
+            const devices = await apiRef.current.call<Array<{ id?: string; name?: string }>>('Get', {
+                typeName: 'Device',
+                search: { id: deviceId },
+                resultsLimit: 1,
+                propertySelector: { fields: ['id', 'name'], isIncluded: true }
+            });
+            const device = Array.isArray(devices) ? devices[0] : null;
+            setCurrentDevice({
+                id: device?.id || deviceId,
+                name: device?.name || deviceId
+            });
+        } catch {
+            setCurrentDevice({ id: deviceId, name: deviceId });
+        }
+    }, []);
+
+    const loadDriverById = useCallback(async (driverId: string) => {
+        try {
+            const users = await apiRef.current.call<Array<{ id?: string; name?: string; firstName?: string; lastName?: string }>>('Get', {
+                typeName: 'User',
+                search: { id: driverId },
+                resultsLimit: 1,
+                propertySelector: { fields: ['id', 'name', 'firstName', 'lastName'], isIncluded: true }
+            });
+            const driver = Array.isArray(users) ? users[0] : null;
+            const fallbackName = `${driver?.firstName || ''} ${driver?.lastName || ''}`.trim();
+            setCurrentDriver({
+                id: driver?.id || driverId,
+                name: driver?.name || fallbackName || driverId
+            });
+        } catch {
+            setCurrentDriver({ id: driverId, name: driverId });
+        }
+    }, []);
+
+    useEffect(() => {
+        currentDeviceRef.current = currentDevice;
+    }, [currentDevice]);
 
     // Capture credentials from Geotab session
     // NOTE: getSession signature is getSession(callback, newSession?)
@@ -95,58 +171,67 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
         captureCredentials();
     }, [captureCredentials]);
 
-    // Monitor Drive state changes via mobile API
+    // Load initial state (works in Drive mobile app and browser-hosted Drive pages)
     useEffect(() => {
-        if (!hasMobileApi) return;
-
-        // Get initial device/driver info
         const loadInitialState = async () => {
             try {
-                const driveState = stateRef.current as unknown as DriveState;
-                if (driveState.device) {
-                    // Get device details
-                    try {
-                        const vehicle = await driveApi.mobile.vehicle.get();
-                        setCurrentDevice({ id: driveState.device, name: vehicle?.name || driveState.device });
-                    } catch {
-                        setCurrentDevice({ id: driveState.device, name: driveState.device });
+                const { deviceId, driverId } = getStateEntityIds();
+                if (deviceId) {
+                    if (hasMobileApi) {
+                        try {
+                            const vehicle = await driveApi.mobile.vehicle.get();
+                            setCurrentDevice({ id: deviceId, name: vehicle?.name || deviceId });
+                        } catch {
+                            await loadDeviceById(deviceId);
+                        }
+                    } else {
+                        await loadDeviceById(deviceId);
                     }
                 }
 
-                // Get driver info
-                try {
-                    const users = await driveApi.mobile.user.get();
-                    if (users?.length > 0) {
-                        const driver = users[0];
-                        setCurrentDriver({
-                            id: driver.id || '',
-                            name: driver.name || `${driver.firstName || ''} ${driver.lastName || ''}`.trim()
-                        });
+                if (driverId) {
+                    if (hasMobileApi) {
+                        try {
+                            const users = await driveApi.mobile.user.get();
+                            if (users?.length > 0) {
+                                const driver = users[0];
+                                setCurrentDriver({
+                                    id: driver.id || driverId,
+                                    name: driver.name || `${driver.firstName || ''} ${driver.lastName || ''}`.trim() || driverId
+                                });
+                            } else {
+                                await loadDriverById(driverId);
+                            }
+                        } catch {
+                            await loadDriverById(driverId);
+                        }
+                    } else {
+                        await loadDriverById(driverId);
                     }
-                } catch {
-                    // Driver info not available
                 }
             } catch {
                 // Ignore initial state errors
             }
         };
 
-        loadInitialState();
+        void loadInitialState();
 
-        // Listen to state changes
+        if (!hasMobileApi) return;
+
+        // Monitor Drive state changes via mobile API
         driveApi.mobile.listenTo((newState: DriveState) => {
             setIsOnline(newState.online ?? true);
             setIsDriving(newState.driving ?? false);
             setIsCharging(newState.charging ?? false);
             setIsBackground(newState.background ?? false);
 
-            if (newState.device && newState.device !== currentDevice?.id) {
+            if (newState.device && newState.device !== currentDeviceRef.current?.id) {
                 driveApi.mobile.vehicle.get()
                     .then(v => setCurrentDevice({ id: newState.device, name: v?.name || newState.device }))
                     .catch(() => setCurrentDevice({ id: newState.device, name: newState.device }));
             }
         });
-    }, [hasMobileApi]);
+    }, [hasMobileApi, driveApi, loadDeviceById, loadDriverById]);
 
     // Take picture via mobile camera
     const takePicture = useCallback(async (): Promise<string | null> => {

@@ -12,11 +12,14 @@ interface IncidentBasicsStepProps {
 export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submission, onChange }) => {
     const { currentDevice, currentDriver, getCurrentLocation } = useDrive();
 
-    // Auto-populate device/driver/location on mount
+    // Auto-populate device/driver when context data becomes available.
     useEffect(() => {
         const updates: Partial<DriverSubmission> = {};
         const needsDeviceId = !submission.deviceId || submission.deviceId === 'unknown';
-        const needsDeviceName = !submission.deviceName || submission.deviceName === 'Unknown Vehicle';
+        const needsDeviceName =
+            !submission.deviceName ||
+            submission.deviceName === 'Unknown Vehicle' ||
+            (currentDevice && submission.deviceName === submission.deviceId && submission.deviceName !== currentDevice.name);
 
         if (currentDevice && (needsDeviceId || needsDeviceName)) {
             updates.deviceId = currentDevice.id;
@@ -30,7 +33,10 @@ export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submissi
         if (Object.keys(updates).length > 0) {
             onChange(updates);
         }
+    }, [currentDevice, currentDriver, submission.deviceId, submission.deviceName, submission.driverId, onChange]);
 
+    // Grab location once if we don't have one yet.
+    useEffect(() => {
         // Grab location if we don't have one yet
         if (!submission.latitude) {
             getCurrentLocation().then(loc => {
@@ -39,7 +45,7 @@ export const IncidentBasicsStep: React.FC<IncidentBasicsStepProps> = ({ submissi
                 }
             });
         }
-    }, []);
+    }, [submission.latitude, getCurrentLocation, onChange]);
 
     // Handle location changes from the map
     const handleLocationChange = useCallback((lat: number, lng: number, address?: string) => {

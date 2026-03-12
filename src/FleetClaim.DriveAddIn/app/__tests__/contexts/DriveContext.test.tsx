@@ -58,14 +58,13 @@ describe('DriveContext', () => {
         });
     });
 
-    it('falls back to username and serial-number lookup when browser state lacks driver id', async () => {
+    it('falls back to username when browser state lacks driver id and resolves device by id', async () => {
         const mockApi: GeotabApi = {
-            call: jest.fn().mockImplementation((method: string, params: { typeName?: string; search?: { id?: string; serialNumber?: string; name?: string } }) => {
+            call: jest.fn().mockImplementation((method: string, params: { typeName?: string; search?: { id?: string; name?: string } }) => {
                 if (method !== 'Get') return Promise.resolve([]);
 
                 if (params.typeName === 'Device') {
-                    if (params.search?.id === 'SERIAL-001') return Promise.resolve([]);
-                    if (params.search?.serialNumber === 'SERIAL-001') {
+                    if (params.search?.id === 'b7') {
                         return Promise.resolve([{ id: 'b7', name: 'Truck 007' }]);
                     }
                 }
@@ -90,7 +89,7 @@ describe('DriveContext', () => {
         };
 
         const mockState: GeotabPageState = {
-            getState: jest.fn(() => ({ device: 'SERIAL-001' })),
+            getState: jest.fn(() => ({ device: 'b7' })),
             setState: jest.fn(),
             gotoPage: jest.fn(() => true),
             hasAccessToPage: jest.fn(() => true),

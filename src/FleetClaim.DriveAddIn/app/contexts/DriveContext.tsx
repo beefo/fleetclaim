@@ -106,34 +106,13 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
 
     const loadDeviceById = useCallback(async (deviceId: string) => {
         try {
-            const byId = await apiRef.current.call<Array<{ id?: string; name?: string }>>('Get', {
+            const devices = await apiRef.current.call<Array<{ id?: string; name?: string }>>('Get', {
                 typeName: 'Device',
                 search: { id: deviceId },
                 resultsLimit: 1,
                 propertySelector: { fields: ['id', 'name'], isIncluded: true }
             });
-            let device = Array.isArray(byId) ? byId[0] : null;
-
-            // Some browser-hosted Drive states provide serial/name-like values instead of Geotab Id.
-            if (!device) {
-                const bySerial = await apiRef.current.call<Array<{ id?: string; name?: string }>>('Get', {
-                    typeName: 'Device',
-                    search: { serialNumber: deviceId },
-                    resultsLimit: 1,
-                    propertySelector: { fields: ['id', 'name'], isIncluded: true }
-                });
-                device = Array.isArray(bySerial) ? bySerial[0] : null;
-            }
-
-            if (!device) {
-                const byName = await apiRef.current.call<Array<{ id?: string; name?: string }>>('Get', {
-                    typeName: 'Device',
-                    search: { name: deviceId },
-                    resultsLimit: 1,
-                    propertySelector: { fields: ['id', 'name'], isIncluded: true }
-                });
-                device = Array.isArray(byName) ? byName[0] : null;
-            }
+            const device = Array.isArray(devices) ? devices[0] : null;
 
             setCurrentDevice({
                 id: device?.id || deviceId,
@@ -285,6 +264,12 @@ export const DriveProvider: React.FC<DriveProviderProps> = ({ initialApi, initia
         if (currentDriver || !credentials?.userName) return;
         void loadDriverByUserName(credentials.userName);
     }, [credentials, currentDriver, loadDriverByUserName]);
+
+    // Retry device name lookup after session warmup if we only have a raw id as display name.
+    useEffect(() => {
+        if (!credentials || !currentDevice || currentDevice.name !== currentDevice.id) return;
+        void loadDeviceById(currentDevice.id);
+    }, [credentials, currentDevice, loadDeviceById]);
 
     // Take picture via mobile camera
     const takePicture = useCallback(async (): Promise<string | null> => {

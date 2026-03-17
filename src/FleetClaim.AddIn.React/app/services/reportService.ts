@@ -4,7 +4,7 @@
  * Handles loading, saving, and managing reports via Geotab AddInData
  */
 
-import { GeotabApi, AddInData, IncidentReport, ReportRequest, AddInDataWrapper } from '@/types';
+import { GeotabApi, AddInData, IncidentReport, ReportRequest, DriverSubmission, AddInDataWrapper } from '@/types';
 
 const ADDIN_ID = 'aji_jHQGE8k2TDodR8tZrpw';
 const API_BASE_URL = 'https://fleetclaim-api-589116575765.us-central1.run.app';
@@ -16,6 +16,11 @@ export interface ReportRecord {
 
 export interface RequestRecord {
     request: ReportRequest;
+    addInDataId: string;
+}
+
+export interface SubmissionRecord {
+    submission: DriverSubmission;
     addInDataId: string;
 }
 
@@ -81,6 +86,46 @@ export async function loadRequests(api: GeotabApi): Promise<RequestRecord[]> {
     }
     
     return requests;
+}
+
+/**
+ * Load all driver submissions from AddInData
+ */
+export async function loadSubmissions(api: GeotabApi): Promise<SubmissionRecord[]> {
+    const result = await apiCall<AddInData[]>(api, 'Get', {
+        typeName: 'AddInData',
+        search: { addInId: ADDIN_ID }
+    });
+    const addInData = result || [];
+    
+    const submissions: SubmissionRecord[] = [];
+    
+    for (const item of addInData) {
+        try {
+            const raw = item.details;
+            const wrapper = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            
+            if (wrapper && (wrapper as AddInDataWrapper<DriverSubmission>).type === 'driverSubmission') {
+                const submission = (wrapper as AddInDataWrapper<DriverSubmission>).payload || wrapper;
+                submissions.push({
+                    submission: submission as DriverSubmission,
+                    addInDataId: item.id
+                });
+            }
+        } catch (e) {
+            console.warn('Error parsing submission:', e);
+        }
+    }
+    
+    return submissions;
+}
+
+/**
+ * Load unmerged driver submissions (status = 'synced')
+ */
+export async function loadUnmergedSubmissions(api: GeotabApi): Promise<SubmissionRecord[]> {
+    const all = await loadSubmissions(api);
+    return all.filter(s => s.submission.status === 'synced');
 }
 
 /**

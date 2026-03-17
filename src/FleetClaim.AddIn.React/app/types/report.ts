@@ -152,12 +152,43 @@ export interface ReportRequest {
     toDate: string;
     status: RequestStatus;
     forceReport?: boolean;
+    linkedSubmissionId?: string;
     error?: string;
     completedAt?: string;
 }
 
+export interface DriverSubmission {
+    id: string;
+    deviceId: string;
+    deviceName?: string;
+    driverId?: string;
+    driverName?: string;
+    incidentTimestamp: string;
+    latitude?: number;
+    longitude?: number;
+    locationAddress?: string;
+    description?: string;
+    severity?: Severity;
+    damageDescription?: string;
+    damageLevel?: 'none' | 'minor' | 'moderate' | 'severe' | 'totalLoss';
+    vehicleDriveable?: boolean;
+    policeReportNumber?: string;
+    policeAgency?: string;
+    injuriesReported?: boolean;
+    injuryDescription?: string;
+    notes?: string;
+    photos?: Photo[];
+    status: 'synced' | 'merged' | 'converted' | 'standalone';
+    createdAt: string;
+    updatedAt: string;
+    submittedAt?: string;
+    mergedIntoReportId?: string;
+}
+
 export interface AddInDataWrapper<T> {
-    type: 'report' | 'reportRequest' | 'config' | 'driverSubmission';
+    type: 'report' | 'reportRequest' | 'config' | 'driverSubmission' | 'workerState';
     payload: T;
     version?: number;
 }
+
+export type SubmissionStatus = 'synced' | 'merged' | 'converted' | 'standalone';

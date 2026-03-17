@@ -38,7 +38,8 @@ export function useRequests() {
         deviceName: string,
         rangeStart: Date,
         rangeEnd: Date,
-        forceReport = false
+        forceReport = false,
+        linkedSubmissionId?: string
     ) => {
         if (!api) return;
         
@@ -46,14 +47,19 @@ export function useRequests() {
         // credentials comes from getSession() and has the full email
         const userName = credentials?.userName || session?.userName || currentUser?.name || 'Unknown User';
         
-        const request = {
+        const request: any = {
             deviceId,
             deviceName,
             requestedBy: userName,
             fromDate: rangeStart.toISOString(),
             toDate: rangeEnd.toISOString(),
-            forceReport
+            forceReport: forceReport || !!linkedSubmissionId // Force report if linking to submission
         };
+        
+        // Add linkedSubmissionId if provided
+        if (linkedSubmissionId) {
+            request.linkedSubmissionId = linkedSubmissionId;
+        }
         
         const addInDataId = await submitReportRequest(api, request);
         

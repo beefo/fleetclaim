@@ -8,6 +8,8 @@ import {
 } from '@geotab/zenith';
 import { useGeotab } from '@/contexts';
 import { useRequests } from '@/hooks';
+import { loadUnmergedSubmissions, SubmissionRecord } from '@/services';
+import { DriverSubmission } from '@/types';
 
 interface NewRequestModalProps {
     isOpen: boolean;
@@ -112,7 +114,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     onSubmit,
     toast
 }) => {
-    const { devices, loadDevices } = useGeotab();
+    const { api, devices, loadDevices } = useGeotab();
     const { submit } = useRequests();
     
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
@@ -125,6 +127,11 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     const [forceReport, setForceReport] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activePreset, setActivePreset] = useState<'hour' | '24h' | null>('hour');
+    
+    // Driver submissions state
+    const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
+    const [selectedSubmissionId, setSelectedSubmissionId] = useState<string>('');
+    const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
     // Load devices when modal opens
     useEffect(() => {
@@ -132,6 +139,20 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
             loadDevices();
         }
     }, [isOpen, devices.length, loadDevices]);
+    
+    // Load unmerged submissions when modal opens
+    useEffect(() => {
+        if (isOpen && api) {
+            setLoadingSubmissions(true);
+            loadUnmergedSubmissions(api)
+                .then(setSubmissions)
+                .catch(err => {
+                    console.warn('Failed to load submissions:', err);
+                    setSubmissions([]);
+                })
+                .finally(() => setLoadingSubmissions(false));
+        }
+    }, [isOpen, api]);
 
     const deviceOptions = useMemo(() => 
         devices.map(d => ({
@@ -144,6 +165,32 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     const selectedDevice = useMemo(() => 
         devices.find(d => d.id === selectedDeviceId),
         [devices, selectedDeviceId]
+    );
+    
+    // Filter submissions for selected device
+    const deviceSubmissions = useMemo(() => {
+        if (!selectedDeviceId) return submissions;
+        return submissions.filter(s => s.submission.deviceId === selectedDeviceId);
+    }, [submissions, selectedDeviceId]);
+    
+    // Format submission for dropdown
+    const submissionOptions = useMemo(() => 
+        deviceSubmissions.map(s => {
+            const date = new Date(s.submission.incidentTimestamp);
+            const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const driver = s.submission.driverName || 'Unknown driver';
+            const vehicle = s.submission.deviceName || 'Unknown vehicle';
+            return {
+                id: s.submission.id,
+                name: `${dateStr} - ${driver} (${vehicle})`
+            };
+        }),
+        [deviceSubmissions]
+    );
+    
+    const selectedSubmission = useMemo(() =>
+        submissions.find(s => s.submission.id === selectedSubmissionId)?.submission,
+        [submissions, selectedSubmissionId]
     );
 
     const handleSubmit = useCallback(async () => {
@@ -165,7 +212,8 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                 selectedDevice?.name || 'Unknown',
                 rangeStart,
                 rangeEnd,
-                forceReport
+                forceReport,
+                selectedSubmissionId || undefined
             );
             onSubmit();
         } catch (err) {
@@ -173,7 +221,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
         } finally {
             setIsSubmitting(false);
         }
-    }, [selectedDeviceId, selectedDevice, rangeStart, rangeEnd, forceReport, submit, onSubmit, toast]);
+    }, [selectedDeviceId, selectedDevice, rangeStart, rangeEnd, forceReport, selectedSubmissionId, submit, onSubmit, toast]);
 
     const handleSetLastHour = useCallback(() => {
         const end = new Date();
@@ -194,6 +242,25 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     const handleCustomDateChange = useCallback(() => {
         setActivePreset(null);
     }, []);
+    
+    // When a submission is selected, auto-fill device and time range
+    const handleSubmissionSelect = useCallback((submissionId: string) => {
+        setSelectedSubmissionId(submissionId);
+        const submission = submissions.find(s => s.submission.id === submissionId)?.submission;
+        if (submission) {
+            // Set device
+            setSelectedDeviceId(submission.deviceId);
+            // Set time range: 30 min before to 30 min after incident
+            const incidentTime = new Date(submission.incidentTimestamp);
+            const start = new Date(incidentTime.getTime() - 30 * 60 * 1000);
+            const end = new Date(incidentTime.getTime() + 30 * 60 * 1000);
+            setRangeStart(start);
+            setRangeEnd(end);
+            setActivePreset(null);
+            // Force report since we're linking to a submission
+            setForceReport(true);
+        }
+    }, [submissions]);
 
     if (!isOpen) return null;
 
@@ -204,6 +271,48 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
             title="New Report Request"
         >
             <Modal.Content>
+                {/* Driver Submission Section - shown if there are unmerged submissions */}
+                {submissions.length > 0 && (
+                    <div style={styles.formField}>
+                        <label style={styles.label}>Link to Driver Submission (Optional)</label>
+                        <Dropdown
+                            dataItems={submissionOptions}
+                            value={selectedSubmissionId ? [selectedSubmissionId] : []}
+                            onChange={(selected: any[]) => {
+                                const id = selected?.[0]?.id || '';
+                                if (id) {
+                                    handleSubmissionSelect(id);
+                                } else {
+                                    setSelectedSubmissionId('');
+                                }
+                            }}
+                            placeholder={loadingSubmissions ? "Loading submissions..." : "Select a driver submission to link..."}
+                            searchField={true}
+                            multiselect={false}
+                            errorHandler={(e) => console.error('Dropdown error:', e)}
+                        />
+                        {selectedSubmission && (
+                            <div style={{ 
+                                marginTop: '8px', 
+                                padding: '12px', 
+                                backgroundColor: 'var(--zen-color-background-secondary, #f0f9ff)', 
+                                borderRadius: '6px',
+                                border: '1px solid var(--zen-color-info, #0ea5e9)',
+                                fontSize: '13px'
+                            }}>
+                                <strong>Driver submission selected</strong>
+                                <div style={{ marginTop: '4px', color: 'var(--zen-color-text-secondary, #6b7280)' }}>
+                                    {selectedSubmission.description || 'No description'} 
+                                    {selectedSubmission.driverName && ` — ${selectedSubmission.driverName}`}
+                                </div>
+                                <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--zen-color-text-tertiary, #9ca3af)' }}>
+                                    The vehicle, time range, and force report options have been auto-filled.
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                
                 <div style={styles.formField}>
                     <label style={styles.label}>Vehicle</label>
                     <Dropdown
@@ -212,6 +321,10 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                         onChange={(selected: any[]) => {
                             const id = selected?.[0]?.id || '';
                             setSelectedDeviceId(id);
+                            // Clear submission if device changes
+                            if (selectedSubmissionId && id !== selectedSubmission?.deviceId) {
+                                setSelectedSubmissionId('');
+                            }
                         }}
                         placeholder="Select a vehicle..."
                         searchField={true}

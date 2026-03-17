@@ -19,6 +19,8 @@ public interface IAddInDataRepository
     Task UpdateRequestStatusAsync(IGeotabApi api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
 
     Task<List<DriverSubmission>> GetUnmergedSubmissionsAsync(IGeotabApi api, CancellationToken ct = default);
+    Task<List<DriverSubmission>> GetAllSubmissionsAsync(IGeotabApi api, CancellationToken ct = default);
+    Task<DriverSubmission?> GetSubmissionByIdAsync(IGeotabApi api, string submissionId, CancellationToken ct = default);
     Task UpdateSubmissionStatusAsync(IGeotabApi api, string submissionId, string status, string? mergedIntoReportId = null, CancellationToken ct = default);
     Task UpdateReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default);
 }
@@ -403,6 +405,29 @@ public class AddInDataRepository : IAddInDataRepository
             .Cast<DriverSubmission>()
             .OrderBy(r => r.IncidentTimestamp)
             .ToList();
+    }
+
+    public async Task<List<DriverSubmission>> GetAllSubmissionsAsync(IGeotabApi api, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+
+        return allData
+            .Where(r => r.Wrapper.Type == "driverSubmission")
+            .Select(TryGetDriverSubmission)
+            .Where(r => r != null)
+            .Cast<DriverSubmission>()
+            .OrderByDescending(r => r.IncidentTimestamp)
+            .ToList();
+    }
+
+    public async Task<DriverSubmission?> GetSubmissionByIdAsync(IGeotabApi api, string submissionId, CancellationToken ct = default)
+    {
+        var allData = await GetAllAddInDataAsync(api, ct);
+
+        return allData
+            .Where(r => r.Wrapper.Type == "driverSubmission")
+            .Select(TryGetDriverSubmission)
+            .FirstOrDefault(r => r?.Id == submissionId);
     }
 
     public async Task UpdateSubmissionStatusAsync(IGeotabApi api, string submissionId, string status, string? mergedIntoReportId = null, CancellationToken ct = default)

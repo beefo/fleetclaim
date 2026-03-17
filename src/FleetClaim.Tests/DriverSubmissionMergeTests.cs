@@ -257,4 +257,37 @@ public class DriverSubmissionMergeTests
         Assert.NotNull(deserialized);
         Assert.Equal(submission.Id, deserialized!.Id);
     }
+
+    [Fact]
+    public void ReportRequest_LinkedSubmissionId_Serializes()
+    {
+        var request = new ReportRequest
+        {
+            Id = "req_001",
+            DeviceId = "b1",
+            FromDate = DateTime.UtcNow.AddHours(-1),
+            ToDate = DateTime.UtcNow,
+            LinkedSubmissionId = "sub_123"
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(request);
+        var deserialized = System.Text.Json.JsonSerializer.Deserialize<ReportRequest>(json);
+
+        Assert.NotNull(deserialized);
+        Assert.Equal("sub_123", deserialized!.LinkedSubmissionId);
+    }
+
+    [Fact]
+    public void ReportRequest_LinkedSubmissionId_Nullable()
+    {
+        var request = new ReportRequest
+        {
+            Id = "req_002",
+            DeviceId = "b1",
+            FromDate = DateTime.UtcNow.AddHours(-1),
+            ToDate = DateTime.UtcNow
+        };
+
+        Assert.Null(request.LinkedSubmissionId);
+    }
 }

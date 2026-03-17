@@ -284,15 +284,34 @@ public class IncidentPollerWorker : BackgroundService
                     continue;
                 }
                 
-                if (collisionIncidents.Count == 0 && request.ForceReport)
+                if (collisionIncidents.Count == 0 && (request.ForceReport || !string.IsNullOrEmpty(request.LinkedSubmissionId)))
                 {
                     // Generate baseline report without incident
-                    _logger.LogInformation("No collision incidents found, but ForceReport=true - generating baseline report for device {DeviceId}", 
+                    _logger.LogInformation("No collision incidents found, but ForceReport=true or LinkedSubmissionId set - generating baseline report for device {DeviceId}", 
                         request.DeviceId);
                     
                     try
                     {
                         var baselineReport = await GenerateBaselineReportAsync(api, request, api.Database ?? "unknown", ct);
+                        
+                        // If linked to a driver submission, merge it immediately
+                        if (!string.IsNullOrEmpty(request.LinkedSubmissionId))
+                        {
+                            var linkedSubmission = await _repository.GetSubmissionByIdAsync(api, request.LinkedSubmissionId, ct);
+                            if (linkedSubmission != null)
+                            {
+                                _logger.LogInformation("Merging linked submission {SubmissionId} into baseline report {ReportId}",
+                                    request.LinkedSubmissionId, baselineReport.Id);
+                                MergeSubmissionIntoReport(baselineReport, linkedSubmission);
+                                baselineReport.Source = ReportSource.Manual; // Driver-initiated via submission
+                                await _repository.UpdateSubmissionStatusAsync(api, linkedSubmission.Id, "merged", baselineReport.Id, ct);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Linked submission {SubmissionId} not found", request.LinkedSubmissionId);
+                            }
+                        }
+                        
                         await _repository.SaveReportAsync(api, baselineReport, ct);
                         reportsGenerated = 1;
                         _logger.LogInformation("Generated baseline report {ReportId} for device {DeviceId}", 
@@ -307,9 +326,10 @@ public class IncidentPollerWorker : BackgroundService
                         ReportRequestStatus.Completed, incidentsFound: 0, reportsGenerated: reportsGenerated, ct: ct);
                     
                     // Audit the baseline report
-                    await AddAuditAsync(api, "FleetClaim_BaselineReportGenerated", 
-                        $"Generated baseline report for {request.DeviceName} ({request.FromDate:g} to {request.ToDate:g})",
-                        request.RequestedBy, ct);
+                    var auditMsg = !string.IsNullOrEmpty(request.LinkedSubmissionId)
+                        ? $"Generated report from driver submission for {request.DeviceName} ({request.FromDate:g} to {request.ToDate:g})"
+                        : $"Generated baseline report for {request.DeviceName} ({request.FromDate:g} to {request.ToDate:g})";
+                    await AddAuditAsync(api, "FleetClaim_BaselineReportGenerated", auditMsg, request.RequestedBy, ct);
                     continue;
                 }
                 
@@ -494,10 +514,25 @@ public class IncidentPollerWorker : BackgroundService
                 }
                 else if (DateTime.UtcNow - submission.CreatedAt > standaloneAge)
                 {
-                    // No match found after 24 hours - mark as standalone
-                    _logger.LogInformation("No matching report found for submission {SubmissionId} after 24h, marking standalone",
+                    // No match found after 24 hours - create a report from the submission
+                    _logger.LogInformation("No matching report found for submission {SubmissionId} after 24h, creating standalone report",
                         submission.Id);
-                    await _repository.UpdateSubmissionStatusAsync(api, submission.Id, "standalone", ct: ct);
+                    
+                    try
+                    {
+                        var standaloneReport = CreateReportFromSubmission(submission, database);
+                        await _repository.SaveReportAsync(api, standaloneReport, ct);
+                        await _repository.UpdateSubmissionStatusAsync(api, submission.Id, "converted", standaloneReport.Id, ct);
+                        
+                        _logger.LogInformation("Created standalone report {ReportId} from submission {SubmissionId}",
+                            standaloneReport.Id, submission.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create standalone report from submission {SubmissionId}", submission.Id);
+                        // Mark as standalone anyway so we don't retry forever
+                        await _repository.UpdateSubmissionStatusAsync(api, submission.Id, "standalone", ct: ct);
+                    }
                 }
                 else
                 {
@@ -510,6 +545,99 @@ public class IncidentPollerWorker : BackgroundService
                 _logger.LogError(ex, "Error processing driver submission {SubmissionId}", submission.Id);
             }
         }
+    }
+
+    /// <summary>
+    /// Creates a new report from a driver submission when no matching telematics report exists.
+    /// The submission becomes the primary source of incident data.
+    /// </summary>
+    private IncidentReport CreateReportFromSubmission(DriverSubmission submission, string database)
+    {
+        var report = new IncidentReport
+        {
+            Id = $"rpt_{Guid.NewGuid():N}"[..16],
+            IncidentId = $"sub_{submission.Id}",
+            VehicleId = submission.DeviceId,
+            VehicleName = submission.DeviceName,
+            DriverId = submission.DriverId,
+            DriverName = submission.DriverName,
+            OccurredAt = submission.IncidentTimestamp,
+            GeneratedAt = DateTime.UtcNow,
+            Severity = submission.Severity ?? IncidentSeverity.Medium,
+            Source = ReportSource.Manual,
+            IsBaselineReport = false, // It's a real incident, just driver-reported
+            Summary = $"Driver-reported incident. {submission.Description ?? "No description provided."}",
+            
+            // Location
+            IncidentAddress = submission.LocationAddress,
+            
+            // Damage info
+            DamageDescription = submission.DamageDescription,
+            DamageLevel = submission.DamageLevel,
+            VehicleDriveable = submission.VehicleDriveable,
+            
+            // Police info
+            PoliceReportNumber = submission.PoliceReportNumber,
+            PoliceAgency = submission.PoliceAgency,
+            
+            // Injury info
+            InjuriesReported = submission.InjuriesReported,
+            InjuryDescription = submission.InjuryDescription,
+            
+            // Notes
+            Notes = submission.Notes,
+            NotesUpdatedAt = submission.SubmittedAt ?? submission.CreatedAt,
+            NotesUpdatedBy = submission.DriverName ?? "Driver",
+            
+            // Merge provenance
+            MergedFromSubmissionId = submission.Id,
+            MergedAt = DateTime.UtcNow,
+            
+            // Evidence with driver photos and location
+            Evidence = new EvidencePackage
+            {
+                Photos = submission.Photos,
+                GpsTrail = submission.Latitude.HasValue && submission.Longitude.HasValue
+                    ? [new GpsPoint 
+                    { 
+                        Timestamp = submission.IncidentTimestamp,
+                        Latitude = submission.Latitude.Value,
+                        Longitude = submission.Longitude.Value
+                    }]
+                    : []
+            }
+        };
+        
+        // Add third-party info
+        if (submission.ThirdParties.Count > 0)
+        {
+            report.ThirdParties.AddRange(submission.ThirdParties);
+        }
+        else if (!string.IsNullOrEmpty(submission.OtherDriverName))
+        {
+            report.ThirdParties.Add(new ThirdPartyInfo
+            {
+                DriverName = submission.OtherDriverName,
+                DriverPhone = submission.OtherDriverPhone,
+                InsuranceCompany = submission.OtherDriverInsurance,
+                InsurancePolicyNumber = submission.OtherDriverPolicyNumber,
+                VehicleMake = submission.OtherVehicleMake,
+                VehicleModel = submission.OtherVehicleModel,
+                VehiclePlate = submission.OtherVehiclePlate,
+                VehicleColor = submission.OtherVehicleColor
+            });
+        }
+        
+        // Add witnesses
+        if (!string.IsNullOrEmpty(submission.Witnesses))
+        {
+            report.Witnesses.Add(new WitnessInfo { Statement = submission.Witnesses });
+        }
+        
+        // Generate share URL
+        report.ShareUrl = _shareLinkService.GenerateShareUrl(report.Id, database);
+        
+        return report;
     }
 
     /// <summary>

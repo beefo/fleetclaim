@@ -34,7 +34,7 @@ MyGeotab Portal (iframe)                    Geotab Drive App (mobile)
 | **Worker** | `src/FleetClaim.Worker/` | .NET 10, Cloud Run Job | Feed-based collision polling, driver submission merging |
 | **Core** | `src/FleetClaim.Core/` | .NET 10 Class Library | Models, Geotab integration, PDF renderer, services |
 | **Admin** | `src/FleetClaim.Admin/` | .NET 10, Razor Pages | Admin portal |
-| **Tests** | `src/FleetClaim.Tests/` | xUnit, Moq | 176 unit tests |
+| **Tests** | `src/FleetClaim.Tests/` | xUnit, Moq | 179 unit tests |
 
 ---
 
@@ -150,7 +150,7 @@ fleetclaim/
 │   │   ├── Program.cs          # DI setup
 │   │   └── IncidentPollerWorker.cs  # Feed polling, collision detection, driver submission merging
 │   ├── FleetClaim.Admin/       # Razor Pages admin portal
-│   └── FleetClaim.Tests/       # 11 test files, 176 tests
+│   └── FleetClaim.Tests/       # 11 test files, 179 tests
 └── fleetclaim.sln              # Solution file (5 .NET projects)
 ```
 
@@ -292,8 +292,25 @@ The Worker runs as a single-execution Cloud Run Job:
 3. Filters to stock collision rule IDs: `RuleAccidentId`, `RuleEnhancedMajorCollisionId`, `RuleEnhancedMinorCollisionId`
 4. Generates reports via `ReportGenerator` → compacts → saves to AddInData
 5. Processes manual `ReportRequest`s (marks stale ones as failed after 10 min)
-6. **Merges driver submissions** — matches `DriverSubmission` to auto-reports by `DeviceId` + `OccurredAt` within 30 minutes, fills empty fields, appends photos/notes. Submissions unmatched after 24h become standalone reports.
-7. Saves feed version to AddInData for next poll
+6. **Merges driver submissions** — matches `DriverSubmission` to auto-reports by `DeviceId` + `OccurredAt` within 30 minutes, fills empty fields, appends photos/notes
+7. **Converts unmatched submissions** — after 24h without a matching report, creates a standalone report from the driver submission data
+8. Saves feed version to AddInData for next poll
+
+### Report/Submission Linking Scenarios
+
+| Scenario | How It's Handled |
+|----------|------------------|
+| **Collision detected, driver submits later** | Worker creates report from feed. Next poll merges submission (30 min window). |
+| **Driver submits first, collision detected later** | Submission waits. Worker creates report from feed, then merges submission. |
+| **No collision detected, driver submits** | Submission waits 24h. Worker converts it to a standalone driver-reported report. |
+| **Manual request with linked submission** | Portal creates `ReportRequest` with `linkedSubmissionId`. Worker generates baseline report and immediately merges the linked submission. |
+| **Manual request, no collision, no submission** | Portal creates `ReportRequest` with `forceReport=true`. Worker generates baseline report with vehicle data for the time range. |
+
+**Key fields:**
+- `ReportRequest.LinkedSubmissionId` — links a manual request to a specific driver submission
+- `IncidentReport.MergedFromSubmissionId` — tracks which submission was merged into the report
+- `IncidentReport.Source` — `Automatic` (from feed) or `Manual` (from request/submission)
+- `DriverSubmission.Status` — `synced` → `merged`/`converted`/`standalone`
 
 ### Drive Add-In: Offline-First Storage
 
@@ -310,7 +327,7 @@ Photos are resized to max 1920px via canvas before storage. On reconnect, `syncS
 ### Run Tests
 
 ```bash
-# .NET tests (176 tests)
+# .NET tests (179 tests)
 dotnet test
 
 # Add-In tests (requires jest-environment-jsdom)
@@ -334,7 +351,7 @@ cd src/FleetClaim.DriveAddIn && npm test
 | NotificationServiceTests | Email/webhook |
 | OpenMeteoWeatherServiceTests | Weather API |
 | ShareLinkServiceTests | Secure share links |
-| DriverSubmissionMergeTests | Worker merge logic (15 tests) |
+| DriverSubmissionMergeTests | Worker merge logic, linked submissions (17 tests) |
 
 ---
 

@@ -41,6 +41,14 @@ public class ReportRequest
     [JsonPropertyName("forceReport")]
     public bool ForceReport { get; set; } = false;
     
+    /// <summary>
+    /// Links this request to a specific driver submission.
+    /// When set, the worker will generate a report and immediately merge the submission.
+    /// Used when no collision event was generated but a driver submitted incident data.
+    /// </summary>
+    [JsonPropertyName("linkedSubmissionId")]
+    public string? LinkedSubmissionId { get; set; }
+    
     // Results
     [JsonPropertyName("incidentsFound")]
     public int? IncidentsFound { get; set; }

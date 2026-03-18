@@ -116,13 +116,16 @@ export const RequestsTab: React.FC<RequestsTabProps> = ({ onRefresh, toast }) =>
         {
             id: 'options',
             title: 'Options',
-            meta: { defaultWidth: 100 },
+            meta: { defaultWidth: 140 },
             sortable: false,
             columnComponent: {
                 render: (entity) => (
                     <span className="request-options">
                         {entity.request.forceReport && (
                             <span className="badge" title="Force Report">⚡</span>
+                        )}
+                        {entity.request.linkedSubmissionId && (
+                            <span className="badge linked" title={`Linked to driver submission: ${entity.request.linkedSubmissionId}`}>🔗 Driver</span>
                         )}
                     </span>
                 ),

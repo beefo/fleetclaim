@@ -29,6 +29,6 @@ describe('SubmissionsList', () => {
             saveSubmission(submission);
         });
 
-        expect(await screen.findByText('Synced')).toBeInTheDocument();
+        expect(await screen.findByText('Awaiting Merge')).toBeInTheDocument();
     });
 });

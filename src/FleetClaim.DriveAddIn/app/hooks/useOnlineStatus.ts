@@ -1,11 +1,14 @@
 /**
  * Online status hook
  * Triggers sync when transitioning from offline to online
+ * Also refreshes submission statuses from AddInData periodically
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useDrive } from '@/contexts';
-import { syncAllPending } from '@/services/syncService';
+import { syncAllPending, refreshSubmissionStatuses } from '@/services/syncService';
+
+const STATUS_REFRESH_INTERVAL = 60000; // Check for status updates every 60 seconds
 
 export function useOnlineStatus(
     onSyncComplete?: (result: { synced: number; failed: number }) => void
@@ -23,6 +26,9 @@ export function useOnlineStatus(
             if (result.synced > 0 || result.failed > 0) {
                 onSyncComplete?.(result);
             }
+            
+            // Also refresh statuses of already-synced submissions
+            await refreshSubmissionStatuses(api);
         } catch (err) {
             console.error('[useOnlineStatus] Sync error:', err);
         } finally {
@@ -44,6 +50,21 @@ export function useOnlineStatus(
             doSync();
         }
     }, []);
+    
+    // Periodically refresh submission statuses when online
+    useEffect(() => {
+        if (!isOnline || !api) return;
+        
+        const interval = setInterval(async () => {
+            try {
+                await refreshSubmissionStatuses(api);
+            } catch (err) {
+                console.warn('[useOnlineStatus] Status refresh error:', err);
+            }
+        }, STATUS_REFRESH_INTERVAL);
+        
+        return () => clearInterval(interval);
+    }, [isOnline, api]);
 
     return { isOnline, syncNow: doSync };
 }

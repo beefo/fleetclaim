@@ -15,6 +15,7 @@ interface NewRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: () => void;
+    preselectedSubmissionId?: string | null;
     toast: {
         success: (msg: string) => void;
         error: (msg: string) => void;
@@ -112,6 +113,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     isOpen,
     onClose,
     onSubmit,
+    preselectedSubmissionId,
     toast
 }) => {
     const { api, devices, loadDevices } = useGeotab();
@@ -145,14 +147,23 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
         if (isOpen && api) {
             setLoadingSubmissions(true);
             loadUnmergedSubmissions(api)
-                .then(setSubmissions)
+                .then(loaded => {
+                    setSubmissions(loaded);
+                    // Auto-select preselected submission
+                    if (preselectedSubmissionId) {
+                        const match = loaded.find(s => s.submission.id === preselectedSubmissionId);
+                        if (match) {
+                            handleSubmissionSelect(preselectedSubmissionId);
+                        }
+                    }
+                })
                 .catch(err => {
                     console.warn('Failed to load submissions:', err);
                     setSubmissions([]);
                 })
                 .finally(() => setLoadingSubmissions(false));
         }
-    }, [isOpen, api]);
+    }, [isOpen, api, preselectedSubmissionId]);
 
     const deviceOptions = useMemo(() => 
         devices.map(d => ({

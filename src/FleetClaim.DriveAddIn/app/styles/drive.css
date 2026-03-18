@@ -501,6 +501,26 @@
     margin-top: 4px;
 }
 
+.submission-status-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    padding: 6px 8px;
+    background: var(--zen-color-background-secondary, #f5f5f5);
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.submission-status-detail .status-description {
+    color: var(--zen-color-text-secondary, #666);
+}
+
+.submission-status-detail .report-link {
+    color: var(--zen-color-info, #0284c7);
+    font-weight: 500;
+}
+
 /* ============================================
    Toast Container
    ============================================ */

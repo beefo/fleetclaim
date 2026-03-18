@@ -14,12 +14,13 @@ interface SubmissionsListProps {
     onResume: (id: string) => void;
 }
 
-const statusConfig: Record<SubmissionStatus, { label: string; type: 'success' | 'warning' | 'info' | 'error' }> = {
-    draft: { label: 'Draft', type: 'warning' },
-    pending_sync: { label: 'Pending Sync', type: 'info' },
-    synced: { label: 'Synced', type: 'success' },
-    merged: { label: 'Merged', type: 'success' },
-    standalone: { label: 'Standalone', type: 'info' }
+const statusConfig: Record<SubmissionStatus, { label: string; description: string; type: 'success' | 'warning' | 'info' | 'error' }> = {
+    draft: { label: 'Draft', description: 'Not yet submitted', type: 'warning' },
+    pending_sync: { label: 'Pending Sync', description: 'Waiting for network connection', type: 'info' },
+    synced: { label: 'Awaiting Merge', description: 'Submitted, waiting to be linked to report', type: 'info' },
+    merged: { label: 'Merged', description: 'Linked to collision report', type: 'success' },
+    converted: { label: 'Report Created', description: 'Converted to standalone report', type: 'success' },
+    standalone: { label: 'Standalone', description: 'No matching collision detected', type: 'info' }
 };
 
 const safeFormat = (dateStr: string | undefined, fmt: string): string => {
@@ -65,12 +66,13 @@ export const SubmissionsList: React.FC<SubmissionsListProps> = ({ onBack, onResu
             ) : (
                 submissions.map(sub => {
                     const config = statusConfig[sub.status] || statusConfig.draft;
+                    const isProcessed = sub.status === 'merged' || sub.status === 'converted';
                     return (
                         <Card key={sub.id} autoHeight>
                             <Card.Content>
                                 <div className="submission-card">
                                     <div className="submission-header">
-                                        <strong>{sub.deviceName}</strong>
+                                        <strong>{sub.deviceName || 'Unknown Vehicle'}</strong>
                                         <Pill type={config.type}>{config.label}</Pill>
                                     </div>
                                     <div className="submission-meta">
@@ -80,6 +82,12 @@ export const SubmissionsList: React.FC<SubmissionsListProps> = ({ onBack, onResu
                                     {sub.description && (
                                         <p className="submission-desc">{sub.description}</p>
                                     )}
+                                    <div className="submission-status-detail">
+                                        <span className="status-description">{config.description}</span>
+                                        {isProcessed && sub.mergedIntoReportId && (
+                                            <span className="report-link">Report: {sub.mergedIntoReportId}</span>
+                                        )}
+                                    </div>
                                     <div className="submission-actions">
                                         {sub.status === 'draft' && (
                                             <Button type="primary" onClick={() => onResume(sub.id)}>Resume</Button>

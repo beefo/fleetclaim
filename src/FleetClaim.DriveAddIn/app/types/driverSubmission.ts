@@ -5,7 +5,7 @@
 
 import { DamageAssessment, ThirdPartyInfo } from './report';
 
-export type SubmissionStatus = 'draft' | 'pending_sync' | 'synced' | 'merged' | 'standalone';
+export type SubmissionStatus = 'draft' | 'pending_sync' | 'synced' | 'merged' | 'converted' | 'standalone';
 
 export interface DriverSubmission {
     id: string;

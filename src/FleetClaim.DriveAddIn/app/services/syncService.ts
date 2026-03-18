@@ -292,3 +292,56 @@ export async function syncAllPending(
 
     return { synced, failed };
 }
+
+/**
+ * Refresh local submission statuses from AddInData
+ * Called periodically to pick up status changes made by the Worker
+ */
+export async function refreshSubmissionStatuses(api: GeotabApi): Promise<number> {
+    const { getAllSubmissions } = await import('./storageService');
+    const localSubmissions = getAllSubmissions();
+    
+    // Only check submissions that are synced (waiting for merge)
+    const syncedSubmissions = localSubmissions.filter(s => s.status === 'synced');
+    if (syncedSubmissions.length === 0) return 0;
+    
+    // Fetch all driver submissions from AddInData
+    let addInData: any[];
+    try {
+        addInData = await apiCall<any[]>(api, 'Get', {
+            typeName: 'AddInData',
+            search: { addInId: ADDIN_ID }
+        }) || [];
+    } catch (err) {
+        console.warn('[Sync] Failed to fetch AddInData:', err);
+        return 0;
+    }
+    
+    // Find driver submissions and update local status if changed
+    let updated = 0;
+    for (const item of addInData) {
+        try {
+            const raw = item.details;
+            const wrapper = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            
+            if (wrapper?.type !== 'driverSubmission') continue;
+            
+            const payload = wrapper.payload || wrapper;
+            const localSubmission = syncedSubmissions.find(s => s.id === payload.id);
+            
+            if (localSubmission && payload.status !== localSubmission.status) {
+                // Status changed! Update local storage
+                localSubmission.status = payload.status;
+                localSubmission.mergedIntoReportId = payload.mergedIntoReportId || localSubmission.mergedIntoReportId;
+                localSubmission.updatedAt = new Date().toISOString();
+                saveSubmission(localSubmission);
+                updated++;
+                console.log(`[Sync] Updated submission ${localSubmission.id} status: ${payload.status}`);
+            }
+        } catch (e) {
+            // Skip malformed entries
+        }
+    }
+    
+    return updated;
+}

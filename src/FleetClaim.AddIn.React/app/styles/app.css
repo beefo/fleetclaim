@@ -786,3 +786,26 @@
     }
 }
 /* Force rebuild 20260302164319 */
+
+/* ============================================
+   Request Options Badges
+   ============================================ */
+
+.request-options {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.request-options .badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--zen-color-background-secondary, #f3f4f6);
+    color: var(--zen-color-text-secondary, #6b7280);
+}
+
+.request-options .badge.linked {
+    background: var(--zen-color-info-bg, #e0f2fe);
+    color: var(--zen-color-info, #0284c7);
+}

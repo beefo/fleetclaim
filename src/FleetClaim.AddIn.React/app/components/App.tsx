@@ -11,13 +11,14 @@ import { useGeotab } from '@/contexts';
 import { useToast } from '@/hooks';
 import { ReportsTab } from './ReportsTab';
 import { RequestsTab } from './RequestsTab';
+import { SubmissionsTab } from './SubmissionsTab';
 import { SettingsTab } from './SettingsTab';
 import { AboutTab } from './AboutTab';
 import { ToastContainer } from './ToastContainer';
 import { NewRequestModal } from './NewRequestModal';
 import '../styles/app.css';
 
-type TabId = 'reports' | 'requests' | 'settings' | 'about';
+type TabId = 'reports' | 'requests' | 'submissions' | 'settings' | 'about';
 
 const App: React.FC = () => {
     const isMobile = useMobile();
@@ -45,6 +46,7 @@ const App: React.FC = () => {
     const [activeTab, setActiveTab] = useState<TabId>('reports');
     const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
     const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
+    const [preselectedSubmissionId, setPreselectedSubmissionId] = useState<string | null>(null);
 
     const handleRefresh = useCallback(() => {
         // Will be passed to child components
@@ -52,6 +54,12 @@ const App: React.FC = () => {
     }, [toast]);
 
     const handleNewRequest = useCallback(() => {
+        setPreselectedSubmissionId(null);
+        setIsNewRequestOpen(true);
+    }, []);
+
+    const handleCreateRequestFromSubmission = useCallback((submissionId: string) => {
+        setPreselectedSubmissionId(submissionId);
         setIsNewRequestOpen(true);
     }, []);
 
@@ -65,6 +73,7 @@ const App: React.FC = () => {
     const tabs = [
         { id: 'reports', name: 'Reports' },
         { id: 'requests', name: 'Requests' },
+        { id: 'submissions', name: 'Driver Submissions' },
         { id: 'settings', name: 'Settings' },
         { id: 'about', name: 'About' }
     ];
@@ -108,6 +117,9 @@ const App: React.FC = () => {
                 {activeTab === 'requests' && (
                     <RequestsTab key={requestsRefreshKey} onRefresh={handleRefresh} toast={toast} />
                 )}
+                {activeTab === 'submissions' && (
+                    <SubmissionsTab onCreateRequest={handleCreateRequestFromSubmission} toast={toast} />
+                )}
                 {activeTab === 'settings' && (
                     <SettingsTab toast={toast} />
                 )}
@@ -120,6 +132,7 @@ const App: React.FC = () => {
                 isOpen={isNewRequestOpen}
                 onClose={() => setIsNewRequestOpen(false)}
                 onSubmit={handleRequestSubmitted}
+                preselectedSubmissionId={preselectedSubmissionId}
                 toast={toast}
             />
             

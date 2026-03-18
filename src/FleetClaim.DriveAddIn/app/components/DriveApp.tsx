@@ -15,10 +15,12 @@ import { PhotoCaptureStep } from './PhotoCaptureStep';
 import { ThirdPartyStep } from './ThirdPartyStep';
 import { ReviewSubmitStep } from './ReviewSubmitStep';
 import { SubmissionsList } from './SubmissionsList';
+import { SubmissionDetail } from './SubmissionDetail';
 import { SyncStatusBanner } from './SyncStatusBanner';
 import { ToastContainer } from './ToastContainer';
+import { getAllSubmissions } from '@/services/storageService';
 
-type View = 'safety' | 'wizard' | 'list' | 'submitted';
+type View = 'safety' | 'wizard' | 'list' | 'detail' | 'submitted';
 
 const STEP_LABELS = ['Basics', 'Damage', 'Photos', 'Third Party', 'Review'];
 
@@ -32,6 +34,7 @@ export const DriveApp: React.FC = () => {
     const [view, setView] = useState<View>('safety');
     const [wizardStep, setWizardStep] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [viewingSubmissionId, setViewingSubmissionId] = useState<string | null>(null);
 
     const { isOnline: online, syncNow } = useOnlineStatus((result) => {
         if (result.synced > 0) toast.success(`${result.synced} submission${result.synced > 1 ? 's' : ''} synced`);
@@ -46,6 +49,11 @@ export const DriveApp: React.FC = () => {
 
     const handleViewPast = useCallback(() => {
         setView('list');
+    }, []);
+
+    const handleViewSubmission = useCallback((id: string) => {
+        setViewingSubmissionId(id);
+        setView('detail');
     }, []);
 
     const handleResume = useCallback((id: string) => {
@@ -141,7 +149,22 @@ export const DriveApp: React.FC = () => {
             )}
 
             {view === 'list' && (
-                <SubmissionsList onBack={() => setView('safety')} onResume={handleResume} />
+                <SubmissionsList 
+                    onBack={() => setView('safety')} 
+                    onResume={handleResume}
+                    onView={handleViewSubmission}
+                />
+            )}
+
+            {view === 'detail' && viewingSubmissionId && (
+                (() => {
+                    const sub = getAllSubmissions().find(s => s.id === viewingSubmissionId);
+                    if (!sub) {
+                        setView('list');
+                        return null;
+                    }
+                    return <SubmissionDetail submission={sub} onBack={() => setView('list')} />;
+                })()
             )}
 
             {view === 'wizard' && submission && (

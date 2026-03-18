@@ -12,6 +12,7 @@ import { format, isValid } from 'date-fns';
 interface SubmissionsListProps {
     onBack: () => void;
     onResume: (id: string) => void;
+    onView: (id: string) => void;
 }
 
 const statusConfig: Record<SubmissionStatus, { label: string; description: string; type: 'success' | 'warning' | 'info' | 'error' }> = {
@@ -31,7 +32,7 @@ const safeFormat = (dateStr: string | undefined, fmt: string): string => {
     } catch { return 'Error'; }
 };
 
-export const SubmissionsList: React.FC<SubmissionsListProps> = ({ onBack, onResume }) => {
+export const SubmissionsList: React.FC<SubmissionsListProps> = ({ onBack, onResume, onView }) => {
     const [submissions, setSubmissions] = React.useState<DriverSubmission[]>([]);
     const refreshSubmissions = React.useCallback(() => {
         setSubmissions(getAllSubmissions());
@@ -89,8 +90,10 @@ export const SubmissionsList: React.FC<SubmissionsListProps> = ({ onBack, onResu
                                         )}
                                     </div>
                                     <div className="submission-actions">
-                                        {sub.status === 'draft' && (
+                                        {sub.status === 'draft' ? (
                                             <Button type="primary" onClick={() => onResume(sub.id)}>Resume</Button>
+                                        ) : (
+                                            <Button type="secondary" onClick={() => onView(sub.id)}>View Details</Button>
                                         )}
                                         {(sub.status === 'draft' || sub.status === 'pending_sync') && (
                                             <Button type="tertiary-destructive" onClick={() => handleDelete(sub)}>Delete</Button>

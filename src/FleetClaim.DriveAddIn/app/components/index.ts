@@ -6,6 +6,7 @@ export { PhotoCaptureStep } from './PhotoCaptureStep';
 export { ThirdPartyStep } from './ThirdPartyStep';
 export { ReviewSubmitStep } from './ReviewSubmitStep';
 export { SubmissionsList } from './SubmissionsList';
+export { SubmissionDetail } from './SubmissionDetail';
 export { SyncStatusBanner } from './SyncStatusBanner';
 export { ToastContainer } from './ToastContainer';
 export { LocationPicker } from './LocationPicker';

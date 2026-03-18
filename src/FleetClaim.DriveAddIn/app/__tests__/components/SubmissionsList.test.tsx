@@ -20,7 +20,7 @@ describe('SubmissionsList', () => {
         submission.status = 'pending_sync';
         saveSubmission(submission);
 
-        render(<SubmissionsList onBack={() => undefined} onResume={() => undefined} />);
+        render(<SubmissionsList onBack={() => undefined} onResume={() => undefined} onView={() => undefined} />);
 
         expect(screen.getByText('Pending Sync')).toBeInTheDocument();
 
@@ -30,5 +30,25 @@ describe('SubmissionsList', () => {
         });
 
         expect(await screen.findByText('Awaiting Merge')).toBeInTheDocument();
+    });
+
+    it('shows View Details button for synced submissions', async () => {
+        const submission = createEmptySubmission('b2', 'Vehicle 002');
+        submission.status = 'synced';
+        saveSubmission(submission);
+
+        render(<SubmissionsList onBack={() => undefined} onResume={() => undefined} onView={() => undefined} />);
+
+        expect(screen.getByText('View Details')).toBeInTheDocument();
+    });
+
+    it('shows Resume button for draft submissions', async () => {
+        const submission = createEmptySubmission('b3', 'Vehicle 003');
+        submission.status = 'draft';
+        saveSubmission(submission);
+
+        render(<SubmissionsList onBack={() => undefined} onResume={() => undefined} onView={() => undefined} />);
+
+        expect(screen.getByText('Resume')).toBeInTheDocument();
     });
 });

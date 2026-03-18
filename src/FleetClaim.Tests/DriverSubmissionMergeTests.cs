@@ -290,4 +290,115 @@ public class DriverSubmissionMergeTests
 
         Assert.Null(request.LinkedSubmissionId);
     }
+
+    [Fact]
+    public void Merge_FillsLocationAddress()
+    {
+        var report = CreateTestReport();
+        report.IncidentAddress = null;
+        var submission = CreateTestSubmission();
+        submission.LocationAddress = "123 Main St, Burlington, ON";
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        Assert.Equal("123 Main St, Burlington, ON", report.IncidentAddress);
+    }
+
+    [Fact]
+    public void Merge_DoesNotOverwriteExistingAddress()
+    {
+        var report = CreateTestReport();
+        report.IncidentAddress = "456 Existing St";
+        var submission = CreateTestSubmission();
+        submission.LocationAddress = "123 Main St, Burlington, ON";
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        Assert.Equal("456 Existing St", report.IncidentAddress);
+    }
+
+    [Fact]
+    public void Merge_AppendsThirdPartiesFromList()
+    {
+        var report = CreateTestReport();
+        var submission = CreateTestSubmission();
+        submission.ThirdParties =
+        [
+            new ThirdPartyInfo 
+            { 
+                DriverName = "Alice Third", 
+                DriverPhone = "555-0001",
+                VehicleMake = "Honda",
+                VehicleModel = "Civic",
+                InsuranceCompany = "StateFarm"
+            }
+        ];
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        Assert.Single(report.ThirdParties);
+        Assert.Equal("Alice Third", report.ThirdParties[0].DriverName);
+        Assert.Equal("Honda", report.ThirdParties[0].VehicleMake);
+        Assert.Equal("StateFarm", report.ThirdParties[0].InsuranceCompany);
+    }
+
+    [Fact]
+    public void Merge_PrefersThirdPartiesListOverInlineFields()
+    {
+        var report = CreateTestReport();
+        var submission = CreateTestSubmission();
+        // Both list and inline fields set - list should win
+        submission.ThirdParties =
+        [
+            new ThirdPartyInfo { DriverName = "From List" }
+        ];
+        submission.OtherDriverName = "From Inline";
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        Assert.Single(report.ThirdParties);
+        Assert.Equal("From List", report.ThirdParties[0].DriverName);
+    }
+
+    [Fact]
+    public void Merge_SetsNotesUpdatedFields()
+    {
+        var report = CreateTestReport();
+        var submission = CreateTestSubmission();
+        submission.DriverName = "Test Driver";
+        submission.Notes = "Driver notes here";
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        Assert.NotNull(report.NotesUpdatedAt);
+        Assert.Equal("Test Driver", report.NotesUpdatedBy);
+    }
+
+    [Fact]
+    public void Merge_HandlesNullSeverity()
+    {
+        var report = CreateTestReport();
+        report.Severity = IncidentSeverity.Medium;
+        var submission = CreateTestSubmission();
+        submission.Severity = null;
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        // Should not change when submission severity is null
+        Assert.Equal(IncidentSeverity.Medium, report.Severity);
+    }
+
+    [Fact]
+    public void Merge_AppendsDescription()
+    {
+        var report = CreateTestReport();
+        report.Notes = null;
+        var submission = CreateTestSubmission();
+        submission.Notes = null;
+        submission.Description = "Driver's account of what happened";
+
+        IncidentPollerWorker.MergeSubmissionIntoReport(report, submission);
+
+        Assert.Contains("[Driver statement] Driver's account of what happened", report.Notes);
+    }
 }

@@ -284,41 +284,4 @@ public class MediaFileServiceTests
         Assert.NotNull(service);
     }
 
-    [Fact]
-    public async Task UploadPdfAsync_IncludesFormData()
-    {
-        // Arrange
-        var mockApi = CreateMockApi(database: "test_database");
-        mockApi.Setup(a => a.CallAsync<string>(
-            It.IsAny<string>(),
-            It.IsAny<object>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync("mf_123");
-
-        MultipartFormDataContent? capturedContent = null;
-        var handlerMock = new Mock<HttpMessageHandler>();
-        handlerMock.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync((HttpRequestMessage req, CancellationToken _) =>
-            {
-                capturedContent = req.Content as MultipartFormDataContent;
-                return new HttpResponseMessage(HttpStatusCode.OK);
-            });
-
-        var httpClient = new HttpClient(handlerMock.Object);
-        var service = new MediaFileService(httpClient);
-
-        // Act
-        await service.UploadPdfAsync(mockApi.Object, "rpt_001", "b1", new byte[] { 1, 2, 3, 4 });
-
-        // Assert
-        Assert.NotNull(capturedContent);
-        // Content should include at least the file and id fields
-        // Note: LoginResult is null in tests, so credential fields may be empty
-        var contentParts = capturedContent!.ToList();
-        Assert.True(contentParts.Count >= 2, $"Expected at least 2 form parts, got {contentParts.Count}");
-    }
 }

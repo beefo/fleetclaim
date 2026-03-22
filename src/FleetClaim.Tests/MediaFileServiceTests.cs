@@ -1,7 +1,6 @@
 using System.Net;
 using FleetClaim.Core.Geotab;
 using FleetClaim.Core.Services;
-using Geotab.Checkmate;
 using Moq;
 using Moq.Protected;
 using Xunit;
@@ -10,6 +9,8 @@ namespace FleetClaim.Tests;
 
 /// <summary>
 /// Tests for MediaFileService - file upload/download via Geotab MediaFile API.
+/// Note: LoginResult is not mocked directly since it's a sealed SDK class.
+/// Tests focus on the parts of MediaFileService that don't require actual credentials.
 /// </summary>
 public class MediaFileServiceTests
 {
@@ -19,19 +20,9 @@ public class MediaFileServiceTests
         mockApi.Setup(a => a.Server).Returns(server);
         mockApi.Setup(a => a.Database).Returns(database);
         
-        // Create a real LoginResult with Credentials
-        // Note: LoginResult.Credentials property getter creates Credentials from internal fields
-        var loginResult = new LoginResult
-        {
-            Path = server
-        };
-        
-        // Use reflection to set the internal credentials since the SDK doesn't expose a public setter
-        // Alternative: Mock the entire IGeotabApi to return credential values from dedicated properties
-        var credentialsField = typeof(LoginResult).GetProperty("Credentials");
-        
-        // For now, return null LoginResult - tests that need credentials will be skipped
-        mockApi.Setup(a => a.LoginResult).Returns((LoginResult?)null);
+        // LoginResult is a sealed SDK type that's difficult to mock
+        // Return null - tests will verify behavior with missing credentials
+        mockApi.Setup(a => a.LoginResult).Returns((Geotab.Checkmate.LoginResult?)null);
         
         return mockApi;
     }

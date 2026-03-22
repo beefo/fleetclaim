@@ -20,9 +20,8 @@ public class MediaFileServiceTests
         mockApi.Setup(a => a.Server).Returns(server);
         mockApi.Setup(a => a.Database).Returns(database);
         
-        // LoginResult is a sealed SDK type that's difficult to mock
-        // Return null - tests will verify behavior with missing credentials
-        mockApi.Setup(a => a.LoginResult).Returns((Geotab.Checkmate.LoginResult?)null);
+        // LoginResult is a sealed SDK type - don't mock it directly
+        // The default setup returns null which is fine for these tests
         
         return mockApi;
     }

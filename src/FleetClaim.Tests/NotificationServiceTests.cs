@@ -31,8 +31,8 @@ public class NotificationServiceTests
             Evidence = new EvidencePackage
             {
                 GpsTrail = [
-                    new GpsPoint { Latitude = 43.44, Longitude = -79.67, Speed = 100, Timestamp = DateTime.UtcNow.AddSeconds(-10) },
-                    new GpsPoint { Latitude = 43.45, Longitude = -79.68, Speed = 50, Timestamp = DateTime.UtcNow }
+                    new GpsPoint { Latitude = 43.44, Longitude = -79.67, SpeedKmh = 100, Timestamp = DateTime.UtcNow.AddSeconds(-10) },
+                    new GpsPoint { Latitude = 43.45, Longitude = -79.68, SpeedKmh = 50, Timestamp = DateTime.UtcNow }
                 ],
                 MaxSpeedKmh = 105,
                 SpeedAtEventKmh = 95,

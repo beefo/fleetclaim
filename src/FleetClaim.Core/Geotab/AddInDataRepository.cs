@@ -14,7 +14,11 @@ public interface IAddInDataRepository
     Task<WorkerState?> GetWorkerStateAsync(IGeotabApi api, string database, CancellationToken ct = default);
     Task SaveWorkerStateAsync(IGeotabApi api, string database, WorkerState state, CancellationToken ct = default);
 
-    Task SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default);
+    /// <summary>
+    /// Saves a report, checking for duplicates by incidentId.
+    /// Returns true if saved, false if a report already exists for this incident.
+    /// </summary>
+    Task<bool> SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default);
     Task SaveRequestAsync(IGeotabApi api, ReportRequest request, CancellationToken ct = default);
     Task UpdateRequestStatusAsync(IGeotabApi api, string requestId, ReportRequestStatus status, string? error = null, int? incidentsFound = null, int? reportsGenerated = null, string? errorMessage = null, CancellationToken ct = default);
 
@@ -126,12 +130,23 @@ public class AddInDataRepository : IAddInDataRepository
         }
     }
 
-    public async Task SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default)
+    public async Task<bool> SaveReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default)
     {
+        // Check if a report already exists for this incident (deduplication)
+        var whereClause = $"type == \"report\" && payload.incidentId == \"{report.IncidentId}\"";
+        var existing = await GetFilteredAddInDataAsync(api, whereClause, ct);
+        
+        if (existing.Count > 0)
+        {
+            // Report already exists for this incident - skip to prevent duplicates
+            return false;
+        }
+        
         // Compact the report to fit within AddInData 10KB limit
         var compactedReport = CompactReportForStorage(report);
         var wrapper = AddInDataWrapper.ForReport(compactedReport);
         await AddNewRecordAsync(api, wrapper, ct);
+        return true;
     }
     
     /// <summary>

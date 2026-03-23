@@ -743,10 +743,19 @@ public class IncidentPollerWorker : BackgroundService
         var report = await _reportGenerator.GenerateReportAsync(api, incident, database, ct);
         report.Source = source;  // Set the source based on how the report was triggered
         
-        await _repository.SaveReportAsync(api, report, ct);
+        var wasSaved = await _repository.SaveReportAsync(api, report, ct);
         
-        _logger.LogInformation("Saved report {ReportId} for incident {IncidentId}",
-            report.Id, incident.Id);
+        if (wasSaved)
+        {
+            _logger.LogInformation("Saved report {ReportId} for incident {IncidentId}",
+                report.Id, incident.Id);
+        }
+        else
+        {
+            _logger.LogWarning("Skipped duplicate report for incident {IncidentId} - report already exists",
+                incident.Id);
+            return; // Don't send notifications for duplicates
+        }
         
         // Send notifications if configured
         if (report.Severity >= config.SeverityThreshold)

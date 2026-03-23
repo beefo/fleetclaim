@@ -115,6 +115,20 @@ admin.MapDelete("/databases/{database}", async (string database, AdminService sv
     }
 });
 
+// Cleanup duplicate reports (dry run by default)
+admin.MapPost("/databases/{database}/cleanup-duplicates", async (string database, AdminService svc, bool dryRun = true) =>
+{
+    try
+    {
+        var result = await svc.CleanupDuplicateReportsAsync(database, dryRun);
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: 500);
+    }
+});
+
 app.Run();
 
 public record OnboardDatabaseRequest(

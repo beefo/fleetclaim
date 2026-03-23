@@ -405,4 +405,129 @@ public class AdminService
             _logger.LogWarning("Secret {SecretName} not found", secretName);
         }
     }
+
+    /// <summary>
+    /// Clean up duplicate reports in AddInData.
+    /// Groups reports by incidentId, keeps the oldest, removes duplicates.
+    /// </summary>
+    public async Task<object> CleanupDuplicateReportsAsync(string database, bool dryRun = true)
+    {
+        const string AddInIdValue = "aji_jHQGE8k2TDodR8tZrpw";
+        
+        _logger.LogInformation("Starting duplicate report cleanup for {Database} (dryRun={DryRun})", database, dryRun);
+        
+        var api = await GetApiForDatabaseAsync(database);
+        
+        // Fetch all AddInData with IDs
+        var results = await api.CallAsync<List<object>>("Get", typeof(AddInData), new
+        {
+            search = new { addInId = AddInIdValue }
+        });
+
+        if (results == null || results.Count == 0)
+        {
+            return new { database, totalRecords = 0, duplicatesFound = 0, deleted = 0 };
+        }
+
+        // Parse records and extract report data with Geotab IDs
+        var reportRecords = new List<(string GeotabId, string IncidentId, DateTime GeneratedAt)>();
+        
+        foreach (var item in results)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(item);
+                using var doc = JsonDocument.Parse(json);
+                
+                // Get Geotab record ID
+                string? geotabId = null;
+                if (doc.RootElement.TryGetProperty("id", out var idElement))
+                    geotabId = idElement.GetString();
+                
+                if (string.IsNullOrEmpty(geotabId)) continue;
+                
+                // Get the wrapper details
+                if (doc.RootElement.TryGetProperty("details", out var details) ||
+                    doc.RootElement.TryGetProperty("Details", out details))
+                {
+                    var wrapper = details.Deserialize<AddInDataWrapper>(JsonOptions);
+                    if (wrapper?.Type == "report")
+                    {
+                        var report = wrapper.GetPayload<IncidentReport>();
+                        if (report != null && !string.IsNullOrEmpty(report.IncidentId))
+                        {
+                            reportRecords.Add((geotabId, report.IncidentId, report.GeneratedAt));
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Skip malformed entries
+            }
+        }
+
+        _logger.LogInformation("Found {Count} report records for {Database}", reportRecords.Count, database);
+
+        // Group by incidentId and find duplicates
+        var duplicatesToDelete = reportRecords
+            .GroupBy(r => r.IncidentId)
+            .Where(g => g.Count() > 1)
+            .SelectMany(g => g.OrderBy(r => r.GeneratedAt).Skip(1)) // Keep oldest, mark rest for deletion
+            .ToList();
+
+        _logger.LogInformation("Found {Count} duplicate reports to delete for {Database}", duplicatesToDelete.Count, database);
+
+        var deleted = 0;
+        var errors = new List<string>();
+
+        if (!dryRun)
+        {
+            foreach (var dup in duplicatesToDelete)
+            {
+                try
+                {
+                    await api.CallAsync<object>("Remove", typeof(AddInData), new
+                    {
+                        entity = new { id = dup.GeotabId }
+                    });
+                    deleted++;
+                    
+                    if (deleted % 100 == 0)
+                    {
+                        _logger.LogInformation("Deleted {Count}/{Total} duplicates for {Database}", 
+                            deleted, duplicatesToDelete.Count, database);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to delete {dup.GeotabId}: {ex.Message}");
+                    _logger.LogWarning(ex, "Failed to delete duplicate {GeotabId}", dup.GeotabId);
+                }
+            }
+        }
+
+        var result = new
+        {
+            database,
+            dryRun,
+            totalReportRecords = reportRecords.Count,
+            uniqueIncidents = reportRecords.Select(r => r.IncidentId).Distinct().Count(),
+            duplicatesFound = duplicatesToDelete.Count,
+            deleted,
+            errors = errors.Count > 0 ? errors.Take(10).ToList() : null,
+            message = dryRun 
+                ? $"Dry run complete. Would delete {duplicatesToDelete.Count} duplicate reports."
+                : $"Cleanup complete. Deleted {deleted} duplicate reports."
+        };
+
+        _logger.LogInformation("Cleanup complete for {Database}: {Result}", database, JsonSerializer.Serialize(result));
+        
+        return result;
+    }
+
+    private async Task<IGeotabApi> GetApiForDatabaseAsync(string database)
+    {
+        return await _clientFactory.CreateClientAsync(database);
+    }
 }

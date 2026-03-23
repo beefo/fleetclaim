@@ -43,12 +43,19 @@ public class AddInDataRepository : IAddInDataRepository
     
     public async Task<List<IncidentReport>> GetReportsAsync(IGeotabApi api, DateTime? since = null, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering for type, and optionally date
+        var whereClause = "type == \"report\"";
+        if (since.HasValue)
+        {
+            // Filter by payload.generatedAt >= since (ISO 8601 format)
+            whereClause += $" && payload.generatedAt >= \"{since.Value:yyyy-MM-ddTHH:mm:ssZ}\"";
+        }
         
-        return allData
-            .Where(r => r.Wrapper.Type == "report")
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
+        
+        return filteredData
             .Select(r => r.Wrapper.GetPayload<IncidentReport>())
-            .Where(r => r != null && (since == null || r.GeneratedAt >= since))
+            .Where(r => r != null)
             .Cast<IncidentReport>()
             .OrderByDescending(r => r.OccurredAt)
             .ToList();
@@ -56,12 +63,13 @@ public class AddInDataRepository : IAddInDataRepository
     
     public async Task<List<ReportRequest>> GetPendingRequestsAsync(IGeotabApi api, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering for type and status
+        var whereClause = "type == \"reportRequest\" && payload.status == \"Pending\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
         
-        return allData
-            .Where(r => r.Wrapper.Type == "reportRequest")
+        return filteredData
             .Select(r => r.Wrapper.GetPayload<ReportRequest>())
-            .Where(r => r != null && r.Status == ReportRequestStatus.Pending)
+            .Where(r => r != null)
             .Cast<ReportRequest>()
             .OrderBy(r => r.RequestedAt)
             .ToList();
@@ -69,42 +77,42 @@ public class AddInDataRepository : IAddInDataRepository
     
     public async Task<List<ReportRequest>> GetStaleRequestsAsync(IGeotabApi api, TimeSpan timeout, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
         var cutoff = DateTime.UtcNow - timeout;
         
-        return allData
-            .Where(r => r.Wrapper.Type == "reportRequest")
+        // Use server-side filtering for type, status, and date
+        var whereClause = $"type == \"reportRequest\" && payload.status == \"Processing\" && payload.requestedAt < \"{cutoff:yyyy-MM-ddTHH:mm:ssZ}\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
+        
+        return filteredData
             .Select(r => r.Wrapper.GetPayload<ReportRequest>())
-            .Where(r => r != null 
-                && r.Status == ReportRequestStatus.Processing 
-                && r.RequestedAt < cutoff)
+            .Where(r => r != null)
             .Cast<ReportRequest>()
             .ToList();
     }
     
     public async Task<CustomerConfig?> GetConfigAsync(IGeotabApi api, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        var filteredData = await GetFilteredAddInDataAsync(api, "type == \"config\"", ct);
 
-        return allData
-            .FirstOrDefault(r => r.Wrapper.Type == "config")
+        return filteredData
+            .FirstOrDefault()
             ?.Wrapper.GetPayload<CustomerConfig>();
     }
 
     public async Task<WorkerState?> GetWorkerStateAsync(IGeotabApi api, string database, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        var filteredData = await GetFilteredAddInDataAsync(api, "type == \"workerState\"", ct);
 
-        return allData
-            .FirstOrDefault(r => r.Wrapper.Type == "workerState")
+        return filteredData
+            .FirstOrDefault()
             ?.Wrapper.GetPayload<WorkerState>();
     }
 
     public async Task SaveWorkerStateAsync(IGeotabApi api, string database, WorkerState state, CancellationToken ct = default)
     {
         state.LastPolledAt = DateTime.UtcNow;
-        var allData = await GetAllAddInDataAsync(api, ct);
-        var existing = allData.FirstOrDefault(r => r.Wrapper.Type == "workerState");
+        var filteredData = await GetFilteredAddInDataAsync(api, "type == \"workerState\"", ct);
+        var existing = filteredData.FirstOrDefault();
 
         var wrapper = AddInDataWrapper.ForWorkerState(state);
 
@@ -316,12 +324,11 @@ public class AddInDataRepository : IAddInDataRepository
         string? errorMessage = null,
         CancellationToken ct = default)
     {
-        // Find the existing record with its Geotab ID
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Find the existing record with its Geotab ID using server-side filtering
+        var whereClause = $"type == \"reportRequest\" && payload.id == \"{requestId}\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
         
-        var record = allData.FirstOrDefault(r => 
-            r.Wrapper.Type == "reportRequest" && 
-            r.Wrapper.GetPayload<ReportRequest>()?.Id == requestId);
+        var record = filteredData.FirstOrDefault();
         
         if (record == null) return;
         
@@ -383,6 +390,59 @@ public class AddInDataRepository : IAddInDataRepository
         return records;
     }
     
+    /// <summary>
+    /// Fetches AddInData with server-side filtering using whereClause.
+    /// The whereClause uses path notation to filter on details properties.
+    /// Examples: "type == \"report\"", "payload.status == \"Pending\""
+    /// </summary>
+    private async Task<List<AddInDataRecord>> GetFilteredAddInDataAsync(IGeotabApi api, string whereClause, CancellationToken ct)
+    {
+        var results = await api.CallAsync<List<object>>("Get", typeof(AddInData), new
+        {
+            search = new 
+            { 
+                addInId = AddInIdValue,
+                whereClause = whereClause
+            }
+        }, ct);
+        
+        if (results == null || results.Count == 0)
+            return [];
+        
+        var records = new List<AddInDataRecord>();
+        
+        foreach (var item in results)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(item);
+                using var doc = JsonDocument.Parse(json);
+                
+                // Get the Geotab record ID
+                string? geotabId = null;
+                if (doc.RootElement.TryGetProperty("id", out var idElement))
+                    geotabId = idElement.GetString();
+                
+                if (string.IsNullOrEmpty(geotabId)) continue;
+                
+                // Get the details/wrapper
+                if (doc.RootElement.TryGetProperty("details", out var details) ||
+                    doc.RootElement.TryGetProperty("Details", out details))
+                {
+                    var wrapper = details.Deserialize<AddInDataWrapper>(JsonOptions);
+                    if (wrapper != null)
+                        records.Add(new AddInDataRecord(geotabId, wrapper));
+                }
+            }
+            catch
+            {
+                // Skip malformed entries
+            }
+        }
+        
+        return records;
+    }
+    
     private async Task AddNewRecordAsync(IGeotabApi api, AddInDataWrapper wrapper, CancellationToken ct)
     {
         var entity = new
@@ -396,12 +456,13 @@ public class AddInDataRepository : IAddInDataRepository
     
     public async Task<List<DriverSubmission>> GetUnmergedSubmissionsAsync(IGeotabApi api, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering for type and status
+        var whereClause = "type == \"driverSubmission\" && payload.status == \"synced\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
 
-        return allData
-            .Where(r => r.Wrapper.Type == "driverSubmission")
+        return filteredData
             .Select(TryGetDriverSubmission)
-            .Where(r => r != null && r.Status == "synced")
+            .Where(r => r != null)
             .Cast<DriverSubmission>()
             .OrderBy(r => r.IncidentTimestamp)
             .ToList();
@@ -409,10 +470,11 @@ public class AddInDataRepository : IAddInDataRepository
 
     public async Task<List<DriverSubmission>> GetAllSubmissionsAsync(IGeotabApi api, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering for type
+        var whereClause = "type == \"driverSubmission\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
 
-        return allData
-            .Where(r => r.Wrapper.Type == "driverSubmission")
+        return filteredData
             .Select(TryGetDriverSubmission)
             .Where(r => r != null)
             .Cast<DriverSubmission>()
@@ -422,23 +484,22 @@ public class AddInDataRepository : IAddInDataRepository
 
     public async Task<DriverSubmission?> GetSubmissionByIdAsync(IGeotabApi api, string submissionId, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering for type and ID
+        var whereClause = $"type == \"driverSubmission\" && payload.id == \"{submissionId}\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
 
-        return allData
-            .Where(r => r.Wrapper.Type == "driverSubmission")
+        return filteredData
             .Select(TryGetDriverSubmission)
-            .FirstOrDefault(r => r?.Id == submissionId);
+            .FirstOrDefault();
     }
 
     public async Task UpdateSubmissionStatusAsync(IGeotabApi api, string submissionId, string status, string? mergedIntoReportId = null, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering to find the specific submission
+        var whereClause = $"type == \"driverSubmission\" && payload.id == \"{submissionId}\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
 
-        var record = allData
-            .Where(r => r.Wrapper.Type == "driverSubmission")
-            .Select(r => new { Record = r, Submission = TryGetDriverSubmission(r) })
-            .FirstOrDefault(x => x.Submission?.Id == submissionId)
-            ?.Record;
+        var record = filteredData.FirstOrDefault();
 
         if (record == null) return;
 
@@ -462,11 +523,11 @@ public class AddInDataRepository : IAddInDataRepository
 
     public async Task UpdateReportAsync(IGeotabApi api, IncidentReport report, CancellationToken ct = default)
     {
-        var allData = await GetAllAddInDataAsync(api, ct);
+        // Use server-side filtering to find the specific report
+        var whereClause = $"type == \"report\" && payload.id == \"{report.Id}\"";
+        var filteredData = await GetFilteredAddInDataAsync(api, whereClause, ct);
 
-        var record = allData.FirstOrDefault(r =>
-            r.Wrapper.Type == "report" &&
-            r.Wrapper.GetPayload<IncidentReport>()?.Id == report.Id);
+        var record = filteredData.FirstOrDefault();
 
         if (record == null) return;
 

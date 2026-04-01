@@ -39,6 +39,7 @@ const safeFormat = (dateStr: string | undefined, formatStr: string): string => {
 
 interface ReportDetailPageProps {
     report: IncidentReport;
+    addInDataId?: string;
     onBack: () => void;
     onUpdate: (reportId: string, updates: Partial<IncidentReport>) => Promise<void>;
     onDelete: (reportId: string) => Promise<void>;
@@ -60,6 +61,7 @@ type TabId = 'overview' | 'photos' | 'damage' | 'thirdparty';
 
 export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
     report,
+    addInDataId,
     onBack,
     onUpdate,
     onDelete,
@@ -114,7 +116,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
         }
         try {
             toast.info('Generating PDF...');
-            await downloadPdf(report.id, creds);
+            await downloadPdf(report.id, creds, addInDataId);
             toast.success('PDF downloaded');
         } catch (err) {
             // If session expired, try refreshing credentials and retry once
@@ -123,7 +125,7 @@ export const ReportDetailPage: React.FC<ReportDetailPageProps> = ({
                 const freshCreds = await refreshCredentials();
                 if (freshCreds?.sessionId) {
                     try {
-                        await downloadPdf(report.id, freshCreds);
+                        await downloadPdf(report.id, freshCreds, addInDataId);
                         toast.success('PDF downloaded');
                         return;
                     } catch (retryErr) {

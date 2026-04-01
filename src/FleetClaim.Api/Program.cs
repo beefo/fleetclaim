@@ -222,6 +222,11 @@ async Task<(bool Success, string? Error, IGeotabApi? Api)> VerifyCredentialsAsyn
     catch (Exception ex)
     {
         Console.WriteLine($"[VerifyCredentials] FAIL: {ex.GetType().Name}: {ex.Message}");
+        if (ex.Data.Count > 0)
+        {
+            foreach (var key in ex.Data.Keys)
+                Console.WriteLine($"[VerifyCredentials] Data[{key}]: {ex.Data[key]}");
+        }
         return (false, $"Invalid or expired credentials: {ex.Message}", null);
     }
 }
@@ -322,9 +327,19 @@ app.MapPost("/api/pdf", async (
     
     try
     {
-        var reports = await repository.GetReportsAsync(api, ct: ct);
-        var report = reports.FirstOrDefault(r => r.Id == request.ReportId);
-        
+        IncidentReport? report;
+        if (!string.IsNullOrEmpty(request.AddInDataId))
+        {
+            // Fast path: fetch directly by Geotab record ID
+            report = await repository.GetReportByIdAsync(api, request.AddInDataId, ct);
+        }
+        else
+        {
+            // Slow fallback: scan all reports (legacy clients without addInDataId)
+            var reports = await repository.GetReportsAsync(api, ct: ct);
+            report = reports.FirstOrDefault(r => r.Id == request.ReportId);
+        }
+
         if (report == null)
         {
             return Results.NotFound(new { error = "Report not found" });
@@ -358,6 +373,11 @@ app.MapPost("/api/pdf", async (
     catch (Exception ex)
     {
         Console.WriteLine($"[PDF POST] ERROR: {ex.GetType().Name}: {ex.Message}");
+        if (ex.Data.Count > 0)
+        {
+            foreach (var key in ex.Data.Keys)
+                Console.WriteLine($"[PDF POST] Data[{key}]: {ex.Data[key]}");
+        }
         Console.WriteLine($"[PDF POST] Stack: {ex.StackTrace}");
         return Results.Problem(
             detail: "Error generating PDF: " + ex.Message,
@@ -444,6 +464,13 @@ app.MapGet("/api/pdf/{database}/{reportId}", async (
     }
     catch (Exception ex)
     {
+        Console.WriteLine($"[PDF GET] ERROR: {ex.GetType().Name}: {ex.Message}");
+        if (ex.Data.Count > 0)
+        {
+            foreach (var key in ex.Data.Keys)
+                Console.WriteLine($"[PDF GET] Data[{key}]: {ex.Data[key]}");
+        }
+        Console.WriteLine($"[PDF GET] Stack: {ex.StackTrace}");
         return Results.Problem(
             detail: "Error generating PDF: " + ex.Message,
             statusCode: 500);
@@ -504,6 +531,13 @@ app.MapPost("/api/email", async (
     }
     catch (Exception ex)
     {
+        Console.WriteLine($"[EMAIL POST] ERROR: {ex.GetType().Name}: {ex.Message}");
+        if (ex.Data.Count > 0)
+        {
+            foreach (var key in ex.Data.Keys)
+                Console.WriteLine($"[EMAIL POST] Data[{key}]: {ex.Data[key]}");
+        }
+        Console.WriteLine($"[EMAIL POST] Stack: {ex.StackTrace}");
         return Results.Problem(
             detail: "Error sending email: " + ex.Message,
             statusCode: 500);

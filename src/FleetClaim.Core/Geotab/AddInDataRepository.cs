@@ -7,6 +7,7 @@ namespace FleetClaim.Core.Geotab;
 public interface IAddInDataRepository
 {
     Task<List<IncidentReport>> GetReportsAsync(IGeotabApi api, DateTime? since = null, CancellationToken ct = default);
+    Task<IncidentReport?> GetReportByIdAsync(IGeotabApi api, string geotabId, CancellationToken ct = default);
     Task<List<ReportRequest>> GetPendingRequestsAsync(IGeotabApi api, CancellationToken ct = default);
     Task<List<ReportRequest>> GetStaleRequestsAsync(IGeotabApi api, TimeSpan timeout, CancellationToken ct = default);
     Task<CustomerConfig?> GetConfigAsync(IGeotabApi api, CancellationToken ct = default);
@@ -65,6 +66,33 @@ public class AddInDataRepository : IAddInDataRepository
             .ToList();
     }
     
+    public async Task<IncidentReport?> GetReportByIdAsync(IGeotabApi api, string geotabId, CancellationToken ct = default)
+    {
+        var results = await api.CallAsync<List<object>>("Get", typeof(AddInData), new
+        {
+            search = new { id = geotabId }
+        }, ct);
+
+        if (results == null || results.Count == 0)
+            return null;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(results[0]);
+            using var doc = JsonDocument.Parse(json);
+
+            if (doc.RootElement.TryGetProperty("details", out var details) ||
+                doc.RootElement.TryGetProperty("Details", out details))
+            {
+                var wrapper = details.Deserialize<AddInDataWrapper>(JsonOptions);
+                return wrapper?.GetPayload<IncidentReport>();
+            }
+        }
+        catch { /* Malformed record */ }
+
+        return null;
+    }
+
     public async Task<List<ReportRequest>> GetPendingRequestsAsync(IGeotabApi api, CancellationToken ct = default)
     {
         // Use server-side filtering for type and status

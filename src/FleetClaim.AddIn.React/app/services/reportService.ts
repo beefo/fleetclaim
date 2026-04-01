@@ -240,12 +240,13 @@ function buildAuthHeaders(credentials: GeotabCredentials): HeadersInit {
  */
 export async function downloadPdf(
     reportId: string,
-    credentials: GeotabCredentials
+    credentials: GeotabCredentials,
+    addInDataId?: string
 ): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/api/pdf`, {
         method: 'POST',
         headers: buildAuthHeaders(credentials),
-        body: JSON.stringify({ reportId })
+        body: JSON.stringify({ reportId, ...(addInDataId && { addInDataId }) })
     });
     
     if (!response.ok) {

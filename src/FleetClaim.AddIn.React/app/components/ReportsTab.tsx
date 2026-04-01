@@ -70,6 +70,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
     
     const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+    const [selectedAddInDataId, setSelectedAddInDataId] = useState<string | null>(null);
     const [isFiltersOpen, setIsFiltersOpen] = useState(false);
     const [selection, setSelection] = useState(getEmptySelection());
     const [sortValue, setSortValue] = useState(getSortableValue('fleetclaim-reports', {
@@ -94,9 +95,11 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
     const handleViewReport = useCallback((report: IncidentReport) => {
         // Push a history state so browser back button returns to list
         window.history.pushState({ reportDetail: true, reportId: report.id }, '', window.location.href);
+        const record = reports.find(r => r.report.id === report.id);
         setSelectedReport(report);
         setSelectedReportId(report.id);
-    }, []);
+        setSelectedAddInDataId(record?.addInDataId ?? null);
+    }, [reports]);
 
     // Close detail view - called by UI back button
     const handleCloseModal = useCallback(() => {
@@ -113,6 +116,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         window.history.replaceState(null, '', window.location.href);
         setSelectedReport(null);
         setSelectedReportId(null);
+        setSelectedAddInDataId(null);
     }, []);
 
     // Handle browser back button to return to list from detail view
@@ -122,6 +126,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
             if (selectedReport) {
                 setSelectedReport(null);
                 setSelectedReportId(null);
+                setSelectedAddInDataId(null);
             }
         };
 
@@ -349,6 +354,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ onRefresh, toast }) => {
         return (
             <ReportDetailPage
                 report={selectedReport}
+                addInDataId={selectedAddInDataId ?? undefined}
                 onBack={handleCloseModal}
                 onUpdate={handleUpdateReport}
                 onDelete={handleDeleteReport}

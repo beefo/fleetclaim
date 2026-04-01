@@ -12,6 +12,11 @@ public record PdfGenerateRequest
 {
     public GeotabCredentialsRequest Credentials { get; init; } = new();
     public string ReportId { get; init; } = "";
+    /// <summary>
+    /// The Geotab AddInData record ID (e.g. "aIr43nKVL8U6lf4YbaFjy7A").
+    /// When provided, the report is fetched directly by ID — much faster than scanning all records.
+    /// </summary>
+    public string? AddInDataId { get; init; }
 }
 
 public record EmailSendRequest
